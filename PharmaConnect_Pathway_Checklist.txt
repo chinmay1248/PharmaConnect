@@ -1,0 +1,867 @@
+
+PHARMACONNECT
+
+Complete Build Pathway & Checklist
+
+Zero to Deployed Product — 18 Phases — Every Task as a Tickable Checkbox
+
+
+
+Progress Tracker
+Update each row as you progress: ⬜ Not Started → 🔄 In Progress → ✅ Complete
+
+
+
+
+
+0.1 — Laptop Installations
+☐  Install Node.js LTS  from nodejs.org — click the green LTS button
+☐  Verify: open terminal → type node -v → see v20.x.x or higher
+☐  Verify: type npm -v → see 10.x.x or higher
+☐  Install Git  from git-scm.com — select VS Code as default editor during install
+☐  Verify: type git --version → see git version 2.x.x
+☐  Set name: git config --global user.name "Your Name"
+☐  Set email: git config --global user.email "your@email.com"
+☐  Install Expo CLI  run: npm install -g expo-cli
+☐  Verify: expo --version → see a version number
+☐  Install EAS CLI  run: npm install -g eas-cli
+☐  Verify: eas --version → see a version number
+☐  Install Prisma CLI  run: npm install -g prisma
+☐  Install Nodemon  run: npm install -g nodemon
+☐  Install TypeScript  run: npm install -g typescript
+☐  Install PostgreSQL 16  from postgresql.org — remember the password you set
+☐  Verify: psql --version → see psql (PostgreSQL) 16.x
+☐  Install TablePlus  from tableplus.com — visual database manager
+☐  Connect TablePlus to local PostgreSQL using host: localhost, port: 5432
+☐  Install Expo Go on your Android phone  from Google Play Store
+
+0.2 — VS Code Extensions (install all 16)
+☐  ESLint  (dbaeumer.vscode-eslint)
+☐  Prettier  (esbenp.prettier-vscode)
+☐  ES7+ React Native Snippets  (dsznajder.es7-react-js-snippets)
+☐  Tailwind CSS IntelliSense  (bradlc.vscode-tailwindcss)
+☐  Prisma  (Prisma.prisma)
+☐  GitLens  (eamodio.gitlens)
+☐  Thunder Client  (rangav.vscode-thunder-client)
+☐  Auto Rename Tag  (formulahendry.auto-rename-tag)
+☐  Path IntelliSense  (christian-kohler.path-intellisense)
+☐  JavaScript Snippets  (xabikos.JavaScriptSnippets)
+☐  Error Lens  (usernamehw.errorlens)
+☐  Import Cost  (wix.vscode-import-cost)
+☐  Better Comments  (aaron-bond.better-comments)
+☐  DotENV  (mikestead.dotenv)
+☐  One Dark Pro  (zhuangtongfa.material-theme)
+☐  Material Icon Theme  (pkief.material-icon-theme)
+
+0.3 — VS Code Settings
+☐  Settings → search "format on save" → enable
+☐  Settings → search "default formatter" → select Prettier - Code Formatter
+☐  Settings → search "auto save" → set to afterDelay
+☐  Settings → search "bracket pair" → enable Bracket Pair Colorization
+
+0.4 — Accounts to Create (all free)
+☐  GitHub  github.com → create private repo named "pharmaconnect"
+☐  Expo  expo.dev → create account → run: npx expo login in terminal
+☐  Supabase  supabase.com → create project "pharmaconnect" → save database URL
+☐  Firebase  firebase.google.com → create project → enable Phone + Google auth → download google-services.json
+☐  Cloudinary  cloudinary.com → save: Cloud Name, API Key, API Secret
+☐  Razorpay  razorpay.com → generate test Key ID and Key Secret
+☐  Google Cloud  console.cloud.google.com → enable Maps SDK + Places API + Geocoding API → save API key
+☐  Railway  railway.app → create account → connect GitHub
+☐  Vercel  vercel.com → create account → connect GitHub
+
+
+
+
+
+1.1 — Create Root Project Structure
+☐  Create folder on Desktop named: pharmaconnect
+☐  Open that folder in VS Code (File → Open Folder)
+☐  Open terminal in VS Code (Ctrl + `)
+☐  Run: git init
+☐  Run: git remote add origin <your-github-repo-url>
+☐  Create three folders inside: mobile,  web,  backend
+☐  Create root README.md with project name and one-line description
+☐  First commit: git add . → git commit -m "chore: project root created" → git push origin main
+
+1.2 — Initialise the Mobile App
+☐  In terminal: cd mobile
+☐  Run: npx create-expo-app . --template blank-typescript
+☐  Install Expo Router: npx expo install expo-router
+☐  Install NativeWind: npm install nativewind  and  npm install --save-dev tailwindcss
+☐  Create tailwind.config.js with NativeWind configuration
+☐  Update babel.config.js to add NativeWind preset
+☐  Run the app: npx expo start
+☐  Scan QR code with Expo Go on your phone
+☐  See the default Expo screen on your phone — app is running!
+
+1.3 — Set Up Mobile Folder Structure (create all folders)
+☐  app/(auth)/   app/(tabs)/   app/medicine/   app/cart/   app/order/
+☐  components/ui/   components/medicine/   components/retailer/   components/cart/   components/order/   components/home/
+☐  hooks/   store/   services/   constants/   utils/   assets/images/   assets/fonts/
+
+1.4 — Install All Mobile Dependencies
+☐  Navigation: npx expo install expo-router react-native-safe-area-context react-native-screens expo-linking expo-constants expo-status-bar
+☐  Icons: npm install @expo/vector-icons
+☐  State: npm install zustand
+☐  API calls: npm install axios
+☐  Storage: npx expo install @react-native-async-storage/async-storage
+☐  Image picker: npx expo install expo-image-picker
+☐  Camera: npx expo install expo-camera
+☐  Barcode scanner: npx expo install expo-barcode-scanner
+☐  Location: npx expo install expo-location
+☐  Notifications: npx expo install expo-notifications
+☐  Maps: npx expo install react-native-maps
+☐  PDF/Print: npx expo install expo-print expo-sharing
+
+
+
+
+
+
+2.1 — Splash Screen  (Screen 01)
+☐  Create app/(auth)/splash.tsx
+☐  Add PharmaConnect logo centered on screen
+☐  Add app name below logo
+☐  Add animated fade-in effect
+☐  Check AsyncStorage for existing auth token
+☐  If token exists → navigate to /(tabs)/home
+☐  If no token → navigate to /onboarding (first time) or /login (returning)
+☐  Auto-navigate after 2.5 seconds
+
+
+2.2 — Onboarding Screen  (Screen 02)
+☐  Create app/(auth)/onboarding.tsx
+☐  Build Slide 1: "Find medicines near you" with illustration
+☐  Build Slide 2: "Compare prices and brands" with illustration
+☐  Build Slide 3: "Order and track easily" with illustration
+☐  Add horizontal FlatList for swipe between slides
+☐  Add dot indicator showing current slide position
+☐  Add Next button — moves to next slide
+☐  Add Skip button — jumps directly to Login screen
+☐  Last slide: Next becomes Get Started → navigate to Login
+☐  Save onboarding_seen flag in AsyncStorage so it shows only once
+
+
+2.3 — Login Screen  (Screen 03)
+☐  Create app/(auth)/login.tsx
+☐  Add PharmaConnect logo at top
+☐  Build phone number input with +91 prefix
+☐  Add phone number validation — must be 10 digits
+☐  Add Send OTP button — disabled until valid phone entered
+☐  Add Continue with Google button
+☐  Integrate Firebase Auth — Google sign-in
+☐  On Send OTP → call Firebase signInWithPhoneNumber → navigate to OTP screen
+☐  On Google success → save user → navigate to Home
+☐  Show loading spinner during requests
+☐  Show error message for failed attempts
+
+
+2.4 — OTP Verification Screen  (Screen 04)
+☐  Create app/(auth)/otp.tsx
+☐  Show "Enter OTP sent to +91 XXXXXXX" header
+☐  Build 6 individual text input boxes — one per digit
+☐  Auto-focus next box on digit entry
+☐  Auto-focus previous box on backspace
+☐  Add 60-second countdown timer
+☐  Add Resend OTP button — disabled during countdown
+☐  On Verify → call Firebase confirmationResult.confirm(otp)
+☐  On success → save JWT → update authStore → navigate to Home
+☐  On wrong OTP → show error, clear inputs, allow retry
+
+
+2.5 — Auth State Management
+☐  Create store/authStore.ts using Zustand
+☐  State: user, token, isLoggedIn, isLoading
+☐  Action: login(user, token) — saves to AsyncStorage
+☐  Action: logout() — clears state and AsyncStorage
+☐  On app start: read token from AsyncStorage → auto-login if valid
+
+
+
+
+3.1 — Bottom Tab Navigation
+☐  Create app/(tabs)/_layout.tsx
+☐  Set up 4 tabs: Home, Search, Orders, Profile
+☐  Add icons for each tab using @expo/vector-icons
+☐  Style tab bar — brand colors, active/inactive states
+☐  Add notification badge counter on Orders tab
+
+3.2 — Location Detection
+☐  Request location permission on home screen load
+☐  Handle permission denied — show Enable Location prompt
+☐  On permission granted: get GPS coordinates with expo-location
+☐  Reverse geocode to get area name (locality + city)
+☐  Store coordinates and area name in locationStore
+
+3.3 — Home Screen UI
+☐  Create app/(tabs)/home.tsx
+☐  Header: location display + change button + notification bell icon with badge
+☐  Search bar — tapping navigates to Search screen (does not search from here)
+☐  BannerCarousel component — auto-scrolling horizontal banners with dots
+☐  CategoryPills component — horizontal scrollable list (Pain Relief, Diabetes, Vitamins, etc.)
+☐  Offers near you section — horizontal scroll of offer cards
+☐  Recently ordered section — empty state for new users
+☐  Pull-to-refresh functionality
+
+
+
+
+
+4.1 — Search Screen  (Screen 06)
+☐  Create app/(tabs)/search.tsx
+☐  Focused search input active immediately on screen open
+☐  Debounce — 300ms delay before API call fires
+☐  Barcode scan button — opens camera scanner
+☐  Barcode scan → decode → search by barcode result
+☐  Recent searches list shown when input is empty
+☐  Save recent searches to AsyncStorage — max 10
+☐  Medicine results list as user types
+☐  No results empty state for unrecognised searches
+
+4.2 — Medicine Results List
+☐  Show all medicines with same salt content
+☐  Searched medicine appears FIRST in the list
+☐  MedicineCard component: brand name, company, dosage, MRP, Generic badge, Rx badge
+☐  Filter chips bar: Brand Name, Brand Rating, Price Low-High, Nearest Store, In-Stock Only, Generic/Branded toggle
+☐  Apply filters to results in real time
+☐  Show active filter chips with × to remove
+☐  Show result count ("12 medicines found")
+
+4.3 — Medicine Detail Screen  (Screen 07)
+☐  Create app/medicine/[id].tsx
+☐  Fetch medicine: GET /medicines/:id
+☐  Show medicine name, brand, company name
+☐  Show composition (salt name and strength)
+☐  Show diseases this medicine treats
+☐  Show dosage strength and pack size
+☐  Show MRP price
+☐  Show Rx Required badge and Generic badge
+☐  Build Substitute Medicines section — same salt, other brands with price comparison
+☐  Add Find in Stores button → navigates to Retailer List
+
+4.4 — Retailer List Screen  (Screen 08)
+☐  Create app/medicine/retailers.tsx
+☐  Fetch: GET /medicines/:id/retailers (pass GPS coordinates)
+☐  Default sort: nearest first
+☐  RetailerCard: store name, distance, price, stock qty, star rating, delivery badge
+☐  Sort button — switch between Nearest, Lowest Price, Highest Rating
+☐  Skeleton loading cards while fetching
+☐  No stores nearby empty state
+☐  Select button per retailer → add to cartStore → navigate to Cart
+
+
+
+
+
+5.1 — Cart State Management
+☐  Create store/cartStore.ts using Zustand
+☐  Actions: addItem, removeItem, updateQuantity, setRetailer, setDeliveryType, clearCart
+☐  Persist cart in AsyncStorage — survives app restart
+
+5.2 — Cart Screen  (Screen 09)
+☐  Create app/cart/index.tsx
+☐  Show selected retailer info at top
+☐  Cart items with medicine name, dosage, quantity +/− controls, price
+☐  Swipe left on item to delete
+☐  Rx Required warning badge on medicines needing prescription
+☐  Delivery type selector: Home Delivery vs Pickup
+☐  Price breakdown: Subtotal, Offers/Discounts, Delivery Charge, Total
+☐  Empty cart state with Search Medicines button
+☐  Place Order sticky button at bottom
+
+5.3 — Prescription Upload
+☐  Create app/order/prescription.tsx
+☐  Show list of medicines requiring prescription
+☐  Upload from Camera button → expo-camera
+☐  Upload from Gallery button → expo-image-picker
+☐  Image preview after selection
+☐  Upload progress bar
+☐  Upload image to Cloudinary via POST /orders/:id/prescription
+☐  Success tick when upload completes
+
+5.4 — Order Placement Logic
+☐  On Place Order tap → POST /orders → get order_id
+☐  If Rx required → navigate to Prescription Upload screen
+☐  If no Rx required → navigate to Payment screen
+☐  Loading overlay during API call
+☐  Error toast if API call fails
+
+
+
+
+
+6.1 — Payment Screen UI
+☐  Create app/order/payment.tsx
+☐  Order summary at top — items count, total amount
+☐  Payment method options: UPI, Credit/Debit Card, Net Banking, Cash on Delivery
+☐  Pay ₹[amount] button at bottom — disabled until method selected
+
+6.2 — Razorpay Integration
+☐  Install: npm install react-native-razorpay
+☐  On Pay tap (non-COD) → POST /payments/create-order → get Razorpay order_id
+☐  Open Razorpay checkout sheet with order_id, amount, key_id, prefill data
+☐  On payment success → POST /payments/verify → navigate to Order Tracking
+☐  On payment failure → show retry dialog
+☐  On payment cancel → stay on payment screen with message
+
+6.3 — COD Flow
+☐  On Pay tap (COD) → POST /payments/cod
+☐  On success → navigate to Order Tracking with confirmed status
+
+
+
+
+
+7.1 — Order Tracking Screen  (Screen 10)
+☐  Create app/order/tracking/[id].tsx
+☐  Fetch: GET /orders/:id
+☐  5-step tracker: Order Placed → Confirmed → Packed → Out for Delivery → Delivered
+☐  Timestamp shown for each completed step
+☐  Estimated delivery time display
+☐  Retailer contact number — tap to call
+☐  Auto-refresh every 30 seconds
+☐  Download Invoice button
+
+7.2 — Push Notifications Setup
+☐  Register for FCM in app/_layout.tsx on app load
+☐  Request notification permission from user
+☐  Get Expo push token → POST /notifications/register-token
+☐  Handle notifications in foreground — show toast
+☐  Handle notification tap in background — navigate to correct screen
+☐  Verify notifications fire for: order received, Rx approved/denied, packed, dispatched, delivered
+
+7.3 — Invoice Screen  (Screen 11)
+☐  Create app/order/invoice/[id].tsx
+☐  Fetch: GET /invoices/:id
+☐  Show invoice number, date, customer and retailer details
+☐  Itemised table: medicine | qty | unit price | total
+☐  Price breakdown: Subtotal, Discount, Delivery, GST (5%), Grand Total
+☐  Payment method and transaction ID
+☐  Download PDF button — expo-print to generate PDF → expo-sharing to save/share
+
+
+
+
+
+8.1 — Order History Screen  (Screen 12)
+☐  Create app/(tabs)/orders.tsx
+☐  Fetch: GET /orders (paginated)
+☐  OrderCard: order number, date, retailer, status badge, amount, item count
+☐  Filter tabs: All | Active | Completed | Cancelled
+☐  Tap order → navigate to Tracking or Invoice based on status
+☐  Reorder button on completed orders
+☐  Empty state for no orders
+
+8.2 — Profile Screen  (Screen 13)
+☐  Create app/(tabs)/profile.tsx
+☐  Show profile photo, name, phone number
+☐  Edit profile: change name and photo (Cloudinary upload)
+☐  Addresses section: list, edit, delete, add new, set default
+☐  Add address: manual form + Use My Current Location GPS option
+☐  Dark mode / light mode toggle
+☐  Logout button with confirmation dialog
+
+8.3 — Notifications Screen  (Screen 14)
+☐  Create app/notifications.tsx
+☐  Fetch: GET /notifications (paginated)
+☐  Show each notification: icon, title, message, timestamp
+☐  Unread notifications have highlighted background
+☐  Tap notification → navigate to relevant screen
+☐  Mark all as read button
+☐  Empty state for no notifications
+
+
+
+
+
+
+9.1 — Backend Project Setup
+☐  Navigate to backend/ folder: cd backend
+☐  Run: npm init -y
+☐  Install dependencies: npm install express @prisma/client cors dotenv bcryptjs jsonwebtoken zod multer razorpay firebase-admin cloudinary pdfkit
+☐  Install dev dependencies: npm install -D typescript ts-node nodemon @types/express @types/node @types/cors @types/bcryptjs @types/jsonwebtoken
+☐  Create tsconfig.json with TypeScript configuration
+☐  Create nodemon.json to watch TypeScript files
+☐  Add scripts to package.json: dev, build, start
+
+9.2 — Express Server Setup
+☐  Create src/app.ts — Express app with CORS, JSON parser, error handler
+☐  Create src/server.ts — HTTP server entry point
+☐  Add health check route: GET /health → returns { status: "OK", timestamp }
+☐  Run server: npm run dev
+☐  Test in Thunder Client: GET http://localhost:3000/health → see { status: "OK" }
+
+9.3 — Environment Setup
+☐  Create .env file with all required variables
+☐  Create .env.example with same keys but empty values
+☐  Create .gitignore — add .env, node_modules, dist
+☐  Verify .env is in .gitignore — never commit secrets
+
+9.4 — Database Setup with Prisma
+☐  Run: npx prisma init → creates schema.prisma and updates .env
+☐  Set DATABASE_URL in .env to Supabase connection string
+☐  Write all 33 tables in prisma/schema.prisma — 8 groups as documented
+☐  Run first migration: npx prisma migrate dev --name init
+☐  Open TablePlus → verify all 33 tables exist
+☐  Write seed data in prisma/seed.ts — 1 company, 2 wholesalers, 3 retailers, 10 customers, 20 medicines
+☐  Run seed: npx prisma db seed
+☐  Open TablePlus → verify seed data in tables
+
+9.5 — Auth Utilities
+☐  Create src/utils/jwt.ts — signAccessToken, signRefreshToken, verifyToken
+☐  Create src/middleware/auth.middleware.ts — verify JWT from Authorization header
+☐  Create src/middleware/role.middleware.ts — check user role
+☐  Create src/middleware/validate.middleware.ts — Zod schema validation
+
+
+
+
+
+
+10.1 — Auth Routes
+☐  POST /auth/send-otp — validate phone, call Firebase to send OTP
+☐  POST /auth/verify-otp — verify Firebase ID token, create/find user, return JWT pair
+☐  POST /auth/google — verify Google credential, return JWT pair
+☐  POST /auth/refresh — verify refresh token, return new access token
+☐  POST /auth/logout — revoke session
+☐  Test all 5 in Thunder Client
+
+10.2 — Medicine & Search Routes
+☐  GET /medicines/search — full-text with filters, Haversine distance sort
+☐  GET /medicines/:id — medicine detail + salt + diseases + substitutes
+☐  GET /medicines/:id/retailers — retailers sorted by GPS distance
+☐  Test all 3 — verify results match seed data
+
+10.3 — Customer Order Routes
+☐  POST /orders — create order, reserve inventory, handle Rx flag
+☐  GET /orders — order history paginated and filterable
+☐  GET /orders/:id — order detail with items, status, tracking
+☐  PATCH /orders/:id/cancel — cancel and release inventory
+☐  POST /orders/:id/prescription — upload to Cloudinary, save URL
+☐  GET /orders/:id/tracking — tracking events list
+
+10.4 — Payment Routes
+☐  POST /payments/create-order — create Razorpay order
+☐  POST /payments/verify — verify signature, confirm order
+☐  POST /payments/cod — confirm cash on delivery
+
+10.5 — Invoice & Notification Routes
+☐  GET /invoices/:id — fetch invoice data
+☐  GET /invoices/:id/download — stream PDF to client
+☐  POST /notifications/register-token — save FCM token
+☐  GET /notifications — paginated notification list
+☐  PATCH /notifications/:id/read — mark as read
+☐  PATCH /notifications/read-all — mark all as read
+
+10.6 — Retailer Routes
+☐  GET /retailer/orders — incoming customer orders
+☐  PATCH /retailer/orders/:id/approve — approve + prescription
+☐  PATCH /retailer/orders/:id/deny — deny with reason
+☐  PATCH /retailer/orders/:id/dispatch — dispatch + FIFO inventory deduction
+☐  PATCH /retailer/orders/:id/deliver — confirm delivery
+☐  GET /retailer/inventory — stock with low stock and expiry flags
+☐  GET /retailer/analytics — aggregated sales data
+☐  POST /retailer/purchase-orders — place order to wholesaler
+☐  GET /retailer/purchase-orders — purchase order history
+
+10.7 — Wholesaler Routes
+☐  GET /wholesaler/orders — incoming retailer orders
+☐  PATCH /wholesaler/orders/:id/approve — approve with optional custom pricing
+☐  PATCH /wholesaler/orders/:id/deny — deny with reason
+☐  PATCH /wholesaler/orders/:id/dispatch — dispatch to retailer
+☐  GET /wholesaler/inventory — stock with batch and expiry
+☐  GET /wholesaler/retailers — retailer list and history
+☐  POST /wholesaler/schemes — create scheme
+☐  GET /wholesaler/analytics — business dashboard data
+☐  POST /wholesaler/purchase-orders — place bulk order to company
+
+10.8 — Company Routes
+☐  GET /company/analytics — wholesaler performance data
+☐  POST /company/offers — create offer for wholesaler
+☐  GET /company/supplier-requests — pending requests
+☐  PATCH /company/supplier-requests/:id — approve or reject
+☐  GET /company/medicines — full catalogue
+☐  POST /company/medicines — add new medicine
+☐  PATCH /company/medicines/:id — update
+☐  DELETE /company/medicines/:id — soft delete
+
+10.9 — Services
+☐  Create inventory.service.ts — FIFO deductStock(), addStock(), checkLowStock(), checkExpiry()
+☐  Create notification.service.ts — sendToUser() using Firebase Admin FCM
+☐  Wire notifications on: order placed, approved, denied, dispatched, delivered
+
+
+
+
+
+11.1 — API Service Setup
+☐  Create services/api.ts — Axios instance with base URL
+☐  Request interceptor — attach Authorization: Bearer <token> to every request
+☐  Response interceptor — on 401 → try refresh → if fails → logout
+
+11.2 — Connect Each Screen to Real API
+☐  Login screen → POST /auth/send-otp + verify-otp
+☐  Search screen → GET /medicines/search
+☐  Medicine detail → GET /medicines/:id
+☐  Retailer list → GET /medicines/:id/retailers
+☐  Place order → POST /orders
+☐  Prescription upload → POST /orders/:id/prescription
+☐  Payment → POST /payments/create-order + Razorpay SDK + POST /payments/verify
+☐  Order tracking → GET /orders/:id/tracking (30s polling)
+☐  Invoice → GET /invoices/:id
+☐  Profile → GET + PATCH /customers/profile
+☐  Order history → GET /orders
+☐  Addresses → all address endpoints
+☐  Notifications → GET /notifications + mark as read
+
+11.3 — Full End-to-End Test
+☐  Register with real phone, receive OTP on real SIM
+☐  Search for a seeded medicine
+☐  View detail, select seeded retailer, add to cart
+☐  Place order, upload prescription photo
+☐  Pay via Razorpay test card
+☐  Receive order confirmed notification
+☐  Update order status via Thunder Client — verify tracking screen updates
+☐  Download invoice PDF
+
+
+
+
+
+12.0 — Role-Based Routing
+☐  After login check user role from authStore
+☐  role === 'retailer' → redirect to /(retailer)/dashboard
+☐  role === 'customer' → redirect to /(tabs)/home
+☐  Create app/(retailer)/ folder and _layout.tsx with retailer bottom tabs
+☐  Retailer tabs: Dashboard, Orders (with badge), Inventory (with badge), Buy, Analytics
+
+12.1 — Retailer Dashboard Screen
+☐  KPI cards: Pending Orders, Today Revenue, Orders Delivered, Low Stock Items
+☐  Recent Orders section — last 5 pending orders
+☐  Alerts section: Low stock cards + Expiry alert cards
+☐  Quick Action buttons: View Orders, View Inventory, Buy Stock
+☐  Auto-refresh every 60 seconds
+
+12.2 — Retailer Orders List Screen
+☐  Filter tabs: All | Pending | Approved | Packed | Dispatched | Delivered | Denied
+☐  RetailerOrderCard: order number, customer name, items, amount, time, status badge
+☐  Rx Required badge on orders with prescription medicines
+☐  Search by order number or customer name
+☐  Real-time polling every 30 seconds for new orders
+
+12.3 — Retailer Order Detail Screen
+☐  Customer info, order items list, price summary
+☐  Prescription image — full screen tap to zoom
+☐  Action buttons change based on status:
+☐  Pending + no Rx → Approve Order and Deny Order buttons
+☐  Pending + Rx required → Prescription section → then approve/deny
+☐  Approved → Mark as Packed button
+☐  Packed → Mark as Dispatched button
+☐  Dispatched → Confirm Delivery button
+☐  Denial reason modal with text input
+☐  All status changes → send FCM push to customer
+
+12.4 — Retailer Inventory Screen
+☐  Search medicines in inventory
+☐  Filter: All | Low Stock | Expiring Soon | Out of Stock
+☐  InventoryCard: medicine name, company, batch, stock qty, expiry, price, status bar
+☐  Low stock highlighted orange, expiring in red
+☐  Add new batch form: batch no, qty, purchase price, selling price, expiry, manufacture date
+☐  Update stock form: update quantity or selling price per batch
+
+12.5 — Retailer Buy Flow
+☐  Search medicine to restock — shows low stock suggestions
+☐  Wholesaler list: Frequent tab + All tab, schemes shown, Best Deal highlighted
+☐  Place order form: quantity selector, scheme auto-applied, price breakdown
+☐  Purchase order history with filter by status
+☐  Confirm receipt button → inventory auto-adds + inventory_id linked
+
+12.6 — Retailer Analytics Screen
+☐  Period selector: Today | This Week | This Month | Custom Range
+☐  Revenue card with % change vs previous period
+☐  Orders bar chart — orders per day
+☐  Revenue line chart — revenue per day
+☐  Top selling medicines list — rank, units sold, revenue
+☐  Slow moving medicines list
+☐  Payment method breakdown pie chart
+
+
+
+
+
+13.0 — Web App Setup
+☐  In web/ folder: npx create-next-app . --typescript --tailwind
+☐  Install shadcn/ui: npx shadcn-ui@latest init
+☐  Install Recharts: npm install recharts
+☐  Create (wholesaler)/ route group with sidebar layout
+☐  WholesalerSidebar: Dashboard, Orders (with badge), Inventory, Retailers, Schemes, Buy, Analytics, Invoices, Settings
+☐  Protected route — redirect to login if not authenticated as wholesaler
+
+13.1 — Wholesaler Dashboard Page
+☐  KPI cards: Total Revenue, Pending Orders, Low Stock Alerts, Active Retailers
+☐  Revenue vs Dispatched orders line chart — last 30 days
+☐  Revenue by Medicine Category bar chart
+☐  Recent Retailer Orders table — last 10 with action buttons
+☐  Top Retailers This Month leaderboard
+☐  Stock Alerts panel — low stock and expiring
+
+13.2 — Retailer Orders Page
+☐  Filter tabs: All | Pending | Approved | Dispatched | Delivered | Denied
+☐  Search by order number or retailer name + date range filter
+☐  Data table: Order #, Retailer, Items, Amount, Payment Status, Status, Actions
+☐  Order Detail side sheet — slides in from right on View click
+☐  Approve flow: confirmation dialog + custom pricing option + scheme toggle
+☐  Deny flow: predefined reasons + custom text + confirmation
+☐  Dispatch flow: expected delivery date + confirmation
+☐  All actions trigger FCM notification to retailer
+☐  Bulk select + bulk approve/deny
+☐  Export to CSV button
+
+13.3 — Inventory Page
+☐  Summary bar: Total SKUs, Total Units, Low Stock Items, Expiring in 30 Days
+☐  Filter tabs + search + data table with status color coding
+☐  Add New Stock modal: medicine search, batch, qty, prices, expiry, manufacture date
+☐  Edit Stock modal: update quantity and selling price
+☐  Inventory history side sheet — all stock movements with reason and timestamp
+☐  Expired Medicines section: list expired batches + Create Return Request per batch
+
+13.4 — Retailers Page
+☐  Retailer list with search and city filter
+☐  Retailer table: Name, City, Total Orders, Revenue, Last Order, Relationship Status
+☐  Retailer profile side sheet: details, order history, custom pricing, active schemes
+☐  Custom Pricing modal: select medicine, set price, set validity period
+☐  Mark as Frequent toggle per retailer
+
+13.5 — Schemes Page
+☐  Active Schemes tab + Expired Schemes tab
+☐  Scheme card: name, type badge, target, medicine, discount details, validity, usage stats
+☐  Create Scheme modal with 4 types:
+☐  Flat Discount: fixed ₹ amount, minimum order
+☐  Percentage Discount: %, max cap, minimum order
+☐  Buy X Get Y: X units, Y free, applies to same or any medicine
+☐  Volume Incentive: threshold qty, incentive % or amount
+☐  Preview section shows how scheme looks to retailer
+
+13.6 — Buy from Company Page
+☐  My Suppliers section: approved company links with Order Now button
+☐  Request New Supplier modal: search companies, view profile, send request
+☐  Supplier request status tracker: Pending | Approved | Rejected
+☐  Place Bulk Order form: medicine selector, quantity, price, add rows, price summary
+☐  Purchase order history table with payment and confirm receipt actions
+☐  Confirm receipt → wholesaler inventory auto-updates
+
+13.7 — Analytics Page
+☐  Period selector: 7 Days | 30 Days | 3 Months | 1 Year | Custom
+☐  KPI row with % change vs previous period
+☐  Revenue Over Time area chart with toggle (Revenue/Orders/Units)
+☐  Top Selling Medicines horizontal bar chart
+☐  Top Retailers horizontal bar chart
+☐  Medicine Category donut chart
+☐  Orders by City table
+☐  Scheme Performance section
+☐  Download Full Report → PDF with all charts
+
+13.8 — Invoices Page
+☐  Sales Invoices tab (to retailers) + Purchase Invoices tab (from companies)
+☐  Invoice table: Invoice #, Date, Party, Amount, Payment Status, Actions
+☐  Invoice detail modal with full line items and GST breakdown
+☐  PDF download for every invoice
+
+
+
+
+
+14.0 — Company Setup
+☐  Create (company)/ route group in web app
+☐  CompanySidebar: Dashboard, Catalogue, Suppliers (with badge), Offers, Analytics, Pricing, Settings
+☐  Protected route — company role only
+
+14.1 — Company Dashboard Page
+☐  KPI cards: Total Revenue, Total Units Sold, Active Wholesalers, Pending Supplier Requests
+☐  Revenue Over Time area chart — last 12 months
+☐  Top Performing Wholesalers leaderboard with growth %
+☐  Top Selling Medicines list with % of total
+☐  Low Performing Medicines alert list with suggested actions
+☐  Active Offers status panel
+☐  Pending Supplier Requests quick action panel with Approve/Reject buttons
+
+14.2 — Medicine Catalogue Page
+☐  Catalogue summary: Total, Active, Discontinued, Rx Required, Generic
+☐  Filter tabs + search + data table
+☐  Add New Medicine form: name, salt selector or create new, type, dosage, pack size, MRP, Rx toggle, Generic toggle, description, image upload, disease association
+☐  Edit Medicine form — all fields editable except salt
+☐  Discontinue flow — confirmation dialog → soft delete
+☐  Medicine Performance side sheet: units sold, revenue, top wholesalers, top cities, 12-month trend chart
+
+14.3 — Supplier Management Page
+☐  Active Suppliers tab: table with Name, City, Total Orders, Revenue, Status, Actions
+☐  Suspend flow: confirmation + reason + FCM to wholesaler
+☐  Remove flow: double confirmation → permanent remove
+☐  Wholesaler profile side sheet: details, order history, medicine breakdown
+☐  Pending Requests tab: list with wholesaler details + Approve/Reject buttons
+☐  Approve: select purchase type (Direct/Distributor) → FCM to wholesaler
+☐  Reject: reason input → FCM to wholesaler
+
+14.4 — Offers & Schemes Page
+☐  Tabs: Active | Pending | Accepted | Declined | Expired
+☐  Offer card: name, target, medicine, type, discount, validity, acceptance status, impact metrics
+☐  3-step Create Offer form:
+☐  Step 1: Target wholesaler selection + recommendation panel from analytics
+☐  Step 2: Offer type + discount details (Flat / Percentage / Volume Incentive)
+☐  Step 3: Validity dates + preview + Send Offer → FCM to wholesaler
+☐  Offer Impact: orders under offer, revenue, uplift %, before/after comparison chart
+☐  Expired Medicine Returns: list from wholesalers, Acknowledge + Complete buttons
+
+14.5 — Analytics Page
+☐  Period selector for all tabs
+☐  Tab 1 — Wholesaler Performance: comparison table, revenue share donut, growth chart, wholesaler detail side sheet
+☐  Tab 2 — Medicine Performance: table with sparkline trends, Top 5 vs Bottom 5 split view
+☐  Tab 3 — Geography: sales by state colour-coded table, top cities table, region growth chart
+☐  Tab 4 — Offers Analytics: offer impact overview, per-offer performance table, acceptance rate
+☐  Download Full Report → comprehensive PDF
+☐  Export Data → CSV for any tab and period
+
+14.6 — Pricing Management Page
+☐  Medicine pricing table: Name, Salt, Dosage, MRP, Wholesale Rate, Margin %
+☐  Margin % colour coded: Green (>40%), Orange (20–40%), Red (<20%)
+☐  Inline editing — click price cell → input appears → save icon + cancel icon
+☐  Validation: MRP must be higher than wholesale rate
+☐  Bulk update: select multiple → Increase MRP by X% or Decrease wholesale by X% → preview → confirm
+☐  Price History side sheet — full change log with dates and values
+
+
+
+
+
+15.1 — Happy Path Testing
+☐  Customer: register → search → order → Razorpay payment → track → download invoice
+☐  Customer: order with prescription → upload → retailer approval → pay → deliver
+☐  Customer: COD order → confirm → deliver
+☐  Retailer: receive order → approve prescription → dispatch → confirm delivery
+☐  Retailer: restock from wholesaler → receive stock → inventory updates
+☐  Wholesaler: receive retailer order → approve → dispatch
+☐  Wholesaler: place bulk order to company → receive stock → inventory updates
+☐  Company: approve supplier request → wholesaler can now order
+☐  Company: create offer → wholesaler accepts → sales analytics show uplift
+
+15.2 — Edge Case Testing
+☐  Search with no results → empty state shows
+☐  Add to cart when stock = 0 → error shown
+☐  OTP expires before entering → resend works
+☐  Payment fails → retry option works
+☐  Prescription upload in wrong format → validation error shown
+☐  Prescription denied → customer sees reason, can upload new one
+☐  Order cancelled after payment → inventory released
+☐  App opened with no internet → offline message shown
+☐  Location permission denied → manual entry prompt works
+☐  Camera permission denied → gallery option still works
+☐  Session expired → auto-redirect to login screen
+
+15.3 — Device Testing
+☐  Test on real Android phone — small screen (5 inch)
+☐  Test on real Android phone — large screen (6.5 inch)
+☐  Test in dark mode — all screens look correct
+☐  Test in light mode — all screens look correct
+☐  Test on slow 3G network — loading states show correctly
+☐  Test with no network — offline message shown, app does not crash
+
+15.4 — Notification Testing (all 16 types)
+☐  New customer order → retailer receives notification
+☐  Prescription approved/denied → customer receives notification with reason
+☐  Order packed, dispatched, delivered → customer receives each notification
+☐  Retailer purchase order approved/denied → retailer notified
+☐  Wholesaler dispatches to retailer → retailer notified
+☐  Company approves/rejects supplier request → wholesaler notified
+☐  Company sends offer → wholesaler notified
+☐  Wholesaler accepts/declines offer → company notified
+☐  Low stock alerts → retailer and wholesaler notified
+☐  Expiry alerts → retailer and wholesaler notified
+
+
+
+16.1 — Backend Deployment (Railway)
+☐  Push all backend code to GitHub
+☐  Go to Railway → New Project → Deploy from GitHub → select backend folder
+☐  Add all environment variables in Railway Variables tab
+☐  Wait for build and deploy (3–5 minutes)
+☐  Test: GET https://[your-railway-url]/health → see OK
+☐  Update API base URL in mobile app constants/config.ts to Railway URL
+
+16.2 — Database Migration (Supabase Production)
+☐  Update DATABASE_URL in Railway Variables to Supabase connection string
+☐  Run: npx prisma migrate deploy
+☐  Verify all 33 tables in Supabase Table Editor
+☐  Run minimal seed data for production
+
+16.3 — Web App Deployment (Vercel)
+☐  Go to Vercel → New Project → Import from GitHub → select web folder
+☐  Add all environment variables in Vercel Settings
+☐  Deploy → test all web dashboards on production Vercel URL
+
+16.4 — Mobile App Build (Expo EAS)
+☐  Configure eas.json with production build profile
+☐  Add google-services.json to mobile root
+☐  Update app.json with production API URL, app name, icon, splash screen
+☐  Run: eas build --platform android --profile production
+☐  Wait for cloud build (15–30 minutes)
+☐  Download .aab file from Expo dashboard
+☐  Test the production app on real phone — run full end-to-end flow
+
+16.5 — Play Store Submission
+☐  Create Google Play Console developer account ($25 one-time fee)
+☐  Create new app — set package name, default language
+☐  Fill: title, short description, full description
+☐  Upload screenshots (minimum 2) and 512×512 app icon
+☐  Upload .aab file
+☐  Set content rating — fill questionnaire → Everyone
+☐  Fill in Data Safety section
+☐  Submit to internal testing track first → test with 5 people
+☐  Fix any issues found → submit to production review
+☐  Play Store review takes 3–7 days
+
+
+
+
+17.1 — Onboard Pilot Retailers
+☐  Identify 3–5 pharmacies in your city willing to try the platform
+☐  Register each pharmacy as a Retailer on PharmaConnect
+☐  Add their medicine inventory (manually in Supabase for MVP)
+☐  Give each retailer a 30-minute walkthrough of the retailer app
+☐  Create a WhatsApp group with all pilot retailers
+
+17.2 — Recruit Beta Customers
+☐  Share the Play Store link with 30–50 people you know
+☐  Ask them to try ordering a medicine and give feedback
+☐  Create a Google Form for structured feedback collection
+☐  Create a WhatsApp group for early users
+
+17.3 — Monitor the System
+☐  Check Railway logs every day for errors
+☐  Check Supabase database for order volume and anomalies
+☐  Check Razorpay dashboard for payment success rate
+☐  Set up free uptime monitoring at uptimerobot.com
+☐  Fix any critical bugs within 24 hours of report
+
+17.4 — Collect Feedback
+☐  Interview minimum 5 customers (15 min call each)
+☐  Interview minimum 3 retailers (15 min call each)
+☐  Document feedback: Issue | Reported By | Priority | Status
+☐  Prioritise top 10 improvements for v1.1 release
+
+17.5 — Pilot Success Metrics
+☐  Minimum 10 real orders placed through PharmaConnect
+☐  Minimum 3 different retailers actively using the app
+☐  Payment success rate above 90%
+☐  Zero critical bugs causing order failures
+☐  At least one customer places a second order (repeat usage)
+
+
+
+Daily Rules — Never Break These
+
+
+v2.0 Roadmap — After Pilot Launch
+These features are planned for after the pilot. Do NOT build these during MVP development.
+
+

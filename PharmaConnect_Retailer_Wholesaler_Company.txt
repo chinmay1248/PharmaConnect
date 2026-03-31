@@ -1,0 +1,526 @@
+
+PHARMACONNECT
+
+Retailer · Wholesaler · Company
+
+Complete Module Build Checklist
+
+
+
+
+
+
+Screens Overview
+
+
+
+
+
+
+
+
+
+
+12.0 — Role Setup & Navigation
+☐  After login: check user role from authStore
+☐  If role === 'retailer' → redirect to /(retailer)/dashboard
+☐  If role === 'customer' → redirect to /(tabs)/home
+☐  Create app/(retailer)/ folder and _layout.tsx
+☐  Retailer bottom tabs: Dashboard | Orders (badge) | Inventory (badge) | Buy | Analytics
+☐  Tab bar styled consistently with customer app brand colors
+☐  Test: login as retailer → retailer tabs. Login as customer → customer tabs.
+
+12.1 — Retailer Dashboard Screen
+KPI Cards
+☐  Pending Orders — count with orange badge → tap navigates to Orders filtered by pending
+☐  Today's Revenue — ₹ amount in green
+☐  Orders Delivered Today — count in blue
+☐  Low Stock Items — count in red → tap navigates to Inventory filtered by low stock
+Sections
+☐  Recent Orders — last 5 orders with status, customer name, amount, time ago
+☐  Alerts section — Low Stock cards (medicine name + qty remaining)
+☐  Alerts section — Expiry cards (medicine name + expiry date + days left)
+☐  Quick Action buttons: View All Orders, View Inventory, Buy Stock
+☐  Pull-to-refresh
+☐  Auto-refresh KPIs every 60 seconds
+API
+
+12.2 — Retailer Order List Screen
+☐  Filter tabs: All | Pending | Approved | Packed | Dispatched | Delivered | Denied
+☐  Each tab shows order count in badge
+☐  RetailerOrderCard component:  — order number, customer name+phone, item count, total, time ago, status badge, Rx badge
+☐  Status badges color coded: Pending=orange, Approved=blue, Packed=purple, Dispatched=indigo, Delivered=green, Denied=red
+☐  Search bar — find by order number or customer name
+☐  Pull-to-refresh
+☐  Real-time polling every 30 seconds — new orders appear without manual refresh
+☐  Paginated — load 20 per page with Load More at bottom
+☐  Tap order card → navigate to Order Detail screen
+
+12.3 — Retailer Order Detail Screen
+Order Information Section
+☐  Customer name, phone number (tap to call), delivery address
+☐  Order placed date and time
+☐  Delivery type badge: Home Delivery or Pickup
+☐  Payment method and payment status (Paid/Pending)
+Order Items List
+☐  Medicine name, brand, dosage, quantity, unit price, total price per item
+☐  Rx Required badge per item if applicable
+Price Summary
+☐  Subtotal, discount, delivery charge, GST, grand total
+Prescription Section (visible only if Rx required)
+☐  Show uploaded prescription image
+☐  Full screen tap to zoom in on prescription
+☐  Prescription status badge: Pending | Approved | Rejected
+☐  Approve and Deny buttons shown only when status is Pending
+Action Buttons (change based on current status)
+☐  Pending + no Rx → Approve Order and Deny Order buttons
+☐  Pending + Rx → Prescription review section first, then approve/deny
+☐  Approved → Mark as Packed button
+☐  Packed → Mark as Dispatched button
+☐  Dispatched → Confirm Delivery button
+☐  Delivered or Denied → read-only view, no action buttons
+Denial Flow
+☐  Deny button → Denial Reason modal opens
+☐  Text input for reason (required — cannot deny without reason)
+☐  Confirm Deny → API call → order denied → customer notified with reason
+Notifications Triggered
+☐  On approve → FCM to customer: "Your order has been approved by [Store Name]"
+☐  On deny → FCM to customer: "Order denied: [reason]"
+☐  On dispatch → FCM to customer: "[Store Name] has dispatched your order"
+☐  On deliver → FCM to customer: "Your order has been delivered. Rate your experience!"
+API
+
+12.4 — Retailer Inventory Screen
+☐  Search bar — search medicines in inventory by name or company
+☐  Filter chips: All | Low Stock | Expiring Soon | Out of Stock
+☐  Sort options: A–Z | Stock (High to Low) | Expiry (Nearest First)
+☐  InventoryCard component:  — medicine name, company, batch number, current stock (large number), expiry date, selling price, stock status bar
+☐  Stock status bar: Green = healthy, Orange = below threshold, Red = out of stock
+☐  "Expiring in X days" badge shown in red if within 30 days
+☐  + FAB button → navigate to Add Batch form
+☐  Tap card → navigate to Inventory Detail screen
+☐  Pull-to-refresh
+
+12.5 — Inventory Detail Screen
+☐  Show medicine name, company, salt, dosage
+☐  All batches table: Batch # | Qty | Purchase Price | Selling Price | Expiry | Status
+☐  Update Stock button per batch → edit modal (qty and selling price only)
+☐  Add New Batch form: batch number, quantity, purchase price, selling price, expiry date (date picker), manufacture date
+☐  Stock history — last 10 changes: date, type (Added/Sold/Adjusted), qty change, running balance, reference
+API
+
+12.6 — Buy — Search Screen
+☐  Search bar — find medicines to buy from wholesalers
+☐  Low Stock section — medicines below threshold shown with current qty and threshold
+☐  Tap low stock item → instantly search for that medicine
+☐  Recent purchases section — last 5 medicines bought for quick reorder
+☐  Search results: medicine name, company, dosage, wholesaler count, best price
+☐  Tap result → navigate to Wholesaler List for that medicine
+
+12.7 — Buy — Wholesaler List Screen
+☐  Medicine name shown at top as context
+☐  Tab bar: Frequent Wholesalers | All Wholesalers
+☐  WholesalerCard:  — business name, city, distance, price per unit, stock qty, rating, active scheme badge
+☐  Best Scheme highlighted section at top — best deal across all wholesalers in green
+☐  Sort: Lowest Price | Best Scheme | Nearest | Rating
+☐  Tap Select → navigate to Place Order screen with wholesaler pre-selected
+
+12.8 — Buy — Place Order Screen
+☐  Selected wholesaler info at top
+☐  Medicine name, dosage, wholesaler's price per unit
+☐  Quantity input with + and − controls
+☐  Scheme auto-applies based on quantity — shows scheme details or 'No scheme for this quantity'
+☐  Price calculation: unit price × qty = subtotal → scheme discount → GST → total
+☐  Order notes input (optional)
+☐  Place Order button → confirmation bottom sheet with summary
+☐  On confirm → POST /retailer/purchase-orders → navigate to Purchase Order Detail
+
+12.9 — Purchase Order History & Detail
+History Screen
+☐  List all purchase orders (retailer → wholesaler)
+☐  Card: wholesaler name, date, amount, item count, status badge
+☐  Filter by status: Pending | Approved | Dispatched | Delivered | Denied
+Detail Screen
+☐  Wholesaler info (name, contact, address)
+☐  Order items with qty, price, scheme applied
+☐  Price summary
+☐  Payment section — if approved and payment pending: Online (Razorpay) or Cash
+☐  Delivery tracking steps: Approved → Dispatched → Received
+☐  Confirm Receipt button when status = Dispatched
+☐  On Confirm Receipt → inventory auto-adds to retailer_inventory (stock added)
+☐  Download purchase bill PDF
+
+12.10 — Retailer Analytics Screen
+☐  Period selector: Today | This Week | This Month | Custom Range
+☐  Revenue card: total ₹ + % change vs previous period
+☐  Orders bar chart — orders per day (react-native-chart-kit)
+☐  Revenue line chart — revenue per day
+☐  Top Selling Medicines: rank, name, units sold, revenue (top 10)
+☐  Slow Moving Medicines: zero sales in period, with suggestions
+☐  Payment method breakdown pie chart: UPI vs Card vs COD %
+☐  Order status breakdown: Delivered % | Cancelled % | Pending %
+☐  Download Report button → exports summary as PDF
+
+
+
+
+
+
+
+Pages Overview
+
+
+
+
+
+
+
+
+
+13.0 — Wholesaler Web App Setup
+☐  Install Next.js in web/ folder (if not already done): npx create-next-app . --typescript --tailwind
+☐  Install shadcn/ui: npx shadcn-ui@latest init
+☐  Install Recharts: npm install recharts
+☐  Create web/app/(wholesaler)/ route group
+☐  Create (wholesaler)/layout.tsx with sidebar navigation
+☐  Build WholesalerSidebar: Dashboard, Orders (badge), Inventory, Retailers, Schemes, Buy, Analytics, Invoices, Settings
+☐  Top header: wholesaler business name, notification bell, profile dropdown
+☐  Protected route — redirect to login if not authenticated as wholesaler
+☐  Set up API service with Axios pointed to backend URL
+
+13.1 — Wholesaler Dashboard Page
+☐  KPI cards: Total Revenue (Month), Pending Orders, Low Stock Alerts, Active Retailers
+☐  Each KPI shows % change vs previous period with up/down arrow
+☐  Orders Trend chart: Line chart — orders received vs dispatched per day, last 30 days (Recharts LineChart)
+☐  Revenue by Category chart: Bar chart — top 5 medicine categories by revenue
+☐  Recent Retailer Orders table — last 10 orders with Order #, Retailer, Items, Amount, Status, Action buttons
+☐  Top Retailers this Month: rank, name, city, orders, revenue
+☐  Stock Alerts panel: low stock medicines + expiring medicines in 30 days
+
+13.2 — Retailer Orders Page
+Order List
+☐  Filter tabs: All | Pending | Approved | Dispatched | Delivered | Denied — each with count badge
+☐  Search bar — order number or retailer name
+☐  Date range picker — filter by order date
+☐  Data table columns: Order # | Retailer | City | Items | Amount | Payment Status | Status | Placed At | Actions
+☐  Bulk select checkboxes for bulk approve/deny
+☐  Export to CSV button
+Order Detail Side Sheet
+☐  Click View → side sheet slides in from right (no page navigate)
+☐  Retailer info: name, phone, city, drug license
+☐  Items table with scheme applied per item
+☐  Price summary + payment info + order timeline
+Approve Flow
+☐  Click Approve → confirmation dialog
+☐  Custom pricing option: Apply active scheme toggle + custom discount % input + adjusted total preview
+☐  Confirm → PATCH /wholesaler/orders/:id/approve
+☐  Order row updates to Approved without page reload
+☐  FCM notification to retailer: "Your order has been approved"
+Deny Flow
+☐  Click Deny → denial dialog
+☐  Predefined reason checkboxes: Out of stock | MOQ not met | Pricing dispute | Other
+☐  Custom text input (required if Other selected)
+☐  FCM notification to retailer with reason
+Dispatch Flow
+☐  Click Dispatch → expected delivery date picker + confirmation
+☐  PATCH /wholesaler/orders/:id/dispatch → inventory auto-deducted (backend FIFO)
+☐  FCM notification to retailer: "Your order has been dispatched"
+API
+
+13.3 — Inventory Page
+Summary & List
+☐  Summary bar: Total SKUs | Total Units | Low Stock Items | Expiring in 30 Days
+☐  Filter tabs: All | Low Stock | Expiring Soon | Out of Stock
+☐  Search + data table: Medicine | Company | Batch | Qty | Selling Price | Purchase Price | Expiry | Status | Actions
+☐  Status badges: Healthy (green) | Low Stock (orange) | Critical (red) | Expiring (amber) | Expired (dark red)
+Add New Stock Modal
+☐  Medicine search dropdown (from medicine catalogue)
+☐  Batch number, quantity, purchase price, selling price
+☐  Expiry date picker + manufacture date picker
+☐  Save → POST /wholesaler/inventory
+Edit Stock Modal
+☐  Pre-filled form — can update quantity and selling price only
+☐  Batch number and expiry are immutable after creation
+Inventory History Side Sheet
+☐  All stock movements for this medicine: Date | Type | Qty Change | Running Balance | Reference
+Expired Medicine Management
+☐  Expired tab showing all expired batches
+☐  Create Return Request button per batch → POST /wholesaler/inventory/returns
+☐  Return status tracking: Requested | Acknowledged | Completed
+
+13.4 — Retailers Page
+☐  Retailer table: Name | City | Total Orders | Revenue | Last Order | Status | Actions
+☐  Status: Active (green) | Inactive (grey) | New (blue — first order within 30 days)
+☐  Actions: View Profile | View Orders | Set Custom Price | Create Scheme
+Retailer Profile Side Sheet
+☐  Store details, drug license, order history, current custom pricing, active schemes
+Custom Pricing Modal
+☐  Medicine selector (searchable) + custom price per unit + validity period + note
+☐  List of all active custom prices for this retailer
+☐  Save → POST /wholesaler/custom-pricing
+☐  Mark as Frequent toggle — appears first in retailer's wholesaler list in mobile app
+
+13.5 — Schemes Page
+☐  Active Schemes tab + Expired Schemes tab
+☐  Scheme card:  — name, type badge, target, medicine, discount details, validity, usage count, total savings given
+☐  Create New Scheme button → Create Scheme modal
+Create Scheme Modal — 4 Types
+☐  Flat Discount:  — fixed ₹ amount off per order + minimum order amount to qualify
+☐  Percentage Discount:  — % off + max discount cap (₹) + minimum order amount
+☐  Buy X Get Y:  — buy X units → get Y units free → applies to same or any medicine
+☐  Volume Incentive:  — threshold quantity → incentive % or ₹ amount
+☐  Medicine selector: All Medicines or Specific Medicine
+☐  Target selector: All Retailers or Specific Retailer
+☐  Validity date range (from → to)
+☐  Preview section — shows how scheme looks to retailer in their app
+☐  Save → POST /wholesaler/schemes
+☐  Scheme Performance table: orders used, total discount given, revenue generated, top retailer
+
+13.6 — Buy from Company Page
+My Suppliers Section
+☐  List of approved company supplier links with company name, active since, total orders, Order Now button
+☐  Request New Supplier modal: search companies, view profile, Send Request button → POST /wholesaler/supplier-requests
+☐  Supplier request status tracker: Pending | Approved | Rejected
+Place Bulk Order Form
+☐  Appears after selecting a company
+☐  Medicine selector (only medicines from this company)
+☐  Quantity input per medicine + unit price displayed
+☐  Add Another Medicine Row button
+☐  Active company offer auto-applied if any
+☐  Price summary: subtotal, discount, GST, total
+☐  Place Order → POST /wholesaler/purchase-orders
+Purchase Order History
+☐  Table: Order # | Company | Items | Total | Status | Placed At | Actions
+☐  Make Payment button (Razorpay B2B) if approved and payment pending
+☐  Confirm Receipt button when status = Dispatched → inventory auto-adds
+☐  Download bill PDF
+
+13.7 — Analytics Page
+☐  Period selector: 7 Days | 30 Days | 3 Months | 1 Year | Custom Range
+☐  KPI row: Total Revenue | Total Orders | Avg Order Value | Total Units — all with period comparison
+☐  Revenue Over Time: Recharts AreaChart — toggle Revenue / Orders / Units
+☐  Top Selling Medicines: horizontal bar chart — toggle By Revenue / By Units / By Orders
+☐  Top Retailers: horizontal bar chart — top 10 by total spend
+☐  Category Breakdown: donut chart — revenue by medicine category
+☐  Orders by City: table with City | Orders | Revenue | Top Medicine
+☐  Scheme Performance: which schemes drove most orders + discount/revenue ratio
+☐  Download Full Report → PDF with all charts and tables
+
+13.8 — Invoices Page
+☐  Sales Invoices tab (wholesaler → retailer) + Purchase Invoices tab (company → wholesaler)
+☐  Table: Invoice # | Date | Party | Amount | Payment Status | Actions
+☐  Payment status: Paid (green) | Pending (orange) | Partial (blue)
+☐  View Invoice → full detail modal with line items and GST breakdown
+☐  Download PDF for every invoice
+☐  Send Reminder button for invoices with pending payment
+
+
+
+
+
+
+
+Pages Overview
+
+
+
+
+
+
+
+14.0 — Company Web App Setup
+☐  Create web/app/(company)/ route group
+☐  Create (company)/layout.tsx with sidebar
+☐  CompanySidebar: Dashboard, Catalogue, Suppliers (badge), Offers, Analytics, Pricing, Settings
+☐  Protected route — company role only
+☐  Test: company login → company sidebar, correct redirect
+
+14.1 — Company Dashboard Page
+☐  KPI cards: Total Revenue (Month), Total Units Sold, Active Wholesalers, Pending Supplier Requests
+☐  Each KPI with % change vs previous period
+☐  Revenue Over Time: Recharts AreaChart — last 12 months, one line per top wholesaler
+Top Performing Wholesalers Leaderboard
+☐  Table: Rank | Wholesaler Name | City | Units Sold | Revenue | Growth % | Rank Change
+☐  Green arrow for positive growth, red for decline
+☐  Click wholesaler name → wholesaler detail side sheet
+Medicine Performance Panels
+☐  Top Selling Medicines list: name, units, revenue, % of total
+☐  Low Performing Medicines alert list with suggested action button (Create Offer?)
+Action Panels
+☐  Active Offers status panel: each offer with acceptance rate and sales impact
+☐  Pending Supplier Requests panel: list with Approve/Reject buttons directly on dashboard
+
+14.2 — Medicine Catalogue Page
+Catalogue List
+☐  Summary bar: Total | Active | Discontinued | Rx Required | Generic
+☐  Filter tabs: All | Active | Discontinued | Rx Required | Generic
+☐  Search by name, salt, category
+☐  Data table: Name | Salt | Type | Dosage | Pack Size | MRP | Rx | Generic | Status | Actions
+☐  Actions: Edit | View Performance | Discontinue
+Add New Medicine Form
+☐  Medicine name input
+☐  Salt selector — search existing salt_compositions or create new salt
+☐  If creating new salt: salt name, category, associated diseases (multi-select)
+☐  Medicine type selector: Tablet | Syrup | Capsule | Injection | Cream | Drops | Powder | Other
+☐  Dosage strength input (e.g. 500mg, 10ml)
+☐  Pack size input (e.g. 10 tablets, 100ml)
+☐  MRP input (₹) — must be positive
+☐  Requires Prescription toggle
+☐  Is Generic toggle
+☐  Description textarea
+☐  Medicine image upload → Cloudinary
+☐  Preview card showing how it appears in customer search
+☐  Save → POST /company/medicines
+Edit Medicine Form
+☐  All fields editable except salt composition (immutable after creation)
+☐  Save → PATCH /company/medicines/:id
+Discontinue Medicine
+☐  Confirmation dialog: "This medicine will no longer appear in customer search"
+☐  Soft delete → DELETE /company/medicines/:id (sets deleted_at)
+☐  Discontinued medicines still in order history but hidden from search
+Medicine Performance Side Sheet
+☐  Total units sold (all time + this month)
+☐  Revenue generated + avg selling price
+☐  Top wholesalers selling this medicine
+☐  Top cities where it is sold
+☐  12-month sales trend line chart
+
+14.3 — Supplier Management Page
+Active Suppliers Tab
+☐  Table: Wholesaler | City | Drug License | Active Since | Total Orders | Revenue | Purchase Type | Status | Actions
+☐  Purchase type badge: Direct (blue) | Distributor (purple)
+☐  Status badge: Active (green) | Suspended (orange)
+☐  Actions: View Profile | View Orders | Suspend | Remove
+Suspend Flow
+☐  Confirmation dialog: "Suspend [Wholesaler]? They cannot place new orders."
+☐  Reason input (required)
+☐  PATCH /company/suppliers/:id/suspend
+☐  FCM notification to wholesaler with suspension reason
+Remove Flow
+☐  Double confirmation dialog (permanent action)
+☐  PATCH /company/suppliers/:id/remove
+Wholesaler Profile Side Sheet
+☐  Business details, owner, phone, drug license, GST
+☐  Full order history from this wholesaler to this company
+☐  Performance: total orders, revenue, avg order value, top medicines they buy
+Pending Requests Tab
+☐  Count badge on tab shows pending count
+☐  Each request card: wholesaler name, city, drug license, registration date, request date, any note
+Approve Flow
+☐  Confirmation dialog
+☐  Select purchase type: Direct or Distributor
+☐  PATCH /company/supplier-requests/:id/approve
+☐  FCM notification to wholesaler: "Your supplier request has been approved"
+☐  Wholesaler appears in Active Suppliers tab immediately
+Reject Flow
+☐  Rejection reason input (required)
+☐  PATCH /company/supplier-requests/:id/reject
+☐  FCM notification to wholesaler with rejection reason
+
+14.4 — Offers & Schemes Page
+Offer List
+☐  Tabs: Active | Pending Response | Accepted | Declined | Expired
+☐  Offer card:  — name, target wholesaler, medicine, type badge, discount details, validity, response status, impact metrics
+3-Step Create Offer Form
+☐  Step 1 — Target:  — All Wholesalers or Specific Wholesalers (multi-select). Recommendation panel shows wholesalers with declining sales.
+☐  Step 2 — Offer Details:  — name, medicine (all or specific), offer type (Flat/Percentage/Volume), fill type-specific fields
+☐  Step 3 — Validity & Send:  — from/to date pickers, preview as wholesaler sees it, estimated impact preview, Send Offer button
+☐  Send Offer → POST /company/offers
+☐  FCM notification to each targeted wholesaler: "New offer from [Company Name]"
+Offer Impact Tracking
+☐  Orders placed using this offer (count)
+☐  Revenue generated (₹)
+☐  Units sold under offer vs same period before offer
+☐  Uplift % vs baseline
+☐  Side-by-side bar chart: revenue before vs during offer period
+Expired Medicine Returns
+☐  Section showing return requests from wholesalers
+☐  Table: Wholesaler | Medicine | Batch | Quantity | Date | Status
+☐  Actions: Acknowledge | Complete Return
+☐  PATCH /company/returns/:id/acknowledge and /complete
+
+14.5 — Analytics Page
+☐  Period selector applies to all 4 tabs
+☐  Overview KPI row with % change vs previous period
+Tab 1 — Wholesaler Performance
+☐  Wholesaler comparison table: Wholesaler | City | Orders | Units | Revenue | Growth % — sortable by any column
+☐  Wholesaler Revenue Share donut chart
+☐  Wholesaler Growth grouped bar chart — this period vs last period
+☐  Click wholesaler → side sheet: order history, medicine breakdown, monthly revenue trend
+Tab 2 — Medicine Performance
+☐  Medicine table with sparkline trend column (6-month mini-chart)
+☐  Top 5 performers (green) vs Bottom 5 performers (red) split view
+☐  Bottom 5 each have Create Offer button shortcut
+☐  Click medicine → side sheet: 12-month trend, wholesaler breakdown, city breakdown
+Tab 3 — Geography
+☐  Sales by State table — state, orders, units, revenue (colour-coded by revenue)
+☐  Top Cities table: City | State | Orders | Units | Revenue
+☐  Region Growth chart — compare regions this vs last period
+Tab 4 — Offers Analytics
+☐  Total revenue attributed to offers
+☐  Per-offer performance table: Offer | Wholesaler | Type | Orders | Revenue | Uplift
+☐  Offer Acceptance Rate display — % of sent offers accepted
+Export Options
+☐  Download Full Report → PDF with all charts for selected period
+☐  Export Data → CSV for active tab and period
+
+14.6 — Pricing Management Page
+☐  Medicine pricing table: Name | Salt | Dosage | MRP | Wholesale Rate | Margin %
+☐  Margin % colour coded: Green >40%, Orange 20–40%, Red <20%
+Inline Editing
+☐  Click price cell → input appears directly in table cell
+☐  Save icon (✓) and Cancel icon (✗) appear inline
+☐  Validation: MRP must be higher than wholesale rate
+☐  Save → PATCH /company/medicines/:id/pricing
+Bulk Update
+☐  Select multiple medicines with checkboxes
+☐  Bulk Update button appears
+☐  Options: Increase MRP by X% | Decrease Wholesale Rate by X%
+☐  Preview changes before applying
+☐  Confirm → POST /company/medicines/pricing/bulk-update
+Price History
+☐  Click History icon → side sheet with full price change log
+☐  Table: Date | Old MRP | New MRP | Old Wholesale | New Wholesale | Changed By
+
+
+
+
+
+
+Supply Chain Flow 1 — Company → Wholesaler
+☐  Company adds a new medicine to catalogue
+☐  Wholesaler sees it when searching medicines to buy
+☐  Wholesaler requests to become supplier → company approves → wholesaler notified
+☐  Company creates offer → wholesaler receives FCM notification
+☐  Wholesaler accepts offer → company sees it moved to Accepted tab
+☐  Wholesaler places bulk order → company sees it and approves
+☐  Wholesaler confirms receipt → wholesaler inventory updates correctly (verify in Supabase)
+
+Supply Chain Flow 2 — Wholesaler → Retailer
+☐  Wholesaler creates scheme for retailer
+☐  Retailer searches to restock → sees wholesaler with scheme applied automatically
+☐  Retailer places purchase order → wholesaler receives FCM notification
+☐  Wholesaler approves with custom pricing → retailer sees updated price
+☐  Retailer pays → wholesaler sees payment confirmed
+☐  Wholesaler dispatches → retailer receives FCM notification
+☐  Retailer confirms receipt → retailer inventory updates (verify in Supabase)
+
+Supply Chain Flow 3 — Retailer → Customer
+☐  Retailer's inventory visible in customer search (verify medicine appears)
+☐  Customer orders from retailer → retailer receives FCM notification
+☐  Retailer approves prescription → customer receives FCM: approved
+☐  Retailer dispatches → customer tracks in app, sees status update
+☐  Customer confirms delivery → order closes → feedback prompt appears
+☐  Retailer sees completed order in analytics
+
+Supply Chain Flow 4 — Company Analytics Validation
+☐  Place 10 test orders through the full system
+☐  Verify company analytics: total revenue matches sum of orders
+☐  Verify wholesaler performance: top wholesaler matches order data
+☐  Verify medicine-wise sales match actual orders in Supabase
+☐  Verify region breakdown is accurate for cities in seed data
+
+All 16 Notification Types — Verify Each One
+
+Integration Complete When:
+

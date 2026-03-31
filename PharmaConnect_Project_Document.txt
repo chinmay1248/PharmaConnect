@@ -1,0 +1,204 @@
+
+PHARMACONNECT
+Complete Project Documentation
+
+
+
+
+1. Project Overview
+PharmaConnect is a full-stack pharmaceutical supply chain platform that digitally connects every stakeholder in the medicine industry — the end customer, the retail pharmacy, the wholesale distributor, and the manufacturing company.
+
+Built as a mobile-first product for Android and iOS using React Native, with web dashboards for business users, PharmaConnect is designed specifically for the Indian pharmaceutical market.
+
+
+1.1 Problem Statement
+
+1.2 Solution
+PharmaConnect replaces all disconnected tools with one unified, role-based platform:
+
+
+
+2. Tech Stack
+Every technology was chosen for three reasons: it uses JavaScript (one language across the entire stack), it has the best free tier for an early-stage Indian startup, and it can scale to millions of users without changing the architecture.
+
+
+
+3. System Architecture
+3.1 Layer Overview
+PharmaConnect is a three-tier architecture: Client Layer (mobile + web), API Layer (Node.js backend), and Data Layer (PostgreSQL + external services).
+
+
+3.2 Request Flow — Customer Places an Order
+The following shows exactly how data flows when a customer places an order:
+
+
+
+4. User Roles & Capabilities
+
+
+Authentication
+Phone number + OTP via Firebase Auth
+Google Sign-In via Firebase Auth
+Auto-login on return visits using JWT refresh tokens
+
+Medicine Discovery
+Search by medicine name, salt composition, or barcode scan
+All medicines with same active salt shown — searched brand appears first
+Medicine detail: composition, diseases cured, dosage, pack size, MRP
+Substitute medicines shown: same salt, different brand, price comparison
+Rx required badge and Generic badge per medicine
+
+Filters & Sorting
+
+Ordering
+Select retailer from nearest-first sorted list with stock, price, distance, rating
+Add to cart — one retailer per order (MVP)
+Prescription upload via camera or gallery for Rx medicines
+Real-time prescription approval/denial status from retailer
+Home delivery or store pickup selection
+Payment: Razorpay (UPI, cards, wallets), Cash on Delivery
+Real-time order tracking with push notifications at every step
+GST invoice with PDF download
+Order history, saved addresses, feedback and rating
+
+
+Selling Side — Managing Customer Orders
+Real-time order notifications from customers
+View order details including uploaded prescription image
+Approve or deny orders — denial sends reason to customer
+Pack, dispatch, and confirm delivery workflow
+Auto-inventory deduction on dispatch using FIFO batch logic
+Generate and send GST invoice to customer
+
+Buying Side — Restocking from Wholesalers
+Search medicines to restock
+View frequent wholesalers and all available wholesalers
+Compare schemes and prices across wholesalers
+Place purchase orders — wholesaler approves or denies
+Auto-inventory update when stock is received
+Download purchase bill
+
+Business Tools
+Sales analytics dashboard — daily, weekly, monthly revenue and order trends
+Top selling and slow-moving medicines report
+Low stock alerts and expiry alerts (30 days ahead)
+Full inventory view by medicine, batch, expiry date
+
+
+Selling Side — Managing Retailer Orders
+Receive retailer purchase order notifications
+Review and approve or deny orders with reason
+Apply custom pricing and schemes per retailer
+Dispatch stock, confirm delivery, auto-update inventory
+Generate detailed invoices for retailers
+
+Buying Side — Sourcing from Companies
+Request company to establish a supplier relationship
+Place bulk orders to approved companies
+Buy directly from company or via distributor route
+Receive stock, track batch and expiry, auto-update inventory
+Return expired medicines to company
+
+Business Tools
+Business analytics — top retailers, top medicines, revenue trends
+Create custom schemes: flat discount, percentage, buy X get Y, volume incentive
+Set custom pricing per retailer
+Retailer relationship management
+
+
+Catalogue & Pricing
+Manage full medicine catalogue — add, update, discontinue medicines
+Set MRP and wholesale rate per medicine
+Track batch numbers and expiry dates across supply chain
+
+Supplier Management
+View and approve or reject wholesaler supplier requests
+Manage active suppliers — suspend or remove wholesalers
+
+Analytics
+Sales data per wholesaler — units sold, revenue, growth
+Medicine-wise performance — top and low SKUs
+Region-wise sales breakdown by city and state
+Overall revenue and distribution channel performance
+
+Offers & Schemes
+Create targeted discount and volume incentive offers for wholesalers
+Send offers to specific wholesalers based on performance data
+Track offer acceptance and measure sales uplift vs baseline
+
+
+5. Database Schema — All 33 Tables
+PharmaConnect uses PostgreSQL with Prisma ORM. All 33 tables are grouped into 8 logical groups. Every foreign key has an explicit index. All polymorphic relationships are resolved with typed nullable columns and CHECK constraints.
+
+Group 1 — Auth & Sessions
+
+Group 2 — Profiles
+
+Group 3 — Medicine Catalogue
+
+Group 4 — Inventory
+
+Group 5 — Relationships & Offers
+
+Group 6 — Orders
+
+Group 7 — Payments, Invoices & Tracking
+
+Group 8 — Feedback & Notifications
+
+
+6. API Structure
+Base URL: https://api.pharmaconnect.in/v1 | All protected routes require: Authorization: Bearer <JWT> | All requests and responses in JSON.
+
+Auth Endpoints
+
+Medicine & Search Endpoints
+
+Customer Order Endpoints
+
+Payment & Invoice Endpoints
+
+Retailer Endpoints
+
+Wholesaler Endpoints
+
+Company Endpoints
+
+
+7. Complete Screen List
+7.1 Customer Mobile App — 15 Screens
+
+7.2 Retailer Mobile App — 8 Screens
+
+7.3 Wholesaler Web Dashboard — 9 Pages
+
+7.4 Company Web Dashboard — 7 Pages
+
+
+8. Security & Compliance
+
+9. Business Model
+
+10. MVP Scope
+Included in MVP (v1.0)
+Customer mobile app — all 15 screens
+Retailer mobile app — all 8 screens
+Backend API — auth, search, orders, prescriptions, payments, notifications, invoices
+PostgreSQL database — all 33 tables
+Firebase Auth — phone OTP + Google login
+Razorpay — all payment methods including COD
+Cloudinary — prescription image upload
+Google Maps — GPS and nearest retailer search
+Firebase FCM — push notifications for all order events
+Android Play Store release
+
+Planned for v2.0
+Wholesaler module — full mobile app and web dashboard
+Company module — full web dashboard
+iOS App Store release
+Multi-retailer cart
+Customer loyalty and rewards system
+Advanced analytics for all roles
+Medicine reminder and refill alerts
+In-app customer-retailer chat
+

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+web-build/
+.expo/
+.DS_Store
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+
+mobile/node_modules/
+mobile/dist/
+mobile/.expo/
+mobile/web-build/
+mobile/.expo-web*.log
+mobile/.git_backup_local/
