@@ -1,33 +1,73 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { StyleSheet, Text, View } from 'react-native';
+import { ThemeMode, themes } from '../theme/theme';
+import { InteractivePressable } from './InteractivePressable';
 
-export type TabId = 'home' | 'search' | 'orders' | 'profile';
+export type TabId = 'home' | 'search' | 'orders' | 'cart' | 'account';
 
 type BottomTabBarProps = {
+  mode: ThemeMode;
   activeTab: TabId;
   onChange: (tab: TabId) => void;
 };
 
-const tabs: { id: TabId; label: string; hint: string }[] = [
-  { id: 'home', label: 'Home', hint: 'Nearby' },
-  { id: 'search', label: 'Search', hint: 'Medicines' },
-  { id: 'orders', label: 'Orders', hint: 'Tracking' },
-  { id: 'profile', label: 'Profile', hint: 'Addresses' },
+const tabs: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { id: 'home', label: 'Home', icon: 'home' },
+  { id: 'search', label: 'Search', icon: 'search' },
+  { id: 'orders', label: 'Orders', icon: 'package' },
+  { id: 'cart', label: 'Cart', icon: 'shopping-cart' },
+  { id: 'account', label: 'You', icon: 'user' },
 ];
 
-export function BottomTabBar({ activeTab, onChange }: BottomTabBarProps) {
+export function BottomTabBar({ mode, activeTab, onChange }: BottomTabBarProps) {
+  const theme = themes[mode];
+
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={[
+        styles.wrapper,
+        {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+        },
+      ]}
+    >
       {tabs.map((tab) => {
         const active = activeTab === tab.id;
+
         return (
-          <Pressable
+          <InteractivePressable
             key={tab.id}
             onPress={() => onChange(tab.id)}
-            style={[styles.tab, active && styles.activeTab]}
+            style={[
+              styles.tab,
+              {
+                backgroundColor: active ? theme.primarySoft : 'transparent',
+              },
+            ]}
+            hoveredStyle={{
+              backgroundColor: active ? theme.primarySoft : theme.surfaceAlt,
+            }}
+            pressedStyle={{
+              backgroundColor: active ? theme.elevated : theme.elevated,
+            }}
+            scaleHover={1.06}
+            scalePress={0.96}
           >
-            <Text style={[styles.label, active && styles.activeLabel]}>{tab.label}</Text>
-            <Text style={[styles.hint, active && styles.activeHint]}>{tab.hint}</Text>
-          </Pressable>
+            <Feather
+              name={tab.icon}
+              size={18}
+              color={active ? theme.primaryStrong : theme.subtext}
+            />
+            <Text
+              style={[
+                styles.label,
+                { color: active ? theme.primaryStrong : theme.subtext },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </InteractivePressable>
         );
       })}
     </View>
@@ -36,36 +76,29 @@ export function BottomTabBar({ activeTab, onChange }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
-    gap: 8,
-    padding: 10,
-    borderRadius: 28,
-    backgroundColor: '#17384D',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderTopWidth: 1,
   },
   tab: {
     flex: 1,
-    borderRadius: 20,
-    paddingVertical: 10,
+    minHeight: 58,
+    borderRadius: 16,
     alignItems: 'center',
-  },
-  activeTab: {
-    backgroundColor: '#F7FAFD',
+    justifyContent: 'center',
+    gap: 3,
+    paddingHorizontal: 4,
   },
   label: {
-    color: '#D4E1EA',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  activeLabel: {
-    color: '#17384D',
-  },
-  hint: {
-    marginTop: 2,
-    color: '#90A8B8',
     fontSize: 10,
-    fontWeight: '600',
-  },
-  activeHint: {
-    color: '#4E6B7D',
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });

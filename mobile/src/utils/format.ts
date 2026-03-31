@@ -1,5 +1,5 @@
 export function formatCurrency(amount: number) {
-  return `₹${amount.toFixed(0)}`;
+  return `\u20B9${amount.toFixed(0)}`;
 }
 
 export function orderStepIndex(status: string) {

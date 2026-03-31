@@ -1,31 +1,74 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { ThemeMode, themes } from '../theme/theme';
+import { InteractivePressable } from './InteractivePressable';
 
 type SectionHeaderProps = {
+  mode: ThemeMode;
   title: string;
   description?: string;
+  action?: string;
+  onAction?: () => void;
 };
 
-export function SectionHeader({ title, description }: SectionHeaderProps) {
+export function SectionHeader({
+  mode,
+  title,
+  description,
+  action,
+  onAction,
+}: SectionHeaderProps) {
+  const theme = themes[mode];
+
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.title}>{title}</Text>
-      {description ? <Text style={styles.description}>{description}</Text> : null}
+      <View style={styles.copy}>
+        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        {description ? (
+          <Text style={[styles.description, { color: theme.subtext }]}>{description}</Text>
+        ) : null}
+      </View>
+      {action ? (
+        <InteractivePressable
+          onPress={onAction}
+          style={styles.action}
+          hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+          pressedStyle={{ backgroundColor: theme.elevated }}
+        >
+          <Text style={[styles.actionLabel, { color: theme.primary }]}>{action}</Text>
+        </InteractivePressable>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
+    marginTop: 18,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  copy: {
+    flex: 1,
     gap: 4,
   },
   title: {
-    color: '#17384D',
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
   },
   description: {
-    color: '#637B8D',
     fontSize: 13,
     lineHeight: 19,
+  },
+  action: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

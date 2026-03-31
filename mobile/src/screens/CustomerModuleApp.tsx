@@ -5,14 +5,18 @@ import {
   Alert,
   Animated,
   Easing,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { BottomTabBar, TabId } from '../components/BottomTabBar';
+import { BrandLogo } from '../components/BrandLogo';
+import { InteractivePressable } from '../components/InteractivePressable';
+import { SectionHeader } from '../components/SectionHeader';
 import {
   banners,
   categories,
@@ -24,10 +28,10 @@ import {
   retailers,
   shortcutChips,
 } from '../data/mockData';
+import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { formatCurrency, orderStepIndex } from '../utils/format';
 
 type AppStage = 'splash' | 'signup' | 'app';
-type ThemeMode = 'light' | 'dark';
 type Screen =
   | 'home'
   | 'search'
@@ -64,180 +68,127 @@ type InvoiceState = {
   deliveryMethod: Exclude<DeliveryMethod, null>;
 };
 
-const themes = {
-  light: {
-    bg: '#f4f8fc',
-    surface: '#ffffff',
-    surfaceMuted: '#eaf2fb',
-    text: '#0b1622',
-    subtext: '#4a6078',
-    border: '#c7d8eb',
-    primary: '#0f5ea8',
-    primaryDark: '#0a3f73',
-    accent: '#1c7ed6',
-    buttonText: '#ffffff',
-  },
-  dark: {
-    bg: '#08111b',
-    surface: '#0f1b2a',
-    surfaceMuted: '#12253a',
-    text: '#e9f3ff',
-    subtext: '#a9c0db',
-    border: '#25415d',
-    primary: '#4aa3ff',
-    primaryDark: '#d8ecff',
-    accent: '#63b3ff',
-    buttonText: '#08111b',
-  },
-} as const;
+const serviceIcons: Record<string, keyof typeof Feather.glyphMap> = {
+  'Rx Upload': 'file-plus',
+  Refill: 'rotate-cw',
+  Deals: 'tag',
+  Doctor: 'activity',
+  'Care+': 'heart',
+};
 
-function BrandLogo({ mode }: { mode: ThemeMode }) {
-  const dark = mode === 'dark';
-  const navy = dark ? '#d8ecff' : '#071f33';
-  const teal = '#19d3bd';
-  const line = dark ? '#7ec8ff' : '#0b1622';
+const categoryIcons: Record<string, keyof typeof Feather.glyphMap> = {
+  Fever: 'thermometer',
+  Diabetes: 'droplet',
+  Vitamins: 'sun',
+  Heart: 'heart',
+  Skin: 'smile',
+  'Baby Care': 'shield',
+  'Pain Relief': 'zap',
+  Digestive: 'coffee',
+};
+
+function HeaderIcon({
+  mode,
+  icon,
+  onPress,
+}: {
+  mode: ThemeMode;
+  icon: keyof typeof Feather.glyphMap;
+  onPress: () => void;
+}) {
+  const theme = themes[mode];
 
   return (
-    <View style={styles.brandBlock}>
-      <View style={styles.brandPill}>
-        <View style={[styles.brandHalf, { backgroundColor: dark ? '#10243a' : '#0a2134' }]}>
-          <View style={[styles.chainLoop, { borderColor: teal }]} />
-          <View style={[styles.chainLoop, styles.chainLoopOffset, { borderColor: teal }]} />
-          <View style={[styles.chainBridge, { backgroundColor: teal }]} />
-        </View>
-        <View style={[styles.brandHalf, { backgroundColor: teal }]}>
-          <View style={[styles.plusBar, { backgroundColor: dark ? '#10243a' : '#0a2134' }]} />
-          <View style={[styles.plusBar, styles.plusBarVertical, { backgroundColor: dark ? '#10243a' : '#0a2134' }]} />
-        </View>
-      </View>
-      <View style={styles.brandWordmark}>
-        <Text style={styles.brandWordText}>
-          <Text style={{ color: navy }}>Pharma</Text>
-          <Text style={{ color: teal }}>Connect</Text>
-        </Text>
-        <View style={styles.heartbeat}>
-          <View style={[styles.heartbeatLine, { backgroundColor: line, width: 26 }]} />
-          <View style={[styles.heartbeatPeak, { borderColor: line }]} />
-          <View style={[styles.heartbeatPeakTall, { borderColor: line }]} />
-          <View style={[styles.heartbeatPeak, styles.heartbeatPeakDown, { borderColor: line }]} />
-          <View style={[styles.heartbeatLine, { backgroundColor: line, width: 28 }]} />
-        </View>
-      </View>
-    </View>
+    <InteractivePressable
+      onPress={onPress}
+      style={[styles.iconButton, { backgroundColor: theme.surface }]}
+      hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+      pressedStyle={{ backgroundColor: theme.elevated }}
+      scaleHover={1.08}
+      scalePress={0.94}
+    >
+      <Feather name={icon} size={18} color={theme.primary} />
+    </InteractivePressable>
   );
 }
 
-function HoverButton({
-  themeMode,
+function ActionButton({
+  mode,
   label,
-  onPress,
   icon,
+  onPress,
   variant = 'primary',
-  style,
+  fullWidth = false,
 }: {
-  themeMode: ThemeMode;
+  mode: ThemeMode;
   label: string;
+  icon?: keyof typeof Feather.glyphMap;
   onPress: () => void;
-  icon?: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'soft';
-  style?: object;
+  fullWidth?: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
-  const theme = themes[themeMode];
+  const theme = themes[mode];
   const palette =
     variant === 'primary'
       ? {
-          bg: theme.primary,
+          backgroundColor: theme.primary,
+          hoveredColor: theme.primaryStrong,
+          pressedColor: theme.primaryStrong,
           borderColor: theme.primary,
           color: theme.buttonText,
         }
       : variant === 'soft'
         ? {
-            bg: theme.surfaceMuted,
+            backgroundColor: theme.surfaceAlt,
+            hoveredColor: theme.elevated,
+            pressedColor: theme.elevated,
             borderColor: theme.border,
-            color: theme.primaryDark,
+            color: theme.text,
           }
         : {
-            bg: theme.surface,
+            backgroundColor: theme.surface,
+            hoveredColor: theme.surfaceAlt,
+            pressedColor: theme.elevated,
             borderColor: theme.border,
-            color: theme.primaryDark,
+            color: theme.text,
           };
 
-  function animateTo(value: number) {
-    Animated.timing(scale, {
-      toValue: value,
-      duration: 180,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }
-
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        onPress={onPress}
-        onHoverIn={() => {
-          setHovered(true);
-          animateTo(1.035);
-        }}
-        onHoverOut={() => {
-          setHovered(false);
-          animateTo(1);
-        }}
-        onPressIn={() => animateTo(0.985)}
-        onPressOut={() => animateTo(hovered ? 1.035 : 1)}
-        style={[
-          styles.buttonBase,
-          {
-            backgroundColor: palette.bg,
-            borderColor: palette.borderColor,
-          },
-          style,
-        ]}
-      >
-        {icon}
-        <Text style={[styles.buttonLabel, { color: palette.color }]}>{label}</Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-function SectionHeader({
-  themeMode,
-  title,
-  action,
-}: {
-  themeMode: ThemeMode;
-  title: string;
-  action?: string;
-}) {
-  const theme = themes[themeMode];
-
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
-      {action ? <Text style={[styles.sectionAction, { color: theme.primary }]}>{action}</Text> : null}
-    </View>
+    <InteractivePressable
+      onPress={onPress}
+      style={[
+        styles.actionButton,
+        {
+          backgroundColor: palette.backgroundColor,
+          borderColor: palette.borderColor,
+        },
+        fullWidth && styles.fullWidth,
+      ]}
+      hoveredStyle={{ backgroundColor: palette.hoveredColor }}
+      pressedStyle={{ backgroundColor: palette.pressedColor }}
+      scaleHover={1.035}
+      scalePress={0.975}
+    >
+      {icon ? <Feather name={icon} size={16} color={palette.color} /> : null}
+      <Text style={[styles.actionButtonLabel, { color: palette.color }]}>{label}</Text>
+    </InteractivePressable>
   );
 }
 
 function SearchBar({
-  themeMode,
+  mode,
   value,
   onChangeText,
-  placeholder,
-  onPress,
+  onSubmit,
 }: {
-  themeMode: ThemeMode;
+  mode: ThemeMode;
   value: string;
-  onChangeText?: (value: string) => void;
-  placeholder: string;
-  onPress?: () => void;
+  onChangeText: (value: string) => void;
+  onSubmit: () => void;
 }) {
-  const theme = themes[themeMode];
+  const theme = themes[mode];
 
-  const body = (
+  return (
     <View
       style={[
         styles.searchWrap,
@@ -251,61 +202,35 @@ function SearchBar({
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder}
+        onSubmitEditing={onSubmit}
+        placeholder="Search medicines, salts or ask a question"
         placeholderTextColor={theme.subtext}
         style={[styles.searchInput, { color: theme.text }]}
       />
-      <Feather name="camera" size={18} color={theme.primary} />
-      <Feather name="mic" size={18} color={theme.primary} />
-    </View>
-  );
-
-  if (!onPress) {
-    return body;
-  }
-
-  return <Pressable onPress={onPress}>{body}</Pressable>;
-}
-
-function BottomNav({
-  mode,
-  active,
-  onChange,
-}: {
-  mode: ThemeMode;
-  active: Screen;
-  onChange: (screen: Screen) => void;
-}) {
-  const theme = themes[mode];
-  const items: { id: Screen; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-    { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'search', label: 'Search', icon: 'search' },
-    { id: 'orders', label: 'Orders', icon: 'package' },
-    { id: 'cart', label: 'Cart', icon: 'shopping-cart' },
-    { id: 'account', label: 'You', icon: 'user' },
-  ];
-
-  return (
-    <View style={[styles.bottomNav, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-      {items.map((item) => {
-        const selected = active === item.id;
-
-        return (
-          <Pressable key={item.id} style={styles.bottomNavItem} onPress={() => onChange(item.id)}>
-            <Feather name={item.icon} size={18} color={selected ? theme.primary : theme.subtext} />
-            <Text style={[styles.bottomNavText, { color: selected ? theme.primary : theme.subtext }]}>
-              {item.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      <InteractivePressable
+        onPress={() => Alert.alert('Camera', 'Image search can be connected in the next integration step.')}
+        style={styles.searchIconWrap}
+        hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+        pressedStyle={{ backgroundColor: theme.elevated }}
+      >
+        <Feather name="camera" size={16} color={theme.primary} />
+      </InteractivePressable>
+      <InteractivePressable
+        onPress={() => Alert.alert('Voice search', 'Voice search can be connected in the next integration step.')}
+        style={styles.searchIconWrap}
+        hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+        pressedStyle={{ backgroundColor: theme.elevated }}
+      >
+        <Feather name="mic" size={16} color={theme.primary} />
+      </InteractivePressable>
     </View>
   );
 }
 
 export function CustomerModuleApp() {
+  const { width: viewportWidth } = useWindowDimensions();
   const [stage, setStage] = useState<AppStage>('splash');
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [screen, setScreen] = useState<Screen>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMedicineId, setSelectedMedicineId] = useState(medicines[0].id);
@@ -314,7 +239,7 @@ export function CustomerModuleApp() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(null);
   const [prescriptionUploaded, setPrescriptionUploaded] = useState(false);
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
   const [signup, setSignup] = useState({
     fullName: '',
@@ -325,6 +250,12 @@ export function CustomerModuleApp() {
   });
   const splashOpacity = useRef(new Animated.Value(0)).current;
   const splashScale = useRef(new Animated.Value(0.92)).current;
+  const theme = themes[themeMode];
+  const sectionWidth = Math.min(Math.max(viewportWidth - 28, 300), 460);
+  const categoryCardWidth = Math.floor((sectionWidth - 30) / 4);
+  const dealCardWidth = Math.floor((sectionWidth - 10) / 2);
+  const optionCardWidth = Math.floor((sectionWidth - 10) / 2);
+  const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.52, 168), 212);
 
   useEffect(() => {
     if (stage !== 'splash') {
@@ -332,22 +263,22 @@ export function CustomerModuleApp() {
     }
 
     const animation = Animated.sequence([
-      Animated.delay(220),
+      Animated.delay(180),
       Animated.parallel([
         Animated.timing(splashOpacity, {
           toValue: 1,
-          duration: 700,
+          duration: 720,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(splashScale, {
           toValue: 1,
-          duration: 700,
+          duration: 720,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
       ]),
-      Animated.delay(650),
+      Animated.delay(620),
       Animated.parallel([
         Animated.timing(splashOpacity, {
           toValue: 0,
@@ -356,7 +287,7 @@ export function CustomerModuleApp() {
           useNativeDriver: true,
         }),
         Animated.timing(splashScale, {
-          toValue: 1.04,
+          toValue: 1.05,
           duration: 420,
           easing: Easing.in(Easing.quad),
           useNativeDriver: true,
@@ -371,40 +302,38 @@ export function CustomerModuleApp() {
     });
 
     return () => animation.stop();
-  }, [stage]);
+  }, [stage, splashOpacity, splashScale]);
 
-  const theme = themes[themeMode];
-  const selectedMedicine =
-    medicines.find((item) => item.id === selectedMedicineId) ?? medicines[0];
-
-  const filteredMedicineIds = useMemo(() => {
+  const filteredMedicines = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return medicines
-      .filter((medicine) => {
-        if (!query) {
-          return true;
-        }
 
-        return (
-          medicine.brandName.toLowerCase().includes(query) ||
-          medicine.genericName.toLowerCase().includes(query) ||
-          medicine.company.toLowerCase().includes(query)
-        );
-      })
-      .map((medicine) => medicine.id);
+    return medicines.filter((medicine) => {
+      if (!query) {
+        return true;
+      }
+
+      return (
+        medicine.brandName.toLowerCase().includes(query) ||
+        medicine.genericName.toLowerCase().includes(query) ||
+        medicine.company.toLowerCase().includes(query) ||
+        medicine.diseases.some((disease) => disease.toLowerCase().includes(query))
+      );
+    });
   }, [searchQuery]);
+
+  const selectedMedicine =
+    medicines.find((medicine) => medicine.id === selectedMedicineId) ?? medicines[0];
 
   const sortedPharmacies = useMemo(() => {
     const list = retailers
       .map((retailer) => {
         const stock = retailer.stocks.find((item) => item.medicineId === selectedMedicine.id);
-        if (!stock) {
-          return null;
-        }
-
-        return { retailer, stock };
+        return stock ? { retailer, stock } : null;
       })
-      .filter(Boolean) as { retailer: (typeof retailers)[number]; stock: { medicineId: string; price: number; stockQty: number } }[];
+      .filter(Boolean) as {
+      retailer: (typeof retailers)[number];
+      stock: (typeof retailers)[number]['stocks'][number];
+    }[];
 
     return list.sort((a, b) => {
       if (sortBy === 'cheapest') {
@@ -417,9 +346,35 @@ export function CustomerModuleApp() {
     });
   }, [selectedMedicine.id, sortBy]);
 
+  const cartMedicine = cart
+    ? medicines.find((medicine) => medicine.id === cart.medicineId) ?? medicines[0]
+    : null;
+  const cartRetailer = cart
+    ? retailers.find((retailer) => retailer.id === cart.retailerId) ?? retailers[0]
+    : null;
+  const cartUnitPrice =
+    cart && cartRetailer
+      ? cartRetailer.stocks.find((item) => item.medicineId === cart.medicineId)?.price ??
+        cartMedicine?.salePrice ??
+        0
+      : 0;
+  const cartSubtotal = cart ? cart.quantity * cartUnitPrice : 0;
+  const activeOrder = orders[0];
+
+  function navigateTo(screenId: Screen) {
+    setScreen(screenId);
+  }
+
   function goToMedicine(medicineId: string) {
     setSelectedMedicineId(medicineId);
     setScreen('detail');
+  }
+
+  function openSearchFor(term?: string) {
+    if (term) {
+      setSearchQuery(term);
+    }
+    setScreen('search');
   }
 
   function openPharmacies(medicineId: string) {
@@ -427,13 +382,26 @@ export function CustomerModuleApp() {
     setScreen('pharmacies');
   }
 
-  function selectPharmacy(retailerId: string) {
+  function selectRetailer(retailerId: string) {
     setCart({
       medicineId: selectedMedicine.id,
       retailerId,
-      quantity: 1,
+      quantity: cart?.medicineId === selectedMedicine.id && cart.retailerId === retailerId ? cart.quantity : 1,
     });
     setScreen('cart');
+  }
+
+  function updateQuantity(change: number) {
+    setCart((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        quantity: Math.max(1, current.quantity + change),
+      };
+    });
   }
 
   function continueCheckout() {
@@ -449,28 +417,36 @@ export function CustomerModuleApp() {
     setScreen('payment');
   }
 
+  function submitPrescription() {
+    setPrescriptionUploaded(true);
+    setScreen('payment');
+  }
+
   function placeOrder() {
     if (!cart || !paymentMethod || !deliveryMethod) {
+      Alert.alert('Complete checkout', 'Please choose payment and delivery to place the order.');
       return;
     }
 
     const retailer = retailers.find((item) => item.id === cart.retailerId) ?? retailers[0];
-    const price = retailer.stocks.find((item) => item.medicineId === cart.medicineId)?.price ?? selectedMedicine.salePrice;
+    const unitPrice =
+      retailer.stocks.find((item) => item.medicineId === cart.medicineId)?.price ??
+      selectedMedicine.salePrice;
+    const subtotal = unitPrice * cart.quantity;
     const deliveryFee = deliveryMethod === 'home' ? 20 : 0;
-    const subtotal = price * cart.quantity;
     const total = subtotal + deliveryFee;
     const orderId = `ORD-${2200 + orders.length * 13}`;
 
-    setOrders([
+    setOrders((current) => [
       {
         id: orderId,
         retailerId: retailer.id,
         dateLabel: 'Just now',
         status: 'Confirmed',
         total,
-        items: [{ medicineId: cart.medicineId, quantity: cart.quantity, unitPrice: price }],
+        items: [{ medicineId: cart.medicineId, quantity: cart.quantity, unitPrice }],
       },
-      ...orders,
+      ...current,
     ]);
 
     setInvoice({
@@ -485,24 +461,48 @@ export function CustomerModuleApp() {
       paymentMethod,
       deliveryMethod,
     });
-
     setScreen('tracking');
   }
 
+  function currentTab(): TabId {
+    if (screen === 'detail' || screen === 'pharmacies') {
+      return 'search';
+    }
+    if (
+      screen === 'cart' ||
+      screen === 'prescription' ||
+      screen === 'payment' ||
+      screen === 'delivery' ||
+      screen === 'tracking' ||
+      screen === 'invoice'
+    ) {
+      return 'cart';
+    }
+    if (screen === 'orders') {
+      return 'orders';
+    }
+    if (screen === 'account') {
+      return 'account';
+    }
+    return 'home';
+  }
+
+  const contentContainerStyle = [styles.scrollContent, { paddingBottom: 110 }];
+
   if (stage === 'splash') {
     return (
-      <SafeAreaView style={[styles.page, styles.splashScreenWhite]}>
+      <SafeAreaView style={[styles.page, styles.splashPage]}>
         <StatusBar style="dark" />
         <Animated.View
           style={[
-            styles.splashAnimatedWrap,
+            styles.splashWrap,
             {
               opacity: splashOpacity,
               transform: [{ scale: splashScale }],
             },
           ]}
         >
-          <BrandLogo mode="light" />
+          <BrandLogo mode="light" size="hero" />
         </Animated.View>
       </SafeAreaView>
     );
@@ -511,70 +511,64 @@ export function CustomerModuleApp() {
   if (stage === 'signup') {
     return (
       <SafeAreaView style={[styles.page, { backgroundColor: theme.bg }]}>
-        <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
-        <ScrollView contentContainerStyle={styles.authScroll}>
-          <View style={styles.authTopRow}>
-            <BrandLogo mode={themeMode} />
-            <Pressable onPress={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}>
-              {themeMode === 'light' ? (
-                <Feather name="moon" size={20} color={theme.primary} />
-              ) : (
-                <Feather name="sun" size={20} color={theme.primary} />
-              )}
-            </Pressable>
+        <StatusBar style={statusBarStyle(themeMode)} />
+        <ScrollView contentContainerStyle={contentContainerStyle}>
+          <View style={styles.signupHeader}>
+            <BrandLogo mode={themeMode} size="hero" />
+            <HeaderIcon
+              mode={themeMode}
+              icon={themeMode === 'dark' ? 'sun' : 'moon'}
+              onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+            />
           </View>
-          <View style={[styles.authCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View
+            style={[
+              styles.authCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+            ]}
+          >
             <Text style={[styles.authTitle, { color: theme.text }]}>Create your customer account</Text>
             <Text style={[styles.authSub, { color: theme.subtext }]}>
-              Start with your personal details, then search medicines, compare pharmacies, and order.
+              Enter your address and details first, then search medicines, compare pharmacies, upload prescription when needed, choose payment, and get your invoice.
             </Text>
-            <TextInput
-              value={signup.fullName}
-              onChangeText={(value) => setSignup({ ...signup, fullName: value })}
-              placeholder="Full name"
-              placeholderTextColor={theme.subtext}
-              style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border }]}
-            />
-            <TextInput
-              value={signup.email}
-              onChangeText={(value) => setSignup({ ...signup, email: value })}
-              placeholder="Email address"
-              placeholderTextColor={theme.subtext}
-              style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border }]}
-            />
-            <TextInput
-              value={signup.password}
-              onChangeText={(value) => setSignup({ ...signup, password: value })}
-              placeholder="Password"
-              placeholderTextColor={theme.subtext}
-              secureTextEntry
-              style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border }]}
-            />
-            <TextInput
-              value={signup.phone}
-              onChangeText={(value) => setSignup({ ...signup, phone: value })}
-              placeholder="Phone number"
-              placeholderTextColor={theme.subtext}
-              keyboardType="number-pad"
-              style={[styles.input, { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border }]}
-            />
-            <TextInput
-              value={signup.address}
-              onChangeText={(value) => setSignup({ ...signup, address: value })}
-              placeholder="Address"
-              placeholderTextColor={theme.subtext}
-              multiline
-              style={[
-                styles.input,
-                styles.inputMultiline,
-                { backgroundColor: theme.surfaceMuted, color: theme.text, borderColor: theme.border },
-              ]}
-            />
-            <HoverButton
-              themeMode={themeMode}
-              label="Continue to app"
+
+            {[
+              { key: 'fullName', placeholder: 'Full name', secure: false, multiline: false },
+              { key: 'email', placeholder: 'Email address', secure: false, multiline: false },
+              { key: 'password', placeholder: 'Password', secure: true, multiline: false },
+              { key: 'phone', placeholder: 'Phone number', secure: false, multiline: false },
+              { key: 'address', placeholder: 'Full delivery address', secure: false, multiline: true },
+            ].map((field) => (
+              <TextInput
+                key={field.key}
+                value={signup[field.key as keyof typeof signup]}
+                onChangeText={(value) => setSignup((current) => ({ ...current, [field.key]: value }))}
+                placeholder={field.placeholder}
+                placeholderTextColor={theme.subtext}
+                secureTextEntry={field.secure}
+                multiline={field.multiline}
+                keyboardType={field.key === 'phone' ? 'phone-pad' : 'default'}
+                style={[
+                  styles.input,
+                  field.multiline && styles.inputMultiline,
+                  {
+                    backgroundColor: theme.surfaceAlt,
+                    color: theme.text,
+                    borderColor: theme.border,
+                  },
+                ]}
+              />
+            ))}
+
+            <ActionButton
+              mode={themeMode}
+              label="Continue to customer app"
+              icon="arrow-right"
               onPress={() => setStage('app')}
-              icon={<Feather name="arrow-right" size={16} color={theme.buttonText} />}
+              fullWidth
             />
           </View>
         </ScrollView>
@@ -582,656 +576,806 @@ export function CustomerModuleApp() {
     );
   }
 
-  const cartMedicine = cart
-    ? medicines.find((item) => item.id === cart.medicineId) ?? medicines[0]
-    : null;
-  const cartRetailer = cart
-    ? retailers.find((item) => item.id === cart.retailerId) ?? retailers[0]
-    : null;
-  const cartUnitPrice =
-    cart && cartRetailer
-      ? cartRetailer.stocks.find((item) => item.medicineId === cart.medicineId)?.price ??
-        cartMedicine?.salePrice ??
-        0
-      : 0;
-
-  return (
-    <SafeAreaView style={[styles.page, { backgroundColor: theme.bg }]}>
-      <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
-      <View style={[styles.headerBand, { backgroundColor: theme.surfaceMuted, borderBottomColor: theme.border }]}>
-        <View style={styles.headerTop}>
-          <BrandLogo mode={themeMode} />
-          <View style={styles.headerActions}>
-            <Pressable onPress={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}>
-              {themeMode === 'light' ? (
-                <Feather name="moon" size={20} color={theme.primary} />
-              ) : (
-                <Feather name="sun" size={20} color={theme.primary} />
-              )}
-            </Pressable>
-            <Feather name="bell" size={20} color={theme.primary} />
-            <Feather name="shopping-cart" size={20} color={theme.primary} />
-          </View>
+  function renderHome() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <View style={styles.rowWrap}>
+          {quickServices.map((service) => (
+            <InteractivePressable
+              key={service.id}
+              onPress={() => {
+                if (service.title === 'Rx Upload') {
+                  setScreen('prescription');
+                  return;
+                }
+                if (service.title === 'Deals') {
+                  openSearchFor('deal');
+                  return;
+                }
+                if (service.title === 'Refill') {
+                  openSearchFor('daily');
+                  return;
+                }
+                Alert.alert(service.title, `${service.title} can be wired to a dedicated flow in the next pass.`);
+              }}
+              style={[
+                styles.utilityChip,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <Feather name={serviceIcons[service.title]} size={15} color={theme.primary} />
+              <Text style={[styles.utilityChipText, { color: theme.text }]}>{service.title}</Text>
+            </InteractivePressable>
+          ))}
         </View>
-        <SearchBar
-          themeMode={themeMode}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search medicines, salts or ask a question"
-          onPress={screen === 'home' ? () => setScreen('search') : undefined}
-        />
-        <View style={styles.locationRow}>
-          <View style={styles.locationLabelWrap}>
-            <Feather name="map-pin" size={16} color={theme.primary} />
-            <Text style={[styles.locationText, { color: theme.text }]}>
-              Deliver to {signup.address || 'your saved address'}
-            </Text>
-          </View>
-          <Text style={[styles.locationLink, { color: theme.primary }]}>Change</Text>
+
+        <View style={[styles.rowWrap, styles.shortcutRow]}>
+          {shortcutChips.map((chip) => (
+            <InteractivePressable
+              key={chip.id}
+              onPress={() => {
+                if (chip.title === 'Orders') {
+                  setScreen('orders');
+                  return;
+                }
+                if (chip.title === 'Buy Again') {
+                  openSearchFor(cartMedicine?.genericName ?? medicines[0].genericName);
+                  return;
+                }
+                if (chip.title === 'Account') {
+                  setScreen('account');
+                  return;
+                }
+                Alert.alert('Lists', 'List management can be connected in the next step.');
+              }}
+              style={[
+                styles.shortcutChip,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <Text style={[styles.shortcutChipText, { color: theme.text }]}>{chip.title}</Text>
+            </InteractivePressable>
+          ))}
         </View>
-      </View>
 
-      {screen === 'home' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.utilityRow}>
-            {quickServices.map((service) => (
-              <View
-                key={service.id}
-                style={[
-                  styles.utilityService,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <View style={[styles.utilityServiceDot, { backgroundColor: theme.accent }]} />
-                <Text style={[styles.utilityServiceText, { color: theme.text }]}>{service.title}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.shortcutRow}>
-            {shortcutChips.map((chip) => (
-              <HoverButton
-                key={chip.id}
-                themeMode={themeMode}
-                label={chip.title}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalRow}
+        >
+          {banners.map((banner) => (
+            <InteractivePressable
+              key={banner.id}
+              onPress={() => openSearchFor(banner.title.includes('Nearby') ? 'nearby' : 'daily')}
+              style={[
+                styles.bannerCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={[styles.bannerAccent, { backgroundColor: banner.accent }]} />
+              <Text style={[styles.bannerTitle, { color: '#0a1624' }]}>{banner.title}</Text>
+              <Text style={[styles.bannerText, { color: theme.subtext }]}>{banner.subtitle}</Text>
+              <ActionButton
+                mode={themeMode}
+                label="Explore"
+                icon="arrow-right"
                 variant="secondary"
-                onPress={() => {
-                  if (chip.title === 'Orders') setScreen('orders');
-                  if (chip.title === 'Account') setScreen('account');
-                }}
-                style={styles.shortcutButton}
+                onPress={() => openSearchFor(banner.title)}
               />
-            ))}
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bannerRow}>
-            {banners.map((banner) => (
-              <View
-                key={banner.id}
-                style={[
-                  styles.bannerCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <View style={[styles.bannerAccent, { backgroundColor: banner.accent }]} />
-                <Text style={[styles.bannerTitle, { color: theme.text }]}>{banner.title}</Text>
-                <Text style={[styles.bannerText, { color: theme.subtext }]}>{banner.subtitle}</Text>
-                <HoverButton themeMode={themeMode} label="Explore" variant="soft" onPress={() => setScreen('search')} />
-              </View>
-            ))}
-          </ScrollView>
-
-          <SectionHeader themeMode={themeMode} title="Top categories for you" />
-          <View style={styles.categoryGrid}>
-            {categories.map((category) => (
-              <View
-                key={category.id}
-                style={[
-                  styles.categoryCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <View style={[styles.categoryIcon, { backgroundColor: category.tint }]} />
-                <Text style={[styles.categoryLabel, { color: theme.text }]}>{category.title}</Text>
-              </View>
-            ))}
-          </View>
-
-          <SectionHeader themeMode={themeMode} title="Reorder previous medicines" action="See all" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-            {medicines.slice(0, 3).map((medicine) => (
-              <Pressable
-                key={medicine.id}
-                onPress={() => goToMedicine(medicine.id)}
-                style={[
-                  styles.productTile,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <View style={[styles.productThumb, { backgroundColor: medicine.imageColor }]}>
-                  <Text style={[styles.productThumbText, { color: theme.primaryDark }]}>
-                    {medicine.genericName.slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <Text numberOfLines={2} style={[styles.productTitle, { color: theme.text }]}>
-                  {medicine.brandName}
-                </Text>
-                <Text style={[styles.productMeta, { color: theme.subtext }]}>
-                  {medicine.monthlyOrders}
-                </Text>
-                <Text style={[styles.productPrice, { color: theme.text }]}>
-                  {formatCurrency(medicine.salePrice)}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          <SectionHeader themeMode={themeMode} title="Nearby pharmacy deals" action="See all" />
-          <View style={styles.dealGrid}>
-            {medicines.map((medicine) => (
-              <Pressable
-                key={medicine.id}
-                onPress={() => goToMedicine(medicine.id)}
-                style={[
-                  styles.dealCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <View style={[styles.dealThumb, { backgroundColor: medicine.imageColor }]}>
-                  <Text style={[styles.dealThumbText, { color: theme.primaryDark }]}>
-                    {medicine.genericName.slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <Text numberOfLines={2} style={[styles.dealTitle, { color: theme.text }]}>
-                  {medicine.brandName}
-                </Text>
-                <Text style={[styles.dealPrice, { color: theme.text }]}>{formatCurrency(medicine.salePrice)}</Text>
-              </Pressable>
-            ))}
-          </View>
+            </InteractivePressable>
+          ))}
         </ScrollView>
-      ) : null}
 
-      {screen === 'search' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Search medicines" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortRow}>
-            {['Closest pharmacy', 'Cheapest', 'Best rating', 'Generic', 'Rx required'].map((label) => (
-              <View
-                key={label}
-                style={[
-                  styles.pill,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-              >
-                <Text style={[styles.pillText, { color: theme.text }]}>{label}</Text>
+        <SectionHeader
+          mode={themeMode}
+          title="Top categories for you"
+          description="Jump straight to the medicines people usually search first."
+        />
+        <View style={styles.categoryGrid}>
+          {categories.map((category) => (
+            <InteractivePressable
+              key={category.id}
+              onPress={() => openSearchFor(category.title)}
+              style={[
+                styles.categoryCard,
+                { width: categoryCardWidth },
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={[styles.categoryIconWrap, { backgroundColor: category.tint }]}>
+                <Feather
+                  name={categoryIcons[category.title] ?? 'box'}
+                  size={18}
+                  color={theme.primaryStrong}
+                />
               </View>
+              <Text numberOfLines={2} style={[styles.categoryLabel, { color: theme.text }]}>
+                {category.title}
+              </Text>
+            </InteractivePressable>
+          ))}
+        </View>
+
+        <SectionHeader
+          mode={themeMode}
+          title="Reorder previous medicines"
+          action="See all"
+          onAction={() => setScreen('orders')}
+        />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalRow}
+        >
+          {medicines.map((medicine) => (
+            <InteractivePressable
+              key={medicine.id}
+              onPress={() => goToMedicine(medicine.id)}
+              style={[
+                styles.productCard,
+                { width: mobileProductCardWidth },
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={[styles.productThumb, { backgroundColor: medicine.imageColor }]}>
+                <Text style={styles.productThumbText}>{medicine.genericName.slice(0, 2).toUpperCase()}</Text>
+              </View>
+              <Text style={[styles.productTitle, { color: theme.text }]} numberOfLines={2}>
+                {medicine.brandName}
+              </Text>
+              <Text style={[styles.productMeta, { color: theme.subtext }]}>{medicine.monthlyOrders}</Text>
+              <Text style={[styles.productPrice, { color: theme.text }]}>{formatCurrency(medicine.salePrice)}</Text>
+            </InteractivePressable>
+          ))}
+        </ScrollView>
+
+        <SectionHeader
+          mode={themeMode}
+          title="Nearby pharmacy deals"
+          action="See all"
+          onAction={() => setScreen('search')}
+        />
+        <View style={styles.dealGrid}>
+          {medicines.map((medicine) => (
+            <InteractivePressable
+              key={medicine.id}
+              onPress={() => openPharmacies(medicine.id)}
+              style={[
+                styles.dealCard,
+                { width: dealCardWidth },
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={[styles.dealThumb, { backgroundColor: medicine.imageColor }]}>
+                <Text style={styles.dealThumbText}>{medicine.genericName.slice(0, 2).toUpperCase()}</Text>
+              </View>
+              <Text style={[styles.dealTitle, { color: theme.text }]} numberOfLines={2}>
+                {medicine.brandName}
+              </Text>
+              <Text style={[styles.dealMeta, { color: theme.subtext }]}>
+                Compare closest, cheapest, and top rated pharmacies
+              </Text>
+              <Text style={[styles.dealPrice, { color: theme.text }]}>
+                From {formatCurrency(Math.min(...retailers.flatMap((retailer) => retailer.stocks.filter((stock) => stock.medicineId === medicine.id).map((stock) => stock.price))))}
+              </Text>
+            </InteractivePressable>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  }
+
+  function renderSearch() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Search medicines"
+          description="See medicine details first, then compare nearby pharmacies."
+        />
+        {recentSearches.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRow}>
+            {recentSearches.map((term) => (
+              <InteractivePressable
+                key={term}
+                onPress={() => openSearchFor(term)}
+                style={[
+                  styles.searchPill,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+                hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
+              >
+                <Feather name="clock" size={14} color={theme.primary} />
+                <Text style={[styles.searchPillText, { color: theme.text }]}>{term}</Text>
+              </InteractivePressable>
             ))}
           </ScrollView>
-          {!searchQuery ? (
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.infoTitle, { color: theme.text }]}>Recent searches</Text>
-              {recentSearches.map((item) => (
-                <Text key={item} style={[styles.infoLine, { color: theme.subtext }]}>
-                  {item}
-                </Text>
-              ))}
+        ) : null}
+        {filteredMedicines.map((medicine) => (
+          <InteractivePressable
+            key={medicine.id}
+            onPress={() => goToMedicine(medicine.id)}
+            style={[
+              styles.searchCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+            ]}
+            hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+            pressedStyle={{ backgroundColor: theme.elevated }}
+          >
+            <View style={[styles.searchCardThumb, { backgroundColor: medicine.imageColor }]}>
+              <Text style={styles.searchCardThumbText}>{medicine.genericName.slice(0, 2).toUpperCase()}</Text>
             </View>
-          ) : null}
-          {filteredMedicineIds.map((medicineId) => {
-            const medicine = medicines.find((item) => item.id === medicineId) ?? medicines[0];
-            const discount = Math.round(((medicine.mrp - medicine.salePrice) / medicine.mrp) * 100);
+            <View style={styles.searchCardBody}>
+              <Text style={[styles.searchCardTitle, { color: theme.text }]}>{medicine.brandName}</Text>
+              <Text style={[styles.searchCardMeta, { color: theme.subtext }]}>
+                {medicine.genericName} · {medicine.company} · {medicine.packSize}
+              </Text>
+              <Text style={[styles.searchCardMeta, { color: theme.subtext }]}>
+                {medicine.rating} stars · {medicine.reviewCount} reviews
+              </Text>
+              <Text style={[styles.searchCardPrice, { color: theme.text }]}>{formatCurrency(medicine.salePrice)}</Text>
+              <Text style={[styles.searchCardMeta, { color: theme.primary }]}>
+                {medicine.couponPrice ? `Buy for ${formatCurrency(medicine.couponPrice)} with coupon` : 'Trusted nearby pricing'}
+              </Text>
+              <View style={styles.inlineRow}>
+                <ActionButton mode={themeMode} label="Details" icon="info" variant="secondary" onPress={() => goToMedicine(medicine.id)} />
+                <ActionButton mode={themeMode} label="Compare pharmacies" icon="map-pin" onPress={() => openPharmacies(medicine.id)} />
+              </View>
+            </View>
+          </InteractivePressable>
+        ))}
+      </ScrollView>
+    );
+  }
 
-            return (
-              <Pressable
-                key={medicineId}
-                onPress={() => goToMedicine(medicineId)}
-                style={[
-                  styles.searchCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
+  function renderDetail() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Medicine details"
+          description="Everything the customer should see before ordering."
+        />
+        <View style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={[styles.detailThumb, { backgroundColor: selectedMedicine.imageColor }]}>
+            <Text style={styles.detailThumbText}>{selectedMedicine.genericName.slice(0, 2).toUpperCase()}</Text>
+          </View>
+          <Text style={[styles.detailTitle, { color: theme.text }]}>{selectedMedicine.brandName}</Text>
+          <Text style={[styles.detailSubTitle, { color: theme.subtext }]}>
+            {selectedMedicine.genericName} - {selectedMedicine.dosage} - {selectedMedicine.packSize}
+          </Text>
+          <Text style={[styles.detailPrice, { color: theme.text }]}>
+            {formatCurrency(selectedMedicine.salePrice)}
+          </Text>
+          <Text style={[styles.detailSubTitle, { color: theme.primary }]}>
+            {selectedMedicine.prescriptionRequired ? 'Prescription required before dispatch' : 'No prescription needed'}
+          </Text>
+          <Text style={[styles.detailDescription, { color: theme.subtext }]}>{selectedMedicine.description}</Text>
+
+          <View style={styles.tagRow}>
+            {selectedMedicine.diseases.map((disease) => (
+              <View key={disease} style={[styles.infoTag, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
+                <Text style={[styles.infoTagText, { color: theme.text }]}>{disease}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Text style={[styles.subSectionTitle, { color: theme.text }]}>Substitutes</Text>
+          <View style={styles.tagRow}>
+            {selectedMedicine.substitutes.map((substitute) => (
+              <InteractivePressable
+                key={substitute}
+                onPress={() => openSearchFor(substitute)}
+                style={[styles.infoTag, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
               >
-                <View style={[styles.searchCardThumb, { backgroundColor: medicine.imageColor }]}>
-                  <Text style={[styles.searchCardThumbText, { color: theme.primaryDark }]}>
-                    {medicine.genericName.slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.searchCardBody}>
-                  <Text numberOfLines={3} style={[styles.searchCardTitle, { color: theme.text }]}>
-                    {medicine.brandName} {medicine.packSize} {medicine.dosage}
-                  </Text>
-                  <Text style={[styles.searchCardMeta, { color: theme.subtext }]}>
-                    {medicine.rating} stars ({medicine.reviewCount}) • {medicine.monthlyOrders}
-                  </Text>
-                  <Text style={[styles.searchCardPrice, { color: theme.text }]}>
-                    {formatCurrency(medicine.salePrice)}
-                  </Text>
-                  <Text style={[styles.searchCardStrike, { color: theme.subtext }]}>
-                    MRP {formatCurrency(medicine.mrp)} • {discount}% off
-                  </Text>
-                  <View style={styles.inlineButtons}>
-                    <HoverButton
-                      themeMode={themeMode}
-                      label="View"
-                      variant="secondary"
-                      onPress={() => goToMedicine(medicine.id)}
-                      icon={<Feather name="eye" size={15} color={theme.primaryDark} />}
-                    />
-                    <HoverButton
-                      themeMode={themeMode}
-                      label="Add"
-                      onPress={() => openPharmacies(medicine.id)}
-                      icon={<Feather name="shopping-cart" size={15} color={theme.buttonText} />}
-                    />
-                  </View>
-                </View>
-              </Pressable>
+                <Text style={[styles.infoTagText, { color: theme.text }]}>{substitute}</Text>
+              </InteractivePressable>
+            ))}
+          </View>
+
+          <View style={styles.inlineRow}>
+            <ActionButton mode={themeMode} label="Compare pharmacies" icon="map-pin" onPress={() => openPharmacies(selectedMedicine.id)} />
+            <ActionButton mode={themeMode} label="Back to search" icon="search" variant="secondary" onPress={() => setScreen('search')} />
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  function renderPharmacies() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Choose pharmacy"
+          description="Sort by what matters first before you place the order."
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRow}>
+          {[
+            { id: 'closest', label: 'Closest pharmacy' },
+            { id: 'cheapest', label: 'Cheapest first' },
+            { id: 'rating', label: 'Highest rating' },
+          ].map((option) => {
+            const active = sortBy === option.id;
+            return (
+              <InteractivePressable
+                key={option.id}
+                onPress={() => setSortBy(option.id as PharmacySort)}
+                style={[
+                  styles.sortPill,
+                  {
+                    backgroundColor: active ? theme.primarySoft : theme.surface,
+                    borderColor: active ? theme.primary : theme.border,
+                  },
+                ]}
+                hoveredStyle={{ backgroundColor: active ? theme.primarySoft : theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
+              >
+                <Text style={[styles.sortPillText, { color: active ? theme.primaryStrong : theme.text }]}>
+                  {option.label}
+                </Text>
+              </InteractivePressable>
             );
           })}
         </ScrollView>
-      ) : null}
 
-      {screen === 'detail' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={[styles.detailThumb, { backgroundColor: selectedMedicine.imageColor }]}>
-              <Text style={[styles.detailThumbText, { color: theme.primaryDark }]}>
-                {selectedMedicine.genericName.slice(0, 2).toUpperCase()}
-              </Text>
-            </View>
-            <Text style={[styles.detailTitle, { color: theme.text }]}>{selectedMedicine.brandName}</Text>
-            <Text style={[styles.detailSubTitle, { color: theme.subtext }]}>
-              {selectedMedicine.genericName} • {selectedMedicine.dosage} • {selectedMedicine.packSize}
-            </Text>
-            <Text style={[styles.detailSubTitle, { color: theme.subtext }]}>
-              {selectedMedicine.diseases.join(', ')}
-            </Text>
-            <Text style={[styles.detailPrice, { color: theme.text }]}>
-              {formatCurrency(selectedMedicine.salePrice)}
-            </Text>
-            <Text style={[styles.detailSubTitle, { color: theme.subtext }]}>
-              MRP {formatCurrency(selectedMedicine.mrp)} • {selectedMedicine.monthlyOrders}
-            </Text>
-            <Text style={[styles.detailDescription, { color: theme.subtext }]}>
-              {selectedMedicine.description}
-            </Text>
-            <View style={styles.inlineButtons}>
-              <HoverButton
-                themeMode={themeMode}
-                label="See pharmacies"
-                onPress={() => openPharmacies(selectedMedicine.id)}
-                icon={<Feather name="map-pin" size={15} color={theme.buttonText} />}
-              />
-              <HoverButton
-                themeMode={themeMode}
-                label="Back"
-                variant="secondary"
-                onPress={() => setScreen('home')}
-                icon={<Feather name="arrow-left" size={15} color={theme.primaryDark} />}
-              />
-            </View>
-          </View>
-        </ScrollView>
-      ) : null}
-
-      {screen === 'pharmacies' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Choose pharmacy" action="Sort" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortRow}>
-            {[
-              { id: 'closest', label: 'Closest pharmacy' },
-              { id: 'cheapest', label: 'Cheapest' },
-              { id: 'rating', label: 'Highest rating' },
-            ].map((item) => {
-              const active = sortBy === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setSortBy(item.id as PharmacySort)}
-                  style={[
-                    styles.pill,
-                    {
-                      backgroundColor: active ? theme.primary : theme.surface,
-                      borderColor: active ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.pillText, { color: active ? theme.buttonText : theme.text }]}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          {sortedPharmacies.map((entry) => (
-            <View
-              key={entry.retailer.id}
-              style={[
-                styles.infoCard,
-                { backgroundColor: theme.surface, borderColor: theme.border },
-              ]}
-            >
-              <View style={styles.infoCardTop}>
-                <Text style={[styles.infoTitle, { color: theme.text }]}>{entry.retailer.name}</Text>
-                <Text style={[styles.infoLineStrong, { color: theme.primary }]}>
-                  {formatCurrency(entry.stock.price)}
+        {sortedPharmacies.map(({ retailer, stock }) => (
+          <InteractivePressable
+            key={retailer.id}
+            onPress={() => selectRetailer(retailer.id)}
+            style={[
+              styles.pharmacyCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+            ]}
+            hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+            pressedStyle={{ backgroundColor: theme.elevated }}
+          >
+            <View style={styles.pharmacyHeader}>
+              <View style={styles.pharmacyHeaderCopy}>
+                <Text style={[styles.pharmacyName, { color: theme.text }]}>{retailer.name}</Text>
+                <Text style={[styles.pharmacyMeta, { color: theme.subtext }]}>
+                  {retailer.area} - {retailer.distanceKm} km - {retailer.deliveryTime}
                 </Text>
               </View>
-              <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                {entry.retailer.area} • {entry.retailer.distanceKm} km • Rating {entry.retailer.rating}
-              </Text>
-              <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                Stock {entry.stock.stockQty} • {entry.retailer.deliveryAvailable ? entry.retailer.deliveryTime : 'Pickup only'}
-              </Text>
-              <HoverButton
-                themeMode={themeMode}
-                label="Select pharmacy"
-                onPress={() => selectPharmacy(entry.retailer.id)}
-                icon={<Feather name="check-circle" size={15} color={theme.buttonText} />}
-                style={styles.fullWidthButton}
-              />
+              <Text style={[styles.pharmacyPrice, { color: theme.text }]}>{formatCurrency(stock.price)}</Text>
             </View>
-          ))}
-        </ScrollView>
-      ) : null}
+            <View style={styles.pharmacyStats}>
+              <Text style={[styles.pharmacyMeta, { color: theme.primary }]}>Rating {retailer.rating}</Text>
+              <Text style={[styles.pharmacyMeta, { color: theme.subtext }]}>Stock {stock.stockQty}</Text>
+              <Text style={[styles.pharmacyMeta, { color: theme.subtext }]}>
+                {retailer.deliveryAvailable ? 'Home delivery available' : 'Pickup only'}
+              </Text>
+            </View>
+            <ActionButton mode={themeMode} label="Select pharmacy" icon="shopping-bag" onPress={() => selectRetailer(retailer.id)} />
+          </InteractivePressable>
+        ))}
+      </ScrollView>
+    );
+  }
 
-      {screen === 'cart' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Review order" />
-          {cart && cartMedicine && cartRetailer ? (
-            <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.infoCardTop}>
-                <Text style={[styles.infoTitle, { color: theme.text }]}>{cartMedicine.brandName}</Text>
-                <Text style={[styles.infoLineStrong, { color: theme.primary }]}>
-                  {formatCurrency(cartUnitPrice * cart.quantity)}
-                </Text>
-              </View>
+  function renderCart() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Review order"
+          description="Product details, pharmacy details, quantity, and next step all in one place."
+        />
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {cartMedicine && cartRetailer ? (
+            <>
+              <Text style={[styles.infoTitle, { color: theme.text }]}>{cartMedicine.brandName}</Text>
               <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                {cartMedicine.genericName} • {cartMedicine.packSize} • {cartMedicine.dosage}
+                {cartMedicine.genericName} - {cartMedicine.packSize}
               </Text>
               <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                Pharmacy: {cartRetailer.name} • {cartRetailer.area}
+                Pharmacy: {cartRetailer.name} - {cartRetailer.area}
               </Text>
               <Text style={[styles.infoLine, { color: theme.subtext }]}>
                 Prescription: {cartMedicine.prescriptionRequired ? 'Required' : 'Not required'}
               </Text>
+              <Text style={[styles.infoLine, { color: theme.text }]}>Price per pack: {formatCurrency(cartUnitPrice)}</Text>
+
               <View style={styles.quantityRow}>
-                <HoverButton
-                  themeMode={themeMode}
-                  label="-"
-                  variant="secondary"
-                  onPress={() => setCart({ ...cart, quantity: Math.max(1, cart.quantity - 1) })}
-                />
-                <Text style={[styles.quantityText, { color: theme.text }]}>{cart.quantity}</Text>
-                <HoverButton
-                  themeMode={themeMode}
-                  label="+"
-                  variant="secondary"
-                  onPress={() => setCart({ ...cart, quantity: cart.quantity + 1 })}
-                />
+                <ActionButton mode={themeMode} label="-" variant="secondary" onPress={() => updateQuantity(-1)} />
+                <Text style={[styles.quantityValue, { color: theme.text }]}>{cart?.quantity ?? 1}</Text>
+                <ActionButton mode={themeMode} label="+" variant="secondary" onPress={() => updateQuantity(1)} />
               </View>
-              <HoverButton
-                themeMode={themeMode}
-                label={cartMedicine.prescriptionRequired ? 'Continue to prescription' : 'Continue to payment'}
+
+              <View style={styles.billBox}>
+                <View style={styles.billRow}>
+                  <Text style={[styles.billText, { color: theme.subtext }]}>Subtotal</Text>
+                  <Text style={[styles.billText, { color: theme.text }]}>{formatCurrency(cartSubtotal)}</Text>
+                </View>
+              </View>
+
+              <ActionButton
+                mode={themeMode}
+                label={cartMedicine.prescriptionRequired && !prescriptionUploaded ? 'Continue to prescription' : 'Continue to payment'}
+                icon="arrow-right"
                 onPress={continueCheckout}
-                icon={<Feather name="arrow-right-circle" size={15} color={theme.buttonText} />}
-                style={styles.fullWidthButton}
+                fullWidth
               />
-            </View>
-          ) : null}
-        </ScrollView>
-      ) : null}
+            </>
+          ) : (
+            <Text style={[styles.infoLine, { color: theme.subtext }]}>No medicine selected yet.</Text>
+          )}
+        </View>
+      </ScrollView>
+    );
+  }
 
-      {screen === 'prescription' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Upload prescription" />
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.infoTitle, { color: theme.text }]}>Prescription required</Text>
-            <Text style={[styles.infoLine, { color: theme.subtext }]}>
-              This medicine needs prescription approval before payment, exactly like your Obsidian flow.
-            </Text>
-            <View style={styles.inlineButtons}>
-              <HoverButton
-                themeMode={themeMode}
-                label={prescriptionUploaded ? 'Prescription uploaded' : 'Upload prescription'}
-                onPress={() => setPrescriptionUploaded(true)}
-                icon={<Feather name="upload" size={15} color={theme.buttonText} />}
-              />
-              <HoverButton
-                themeMode={themeMode}
-                label="Continue"
-                variant="secondary"
-                onPress={() => setScreen('payment')}
-                icon={<Feather name="arrow-right" size={15} color={theme.primaryDark} />}
-              />
-            </View>
+  function renderPrescription() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Upload prescription"
+          description="This step appears only when the selected medicine needs retailer approval."
+        />
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.infoLine, { color: theme.subtext }]}>
+            Upload prescription, then the retailer can approve or reject the order according to the PharmaConnect customer flow.
+          </Text>
+          <View style={styles.inlineRow}>
+            <ActionButton
+              mode={themeMode}
+              label={prescriptionUploaded ? 'Prescription uploaded' : 'Upload now'}
+              icon="upload"
+              onPress={submitPrescription}
+            />
+            <ActionButton mode={themeMode} label="Back to cart" icon="arrow-left" variant="secondary" onPress={() => setScreen('cart')} />
           </View>
-        </ScrollView>
-      ) : null}
+        </View>
+      </ScrollView>
+    );
+  }
 
-      {screen === 'payment' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Select payment option" />
-          <View style={styles.optionGrid}>
-            {[
-              { id: 'upi', label: 'UPI', icon: 'smartphone' },
-              { id: 'card', label: 'Card', icon: 'credit-card' },
-              { id: 'bank', label: 'Bank', icon: 'briefcase' },
-              { id: 'cod', label: 'Cash', icon: 'dollar-sign' },
-            ].map((item) => {
-              const active = paymentMethod === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setPaymentMethod(item.id as PaymentMethod)}
-                  style={[
-                    styles.optionCard,
-                    {
-                      backgroundColor: active ? theme.surfaceMuted : theme.surface,
-                      borderColor: active ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  <Feather name={item.icon as keyof typeof Feather.glyphMap} size={20} color={theme.primary} />
-                  <Text style={[styles.optionTitle, { color: theme.text }]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <HoverButton
-            themeMode={themeMode}
-            label="Continue to delivery"
-            onPress={() => setScreen('delivery')}
-            icon={<Feather name="truck" size={15} color={theme.buttonText} />}
-            style={styles.fullWidthButton}
-          />
-        </ScrollView>
-      ) : null}
-
-      {screen === 'delivery' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Choose delivery option" />
-          <View style={styles.optionGrid}>
-            {[
-              { id: 'home', label: 'Home delivery', icon: 'truck' },
-              { id: 'pickup', label: 'Pickup from pharmacy', icon: 'map-pin' },
-            ].map((item) => {
-              const active = deliveryMethod === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setDeliveryMethod(item.id as DeliveryMethod)}
-                  style={[
-                    styles.optionCard,
-                    {
-                      backgroundColor: active ? theme.surfaceMuted : theme.surface,
-                      borderColor: active ? theme.primary : theme.border,
-                    },
-                  ]}
-                >
-                  <Feather name={item.icon as keyof typeof Feather.glyphMap} size={20} color={theme.primary} />
-                  <Text style={[styles.optionTitle, { color: theme.text }]}>{item.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <HoverButton
-            themeMode={themeMode}
-            label="Place order"
-            onPress={placeOrder}
-            icon={<Feather name="check" size={15} color={theme.buttonText} />}
-            style={styles.fullWidthButton}
-          />
-        </ScrollView>
-      ) : null}
-
-      {screen === 'tracking' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title={`Track ${orders[0].id}`} />
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {['Order Placed', 'Confirmed', 'Packed', 'Out for Delivery', 'Delivered'].map((step, index) => {
-              const active = index <= orderStepIndex(orders[0].status);
-              return (
-                <View key={step} style={styles.trackRow}>
-                  <View
-                    style={[
-                      styles.trackDot,
-                      { backgroundColor: active ? theme.primary : theme.border },
-                    ]}
-                  />
-                  <View style={styles.trackContent}>
-                    <Text style={[styles.trackTitle, { color: active ? theme.text : theme.subtext }]}>
-                      {step}
-                    </Text>
-                    <Text style={[styles.trackMeta, { color: theme.subtext }]}>
-                      {active ? 'Visible in your customer app' : 'Waiting for next step'}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-            <View style={styles.inlineButtons}>
-              <HoverButton
-                themeMode={themeMode}
-                label="View invoice"
-                onPress={() => setScreen('invoice')}
-                icon={<Feather name="file-text" size={15} color={theme.buttonText} />}
-              />
-              <HoverButton
-                themeMode={themeMode}
-                label="Orders"
-                variant="secondary"
-                onPress={() => setScreen('orders')}
-                icon={<Feather name="package" size={15} color={theme.primaryDark} />}
-              />
-            </View>
-          </View>
-        </ScrollView>
-      ) : null}
-
-      {screen === 'invoice' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Invoice and bill" />
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {invoice ? (
-              <>
-                <Text style={[styles.infoTitle, { color: theme.text }]}>
-                  Invoice {invoice.invoiceNo}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Order {invoice.orderId}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Medicine: {medicines.find((item) => item.id === invoice.medicineId)?.brandName}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Pharmacy: {retailers.find((item) => item.id === invoice.retailerId)?.name}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Quantity: {invoice.quantity}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Payment: {invoice.paymentMethod.toUpperCase()}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Delivery: {invoice.deliveryMethod === 'home' ? 'Home delivery' : 'Pickup from pharmacy'}
-                </Text>
-                <View style={styles.billLines}>
-                  <View style={styles.billRow}>
-                    <Text style={[styles.billText, { color: theme.subtext }]}>Subtotal</Text>
-                    <Text style={[styles.billText, { color: theme.text }]}>{formatCurrency(invoice.subtotal)}</Text>
-                  </View>
-                  <View style={styles.billRow}>
-                    <Text style={[styles.billText, { color: theme.subtext }]}>Delivery</Text>
-                    <Text style={[styles.billText, { color: theme.text }]}>{formatCurrency(invoice.deliveryFee)}</Text>
-                  </View>
-                  <View style={styles.billRow}>
-                    <Text style={[styles.billTotal, { color: theme.text }]}>Total bill</Text>
-                    <Text style={[styles.billTotal, { color: theme.text }]}>{formatCurrency(invoice.total)}</Text>
-                  </View>
-                </View>
-                <HoverButton
-                  themeMode={themeMode}
-                  label="Download invoice"
-                  onPress={() =>
-                    Alert.alert('Download started', 'This prototype now shows the invoice action. Real PDF download comes with backend integration.')
-                  }
-                  icon={<Feather name="download" size={15} color={theme.buttonText} />}
-                  style={styles.fullWidthButton}
-                />
-              </>
-            ) : (
-              <Text style={[styles.infoLine, { color: theme.subtext }]}>No invoice generated yet.</Text>
-            )}
-          </View>
-        </ScrollView>
-      ) : null}
-
-      {screen === 'orders' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Your orders" />
-          {orders.map((order) => {
-            const retailer = retailers.find((item) => item.id === order.retailerId) ?? retailers[0];
+  function renderPayment() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Select payment option"
+          description="Choose the exact payment step before delivery choice."
+        />
+        <View style={styles.optionGrid}>
+          {[
+            { id: 'upi', label: 'UPI', icon: 'smartphone' },
+            { id: 'card', label: 'Card', icon: 'credit-card' },
+            { id: 'bank', label: 'Bank details', icon: 'briefcase' },
+            { id: 'cod', label: 'Cash on delivery', icon: 'dollar-sign' },
+          ].map((option) => {
+            const active = paymentMethod === option.id;
             return (
-              <View
-                key={order.id}
+              <InteractivePressable
+                key={option.id}
+                onPress={() => setPaymentMethod(option.id as PaymentMethod)}
                 style={[
-                  styles.infoCard,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  styles.optionCard,
+                  { width: optionCardWidth },
+                  {
+                    backgroundColor: active ? theme.primarySoft : theme.surface,
+                    borderColor: active ? theme.primary : theme.border,
+                  },
                 ]}
+                hoveredStyle={{ backgroundColor: active ? theme.primarySoft : theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
               >
-                <View style={styles.infoCardTop}>
-                  <Text style={[styles.infoTitle, { color: theme.text }]}>{order.id}</Text>
-                  <Text style={[styles.infoLineStrong, { color: theme.primary }]}>{order.status}</Text>
+                <Feather name={option.icon as keyof typeof Feather.glyphMap} size={20} color={theme.primary} />
+                <Text style={[styles.optionTitle, { color: theme.text }]}>{option.label}</Text>
+              </InteractivePressable>
+            );
+          })}
+        </View>
+        <ActionButton
+          mode={themeMode}
+          label="Continue to delivery"
+          icon="arrow-right"
+          onPress={() => setScreen('delivery')}
+          fullWidth
+        />
+      </ScrollView>
+    );
+  }
+
+  function renderDelivery() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Choose delivery option"
+          description="Pick home delivery or pickup from pharmacy before placing the order."
+        />
+        <View style={styles.optionGrid}>
+          {[
+            { id: 'home', label: 'Home delivery', icon: 'truck' },
+            { id: 'pickup', label: 'Pickup from pharmacy', icon: 'map-pin' },
+          ].map((option) => {
+            const active = deliveryMethod === option.id;
+            return (
+              <InteractivePressable
+                key={option.id}
+                onPress={() => setDeliveryMethod(option.id as DeliveryMethod)}
+                style={[
+                  styles.optionCard,
+                  { width: optionCardWidth },
+                  {
+                    backgroundColor: active ? theme.primarySoft : theme.surface,
+                    borderColor: active ? theme.primary : theme.border,
+                  },
+                ]}
+                hoveredStyle={{ backgroundColor: active ? theme.primarySoft : theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
+              >
+                <Feather name={option.icon as keyof typeof Feather.glyphMap} size={20} color={theme.primary} />
+                <Text style={[styles.optionTitle, { color: theme.text }]}>{option.label}</Text>
+              </InteractivePressable>
+            );
+          })}
+        </View>
+        <ActionButton mode={themeMode} label="Place order" icon="check" onPress={placeOrder} fullWidth />
+      </ScrollView>
+    );
+  }
+
+  function renderTracking() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title={`Track ${activeOrder.id}`}
+          description="Order progress is visible step by step after retailer confirmation."
+        />
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {['Order Placed', 'Confirmed', 'Packed', 'Out for Delivery', 'Delivered'].map((step, index) => {
+            const active = index <= orderStepIndex(activeOrder.status);
+            return (
+              <View key={step} style={styles.trackRow}>
+                <View style={[styles.trackDot, { backgroundColor: active ? theme.primary : theme.border }]} />
+                <View style={styles.trackCopy}>
+                  <Text style={[styles.trackTitle, { color: active ? theme.text : theme.subtext }]}>{step}</Text>
+                  <Text style={[styles.trackMeta, { color: theme.subtext }]}>
+                    {active ? 'Visible in the customer timeline' : 'Waiting for the next update'}
+                  </Text>
                 </View>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  {retailer.name} • {order.dateLabel}
-                </Text>
-                <Text style={[styles.infoLine, { color: theme.subtext }]}>
-                  Total {formatCurrency(order.total)}
-                </Text>
               </View>
             );
           })}
-        </ScrollView>
-      ) : null}
-
-      {screen === 'account' ? (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          <SectionHeader themeMode={themeMode} title="Account" />
-          <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.infoTitle, { color: theme.text }]}>{signup.fullName || 'Customer'}</Text>
-            <Text style={[styles.infoLine, { color: theme.subtext }]}>Email: {signup.email || 'Not added'}</Text>
-            <Text style={[styles.infoLine, { color: theme.subtext }]}>Phone: {signup.phone || 'Not added'}</Text>
-            <Text style={[styles.infoLine, { color: theme.subtext }]}>Address: {signup.address || 'Not added'}</Text>
+          <View style={styles.inlineRow}>
+            <ActionButton mode={themeMode} label="View invoice" icon="file-text" onPress={() => setScreen('invoice')} />
+            <ActionButton mode={themeMode} label="Go to orders" icon="package" variant="secondary" onPress={() => setScreen('orders')} />
           </View>
-        </ScrollView>
-      ) : null}
+        </View>
+      </ScrollView>
+    );
+  }
 
-      <BottomNav
+  function renderInvoice() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Invoice and bill"
+          description="The customer can review and download the bill from here."
+        />
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {invoice ? (
+            <>
+              <Text style={[styles.infoTitle, { color: theme.text }]}>{invoice.invoiceNo}</Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>Order: {invoice.orderId}</Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>
+                Medicine: {medicines.find((medicine) => medicine.id === invoice.medicineId)?.brandName}
+              </Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>
+                Pharmacy: {retailers.find((retailer) => retailer.id === invoice.retailerId)?.name}
+              </Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>Quantity: {invoice.quantity}</Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>Payment: {invoice.paymentMethod.toUpperCase()}</Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>
+                Delivery: {invoice.deliveryMethod === 'home' ? 'Home delivery' : 'Pickup from pharmacy'}
+              </Text>
+
+              <View style={styles.billBox}>
+                <View style={styles.billRow}>
+                  <Text style={[styles.billText, { color: theme.subtext }]}>Subtotal</Text>
+                  <Text style={[styles.billText, { color: theme.text }]}>{formatCurrency(invoice.subtotal)}</Text>
+                </View>
+                <View style={styles.billRow}>
+                  <Text style={[styles.billText, { color: theme.subtext }]}>Delivery fee</Text>
+                  <Text style={[styles.billText, { color: theme.text }]}>{formatCurrency(invoice.deliveryFee)}</Text>
+                </View>
+                <View style={styles.billRow}>
+                  <Text style={[styles.billTotal, { color: theme.text }]}>Total bill</Text>
+                  <Text style={[styles.billTotal, { color: theme.text }]}>{formatCurrency(invoice.total)}</Text>
+                </View>
+              </View>
+
+              <ActionButton
+                mode={themeMode}
+                label="Download invoice"
+                icon="download"
+                onPress={() => Alert.alert('Download invoice', 'PDF download can be connected when the backend invoice service is added.')}
+                fullWidth
+              />
+            </>
+          ) : (
+            <Text style={[styles.infoLine, { color: theme.subtext }]}>No invoice generated yet.</Text>
+          )}
+        </View>
+      </ScrollView>
+    );
+  }
+
+  function renderOrders() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Your orders"
+          description="Past and active medicine orders stay visible here."
+        />
+        {orders.map((order) => {
+          const retailer = retailers.find((item) => item.id === order.retailerId) ?? retailers[0];
+          return (
+            <InteractivePressable
+              key={order.id}
+              onPress={() => setScreen('tracking')}
+              style={[
+                styles.infoCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}
+              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={styles.infoHeader}>
+                <Text style={[styles.infoTitle, { color: theme.text }]}>{order.id}</Text>
+                <Text style={[styles.orderStatus, { color: theme.primary }]}>{order.status}</Text>
+              </View>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>
+                {retailer.name} - {order.dateLabel}
+              </Text>
+              <Text style={[styles.infoLine, { color: theme.subtext }]}>Total: {formatCurrency(order.total)}</Text>
+            </InteractivePressable>
+          );
+        })}
+      </ScrollView>
+    );
+  }
+
+  function renderAccount() {
+    return (
+      <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
+        <SectionHeader
+          mode={themeMode}
+          title="Account"
+          description="Saved customer details from the first page stay visible here."
+        />
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.infoTitle, { color: theme.text }]}>{signup.fullName || 'Customer'}</Text>
+          <Text style={[styles.infoLine, { color: theme.subtext }]}>Email: {signup.email || 'Not added'}</Text>
+          <Text style={[styles.infoLine, { color: theme.subtext }]}>Phone: {signup.phone || 'Not added'}</Text>
+          <Text style={[styles.infoLine, { color: theme.subtext }]}>Address: {signup.address || 'Not added'}</Text>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  function renderScreen() {
+    if (screen === 'search') return renderSearch();
+    if (screen === 'detail') return renderDetail();
+    if (screen === 'pharmacies') return renderPharmacies();
+    if (screen === 'cart') return renderCart();
+    if (screen === 'prescription') return renderPrescription();
+    if (screen === 'payment') return renderPayment();
+    if (screen === 'delivery') return renderDelivery();
+    if (screen === 'tracking') return renderTracking();
+    if (screen === 'invoice') return renderInvoice();
+    if (screen === 'orders') return renderOrders();
+    if (screen === 'account') return renderAccount();
+    return renderHome();
+  }
+
+  return (
+    <SafeAreaView style={[styles.page, { backgroundColor: theme.bg }]}>
+      <StatusBar style={statusBarStyle(themeMode)} />
+
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.surfaceAlt,
+            borderBottomColor: theme.border,
+          },
+        ]}
+      >
+        <View style={styles.headerTop}>
+          <BrandLogo mode={themeMode} size="compact" align="start" />
+          <View style={styles.headerActions}>
+            <HeaderIcon
+              mode={themeMode}
+              icon={themeMode === 'dark' ? 'sun' : 'moon'}
+              onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+            />
+            <HeaderIcon mode={themeMode} icon="bell" onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')} />
+            <HeaderIcon mode={themeMode} icon="shopping-cart" onPress={() => setScreen('cart')} />
+          </View>
+        </View>
+
+        <SearchBar
+          mode={themeMode}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmit={() => setScreen('search')}
+        />
+
+        <InteractivePressable
+          onPress={() => setScreen('account')}
+          style={styles.locationBar}
+          hoveredStyle={{ backgroundColor: theme.surface }}
+          pressedStyle={{ backgroundColor: theme.elevated }}
+        >
+          <View style={styles.locationCopy}>
+            <Feather name="map-pin" size={15} color={theme.primary} />
+            <Text style={[styles.locationText, { color: theme.text }]}>
+              Deliver to {signup.address || 'your saved address'}
+            </Text>
+          </View>
+          <Text style={[styles.locationAction, { color: theme.primary }]}>Change</Text>
+        </InteractivePressable>
+      </View>
+
+      {renderScreen()}
+
+      <BottomTabBar
         mode={themeMode}
-        active={screen === 'detail' || screen === 'pharmacies' || screen === 'prescription' || screen === 'payment' || screen === 'delivery' || screen === 'tracking' || screen === 'invoice' ? 'home' : screen}
-        onChange={setScreen}
+        activeTab={currentTab()}
+        onChange={(tab) => navigateTo(tab === 'account' ? 'account' : tab)}
       />
     </SafeAreaView>
   );
@@ -1241,130 +1385,42 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
   },
-  splashScreenWhite: {
+  splashPage: {
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#ffffff',
+  },
+  splashWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  splashAnimatedWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandBlock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandPill: {
-    width: 256,
-    height: 96,
-    borderRadius: 48,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  brandHalf: {
+  scroll: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  chainLoop: {
-    position: 'absolute',
-    width: 42,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 5,
-    transform: [{ rotate: '-42deg' }, { translateX: -10 }],
+  scrollContent: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    gap: 12,
   },
-  chainLoopOffset: {
-    transform: [{ rotate: '-42deg' }, { translateX: 12 }],
-  },
-  chainBridge: {
-    width: 28,
-    height: 8,
-    borderRadius: 999,
-    transform: [{ rotate: '-42deg' }],
-  },
-  plusBar: {
-    width: 46,
-    height: 10,
-    borderRadius: 999,
-  },
-  plusBarVertical: {
-    position: 'absolute',
-    transform: [{ rotate: '90deg' }],
-  },
-  brandWordmark: {
-    marginTop: 18,
-    alignItems: 'center',
-  },
-  brandWordText: {
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  heartbeat: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 30,
-  },
-  heartbeatLine: {
-    height: 2,
-    borderRadius: 999,
-  },
-  heartbeatPeak: {
-    width: 16,
-    height: 16,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    transform: [{ rotate: '-45deg' }],
-    marginHorizontal: -1,
-  },
-  heartbeatPeakTall: {
-    width: 24,
-    height: 24,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    transform: [{ rotate: '-45deg' }],
-    marginHorizontal: -2,
-  },
-  heartbeatPeakDown: {
-    transform: [{ rotate: '135deg' }],
-  },
-  splashTitle: {
-    marginTop: 18,
-    fontSize: 30,
-    fontWeight: '900',
-  },
-  splashText: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: 'center',
-    maxWidth: 340,
-  },
-  authScroll: {
-    padding: 16,
-    gap: 16,
-  },
-  authTopRow: {
+  signupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   authCard: {
+    borderRadius: 20,
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
+    padding: 18,
     gap: 12,
   },
   authTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   authSub: {
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 21,
   },
   input: {
     borderWidth: 1,
@@ -1377,69 +1433,79 @@ const styles = StyleSheet.create({
     minHeight: 96,
     textAlignVertical: 'top',
   },
-  headerBand: {
+  header: {
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 14,
+    gap: 10,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   searchWrap: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 999,
+    minHeight: 48,
+    paddingHorizontal: 14,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
   },
-  locationRow: {
+  searchIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationBar: {
     marginTop: 10,
+    borderRadius: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 10,
   },
-  locationLabelWrap: {
+  locationCopy: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
     flex: 1,
   },
   locationText: {
     fontSize: 13,
-    fontWeight: '600',
-  },
-  locationLink: {
-    fontSize: 13,
     fontWeight: '700',
   },
-  scroll: {
-    flex: 1,
+  locationAction: {
+    fontSize: 13,
+    fontWeight: '800',
   },
-  scrollContent: {
-    padding: 14,
-    paddingBottom: 100,
-  },
-  utilityRow: {
+  rowWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  utilityService: {
+  utilityChip: {
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 12,
@@ -1448,68 +1514,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  utilityServiceDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-  },
-  utilityServiceText: {
+  utilityChipText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   shortcutRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 16,
+    marginTop: 2,
   },
-  shortcutButton: {
-    minWidth: 120,
+  shortcutChip: {
+    minWidth: 116,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
-  bannerRow: {
-    gap: 10,
-    paddingTop: 18,
-    paddingBottom: 4,
+  shortcutChipText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  horizontalRow: {
+    gap: 12,
+    paddingVertical: 4,
   },
   bannerCard: {
     width: 300,
-    borderRadius: 18,
     borderWidth: 1,
+    borderRadius: 20,
     overflow: 'hidden',
     padding: 14,
+    gap: 8,
   },
   bannerAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     height: 92,
+    borderRadius: 16,
   },
   bannerTitle: {
-    marginTop: 54,
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 24,
   },
   bannerText: {
-    marginTop: 8,
     fontSize: 13,
     lineHeight: 20,
-    marginBottom: 12,
-  },
-  sectionHeader: {
-    marginTop: 20,
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  sectionAction: {
-    fontSize: 13,
-    fontWeight: '700',
+    minHeight: 40,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -1517,57 +1565,59 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   categoryCard: {
-    width: '22%',
     borderWidth: 1,
-    borderRadius: 16,
-    alignItems: 'center',
-    paddingVertical: 14,
+    borderRadius: 20,
+    minHeight: 106,
+    paddingVertical: 12,
     paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  categoryIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryLabel: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: '700',
+    marginTop: 10,
+    fontSize: 11,
+    fontWeight: '800',
     textAlign: 'center',
+    lineHeight: 15,
   },
-  horizontalCards: {
-    gap: 10,
-  },
-  productTile: {
-    width: 170,
+  productCard: {
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 12,
   },
   productThumb: {
     height: 120,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   productThumbText: {
     fontSize: 28,
     fontWeight: '900',
+    color: '#0a1624',
   },
   productTitle: {
     marginTop: 10,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 19,
   },
   productMeta: {
-    marginTop: 5,
+    marginTop: 6,
     fontSize: 12,
+    lineHeight: 18,
   },
   productPrice: {
-    marginTop: 7,
+    marginTop: 8,
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   dealGrid: {
     flexDirection: 'row',
@@ -1575,142 +1625,112 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dealCard: {
-    width: '48%',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 12,
   },
   dealThumb: {
-    height: 88,
-    borderRadius: 10,
+    height: 90,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dealThumbText: {
     fontSize: 24,
     fontWeight: '900',
+    color: '#0a1624',
   },
   dealTitle: {
     marginTop: 8,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  dealMeta: {
+    marginTop: 6,
+    fontSize: 12,
     lineHeight: 18,
   },
   dealPrice: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '900',
   },
-  sortRow: {
-    gap: 8,
-    paddingBottom: 8,
-  },
-  pill: {
+  searchPill: {
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  pillText: {
+  searchPillText: {
     fontSize: 12,
     fontWeight: '700',
-  },
-  infoCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 12,
-  },
-  infoCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  infoTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    flex: 1,
-  },
-  infoLine: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  infoLineStrong: {
-    fontSize: 14,
-    fontWeight: '800',
   },
   searchCard: {
     borderWidth: 1,
     borderRadius: 18,
     padding: 12,
-    marginBottom: 12,
     flexDirection: 'row',
     gap: 12,
   },
   searchCardThumb: {
     width: 112,
-    borderRadius: 12,
+    height: 144,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchCardThumbText: {
     fontSize: 28,
     fontWeight: '900',
+    color: '#0a1624',
   },
   searchCardBody: {
     flex: 1,
   },
   searchCardTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 20,
   },
   searchCardMeta: {
-    marginTop: 6,
+    marginTop: 5,
     fontSize: 12,
     lineHeight: 18,
   },
   searchCardPrice: {
     marginTop: 8,
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  searchCardStrike: {
-    marginTop: 3,
-    fontSize: 12,
-  },
-  inlineButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
+    fontSize: 24,
+    fontWeight: '900',
   },
   detailCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 14,
   },
   detailThumb: {
     height: 220,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailThumbText: {
-    fontSize: 46,
+    fontSize: 48,
     fontWeight: '900',
+    color: '#0a1624',
   },
   detailTitle: {
-    marginTop: 16,
+    marginTop: 14,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '900',
   },
   detailSubTitle: {
     marginTop: 6,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   detailPrice: {
     marginTop: 10,
@@ -1720,20 +1740,114 @@ const styles = StyleSheet.create({
   detailDescription: {
     marginTop: 10,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 22,
+  },
+  subSectionTitle: {
+    marginTop: 16,
+    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  infoTag: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  infoTagText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pharmacyCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+  },
+  pharmacyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  pharmacyHeaderCopy: {
+    flex: 1,
+  },
+  pharmacyName: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  pharmacyPrice: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  pharmacyMeta: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  pharmacyStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  infoCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+    gap: 8,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  infoTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  infoLine: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  orderStatus: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   quantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 14,
-    marginBottom: 6,
+    marginTop: 10,
   },
-  quantityText: {
-    fontSize: 20,
-    fontWeight: '800',
+  quantityValue: {
     minWidth: 28,
     textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  billBox: {
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 12,
+    backgroundColor: 'rgba(77, 168, 255, 0.08)',
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
+  billText: {
+    fontSize: 13,
+  },
+  billTotal: {
+    fontSize: 16,
+    fontWeight: '900',
   },
   optionGrid: {
     flexDirection: 'row',
@@ -1741,26 +1855,35 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   optionCard: {
-    width: '48%',
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    minHeight: 126,
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
   },
   optionTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
+    lineHeight: 18,
   },
-  fullWidthButton: {
-    alignSelf: 'stretch',
-    marginTop: 14,
+  sortPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  sortPillText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   trackRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   trackDot: {
     width: 14,
@@ -1768,65 +1891,40 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginTop: 4,
   },
-  trackContent: {
+  trackCopy: {
     flex: 1,
   },
   trackTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   trackMeta: {
     marginTop: 4,
     fontSize: 12,
   },
-  billLines: {
-    marginTop: 14,
-    gap: 10,
-  },
-  billRow: {
+  inlineRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
   },
-  billText: {
-    fontSize: 13,
-  },
-  billTotal: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  bottomNav: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 10,
-    paddingBottom: 10,
-  },
-  bottomNavItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  bottomNavText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  buttonBase: {
+  actionButton: {
     minHeight: 44,
+    alignSelf: 'flex-start',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    alignSelf: 'flex-start',
   },
-  buttonLabel: {
+  actionButtonLabel: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  fullWidth: {
+    alignSelf: 'stretch',
   },
 });
