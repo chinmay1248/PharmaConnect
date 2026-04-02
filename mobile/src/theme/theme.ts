@@ -1,5 +1,6 @@
 export type ThemeMode = 'light' | 'dark';
 
+// Shared color tokens used across the customer frontend.
 export type ThemePalette = {
   bg: string;
   surface: string;
@@ -46,6 +47,7 @@ export const themes: Record<ThemeMode, ThemePalette> = {
   },
 };
 
+// Keeps the status bar readable when the app theme changes.
 export function statusBarStyle(mode: ThemeMode): 'light' | 'dark' {
   return mode === 'dark' ? 'light' : 'dark';
 }

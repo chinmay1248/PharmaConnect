@@ -10,6 +10,7 @@ type SectionHeaderProps = {
   onAction?: () => void;
 };
 
+// Renders a reusable section title row with optional helper text and action link.
 export function SectionHeader({
   mode,
   title,
@@ -21,12 +22,14 @@ export function SectionHeader({
 
   return (
     <View style={styles.wrapper}>
+      {/* Left side: section title and optional helper text */}
       <View style={styles.copy}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
         {description ? (
           <Text style={[styles.description, { color: theme.subtext }]}>{description}</Text>
         ) : null}
       </View>
+      {/* Right side: optional CTA such as "See all" */}
       {action ? (
         <InteractivePressable
           onPress={onAction}

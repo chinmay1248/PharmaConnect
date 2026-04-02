@@ -31,6 +31,7 @@ import {
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { formatCurrency, orderStepIndex } from '../utils/format';
 
+// App-level flow states: splash -> signup -> customer app.
 type AppStage = 'splash' | 'signup' | 'app';
 type Screen =
   | 'home'
@@ -68,6 +69,7 @@ type InvoiceState = {
   deliveryMethod: Exclude<DeliveryMethod, null>;
 };
 
+// Maps the quick service chips on the home screen to their icons.
 const serviceIcons: Record<string, keyof typeof Feather.glyphMap> = {
   'Rx Upload': 'file-plus',
   Refill: 'rotate-cw',
@@ -76,6 +78,7 @@ const serviceIcons: Record<string, keyof typeof Feather.glyphMap> = {
   'Care+': 'heart',
 };
 
+// Maps the top medicine category tiles to their icons.
 const categoryIcons: Record<string, keyof typeof Feather.glyphMap> = {
   Fever: 'thermometer',
   Diabetes: 'droplet',
@@ -87,6 +90,7 @@ const categoryIcons: Record<string, keyof typeof Feather.glyphMap> = {
   Digestive: 'coffee',
 };
 
+// Renders a small circular icon button in the header for actions like theme, alerts, and cart.
 function HeaderIcon({
   mode,
   icon,
@@ -112,6 +116,7 @@ function HeaderIcon({
   );
 }
 
+// Renders a reusable CTA button used across cards, forms, and checkout steps.
 function ActionButton({
   mode,
   label,
@@ -175,6 +180,7 @@ function ActionButton({
   );
 }
 
+// Renders the main search bar with text input, camera action, and voice action.
 function SearchBar({
   mode,
   value,
@@ -227,8 +233,12 @@ function SearchBar({
   );
 }
 
+// Main customer module component that controls the full frontend flow and screen switching.
 export function CustomerModuleApp() {
+  // Layout values used to keep the UI neat across mobile and web widths.
   const { width: viewportWidth } = useWindowDimensions();
+
+  // Core app state for theme, navigation, checkout progress, and user details.
   const [stage, setStage] = useState<AppStage>('splash');
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [screen, setScreen] = useState<Screen>('home');
@@ -257,6 +267,7 @@ export function CustomerModuleApp() {
   const optionCardWidth = Math.floor((sectionWidth - 10) / 2);
   const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.52, 168), 212);
 
+  // Splash animation: logo fades/scales in, then hands off to signup.
   useEffect(() => {
     if (stage !== 'splash') {
       return;
@@ -304,6 +315,7 @@ export function CustomerModuleApp() {
     return () => animation.stop();
   }, [stage, splashOpacity, splashScale]);
 
+  // Filters the medicine catalogue for the search screen and search header.
   const filteredMedicines = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -324,6 +336,7 @@ export function CustomerModuleApp() {
   const selectedMedicine =
     medicines.find((medicine) => medicine.id === selectedMedicineId) ?? medicines[0];
 
+  // Sorts nearby pharmacies by closest, cheapest, or highest rating.
   const sortedPharmacies = useMemo(() => {
     const list = retailers
       .map((retailer) => {
@@ -361,15 +374,18 @@ export function CustomerModuleApp() {
   const cartSubtotal = cart ? cart.quantity * cartUnitPrice : 0;
   const activeOrder = orders[0];
 
+  // Changes the currently visible top-level customer screen.
   function navigateTo(screenId: Screen) {
     setScreen(screenId);
   }
 
+  // Opens the selected medicine's detail page.
   function goToMedicine(medicineId: string) {
     setSelectedMedicineId(medicineId);
     setScreen('detail');
   }
 
+  // Opens the search screen and optionally pre-fills a term.
   function openSearchFor(term?: string) {
     if (term) {
       setSearchQuery(term);
@@ -377,11 +393,13 @@ export function CustomerModuleApp() {
     setScreen('search');
   }
 
+  // Opens the pharmacy comparison screen for one medicine.
   function openPharmacies(medicineId: string) {
     setSelectedMedicineId(medicineId);
     setScreen('pharmacies');
   }
 
+  // Stores the chosen pharmacy and prepares the cart for checkout.
   function selectRetailer(retailerId: string) {
     setCart({
       medicineId: selectedMedicine.id,
@@ -391,6 +409,7 @@ export function CustomerModuleApp() {
     setScreen('cart');
   }
 
+  // Increases or decreases the selected cart quantity while keeping it at 1 or more.
   function updateQuantity(change: number) {
     setCart((current) => {
       if (!current) {
@@ -404,6 +423,7 @@ export function CustomerModuleApp() {
     });
   }
 
+  // Sends the user to prescription or payment depending on the selected medicine rules.
   function continueCheckout() {
     if (!cart) {
       return;
@@ -417,11 +437,13 @@ export function CustomerModuleApp() {
     setScreen('payment');
   }
 
+  // Marks prescription submission as complete and advances checkout.
   function submitPrescription() {
     setPrescriptionUploaded(true);
     setScreen('payment');
   }
 
+  // Creates a mock order and invoice after payment and delivery are selected.
   function placeOrder() {
     if (!cart || !paymentMethod || !deliveryMethod) {
       Alert.alert('Complete checkout', 'Please choose payment and delivery to place the order.');
@@ -464,6 +486,7 @@ export function CustomerModuleApp() {
     setScreen('tracking');
   }
 
+  // Maps nested checkout/detail screens back to the correct bottom tab highlight.
   function currentTab(): TabId {
     if (screen === 'detail' || screen === 'pharmacies') {
       return 'search';
@@ -489,6 +512,7 @@ export function CustomerModuleApp() {
 
   const contentContainerStyle = [styles.scrollContent, { paddingBottom: 110 }];
 
+  // First impression screen before account entry.
   if (stage === 'splash') {
     return (
       <SafeAreaView style={[styles.page, styles.splashPage]}>
@@ -508,6 +532,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Customer signup / entry form shown before the main app.
   if (stage === 'signup') {
     return (
       <SafeAreaView style={[styles.page, { backgroundColor: theme.bg }]}>
@@ -576,6 +601,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Home screen with quick actions, shortcuts, banners, categories, and deals.
   function renderHome() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -795,6 +821,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Search results screen for medicines and related quick actions.
   function renderSearch() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -865,6 +892,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Product detail screen for one medicine, including substitutes and diseases.
   function renderDetail() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -921,6 +949,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Nearby pharmacy comparison screen with sorting options.
   function renderPharmacies() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -995,6 +1024,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Order review screen before prescription/payment steps.
   function renderCart() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1047,6 +1077,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Prescription upload placeholder for Rx-required medicines.
   function renderPrescription() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1073,6 +1104,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Payment method selection screen.
   function renderPayment() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1121,6 +1153,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Delivery choice screen for home delivery vs pickup.
   function renderDelivery() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1161,6 +1194,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Tracking timeline shown after order placement.
   function renderTracking() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1193,6 +1227,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Invoice and bill summary screen.
   function renderInvoice() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1249,6 +1284,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Orders history list.
   function renderOrders() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1288,6 +1324,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Customer profile / account summary screen.
   function renderAccount() {
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -1306,6 +1343,7 @@ export function CustomerModuleApp() {
     );
   }
 
+  // Chooses which main screen body should be visible right now.
   function renderScreen() {
     if (screen === 'search') return renderSearch();
     if (screen === 'detail') return renderDetail();
@@ -1325,6 +1363,7 @@ export function CustomerModuleApp() {
     <SafeAreaView style={[styles.page, { backgroundColor: theme.bg }]}>
       <StatusBar style={statusBarStyle(themeMode)} />
 
+      {/* Main customer app header: compact logo, theme toggle, notifications, cart, search, location */}
       <View
         style={[
           styles.header,
@@ -1370,8 +1409,10 @@ export function CustomerModuleApp() {
         </InteractivePressable>
       </View>
 
+      {/* Visible page body based on the current screen state */}
       {renderScreen()}
 
+      {/* Sticky bottom navigation */}
       <BottomTabBar
         mode={themeMode}
         activeTab={currentTab()}

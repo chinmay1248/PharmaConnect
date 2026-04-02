@@ -18,6 +18,8 @@ type InteractivePressableProps = PressableProps & {
   scalePress?: number;
 };
 
+// Shared clickable wrapper used by buttons, cards, tabs, and pills.
+// It adds hover zoom and pressed feedback in one place.
 export function InteractivePressable({
   children,
   style,
@@ -34,6 +36,7 @@ export function InteractivePressable({
   const [hovered, setHovered] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
 
+  // Animates the pressable scale for hover and press interactions.
   function animateTo(toValue: number) {
     Animated.spring(scale, {
       toValue,

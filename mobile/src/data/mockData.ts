@@ -1,3 +1,4 @@
+// Data contracts used by the customer module mock frontend.
 export type Medicine = {
   id: string;
   brandName: string;
@@ -83,6 +84,7 @@ export type Banner = {
   accent: string;
 };
 
+// Home screen quick action buttons such as Rx Upload and Refill.
 export const quickServices: QuickService[] = [
   { id: 'svc-1', title: 'Rx Upload', color: '#ffe9a5' },
   { id: 'svc-2', title: 'Refill', color: '#d6f4ff' },
@@ -91,6 +93,7 @@ export const quickServices: QuickService[] = [
   { id: 'svc-5', title: 'Care+', color: '#dfe6ff' },
 ];
 
+// Shortcut pills shown below the home screen service row.
 export const shortcutChips: Shortcut[] = [
   { id: 'shortcut-1', title: 'Orders' },
   { id: 'shortcut-2', title: 'Buy Again' },
@@ -98,6 +101,7 @@ export const shortcutChips: Shortcut[] = [
   { id: 'shortcut-4', title: 'Lists' },
 ];
 
+// Category tiles used in the "Top categories for you" section.
 export const categories: Category[] = [
   { id: 'cat-1', title: 'Fever', tint: '#e8f7ff' },
   { id: 'cat-2', title: 'Diabetes', tint: '#fef0d8' },
@@ -109,6 +113,7 @@ export const categories: Category[] = [
   { id: 'cat-8', title: 'Digestive', tint: '#e8fbf5' },
 ];
 
+// Home screen promotional cards / carousel items.
 export const banners: Banner[] = [
   {
     id: 'banner-1',
@@ -130,6 +135,7 @@ export const banners: Banner[] = [
   },
 ];
 
+// Recent search pills shown on the search screen.
 export const recentSearches = [
   'Paracetamol 650',
   'Vitamin B12 capsules',
@@ -137,6 +143,7 @@ export const recentSearches = [
   'Sugar tablets',
 ];
 
+// Mock medicine catalogue used for search, detail, cart, and invoice flows.
 export const medicines: Medicine[] = [
   {
     id: 'med-1',
@@ -226,6 +233,7 @@ export const medicines: Medicine[] = [
   },
 ];
 
+// Nearby pharmacy data used for comparison and sorting.
 export const retailers: Retailer[] = [
   {
     id: 'ret-1',
@@ -271,6 +279,7 @@ export const retailers: Retailer[] = [
   },
 ];
 
+// Seeded order history shown in orders and tracking screens.
 export const initialOrders: Order[] = [
   {
     id: 'ORD-2048',

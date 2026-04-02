@@ -7,6 +7,7 @@ type BrandLogoProps = {
   align?: 'center' | 'start';
 };
 
+// Recreates the PharmaConnect pill logo in code for splash, signup, and header use.
 export function BrandLogo({
   mode,
   size = 'hero',
@@ -21,6 +22,7 @@ export function BrandLogo({
 
   return (
     <View style={[styles.wrapper, align === 'start' && styles.wrapperStart]}>
+      {/* Logo symbol: chain-link half on the left, medical plus half on the right */}
       <View
         style={[
           styles.pill,
@@ -69,6 +71,7 @@ export function BrandLogo({
           />
         </View>
       </View>
+      {/* Wordmark and heartbeat line below the logo symbol */}
       <View style={[styles.wordmarkWrap, align === 'start' && styles.wordmarkStart]}>
         <Text
           style={[

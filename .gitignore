@@ -1,13 +1,17 @@
-node_modules/
-dist/
-web-build/
-.expo/
+.vscode/
+.idea/
 .DS_Store
 *.log
 *.tsbuildinfo
 .env
 .env.local
 .env.*.local
+
+node_modules/
+dist/
+web-build/
+.expo/
+.git_backup_local/
 
 mobile/node_modules/
 mobile/dist/

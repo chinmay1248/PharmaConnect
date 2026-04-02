@@ -1,44 +1,64 @@
 # PharmaConnect
 
-PharmaConnect is a role-based pharma supply chain platform designed around one connected business chain:
+PharmaConnect is a role-based pharmaceutical supply chain platform designed around one connected business flow:
 
 Company -> Wholeseller -> Retailer -> Customer
 
-This repository currently focuses on the customer-facing frontend prototype and the product documents used to shape the larger platform.
+The repository currently contains the customer-facing mobile prototype, structured project documents, and design reference assets for the larger platform vision.
 
-## Current Scope
-
-- Customer mobile frontend prototype in Expo / React Native
-- Project documents for customer, retailer, wholeseller, and company flows
-- Coded PharmaConnect branding and Amazon-inspired commerce layout direction
-- Prototype checkout flow with medicine search, pharmacy comparison, prescription branch, payment, delivery, tracking, and invoice
-
-## Repository Structure
+## Repository Layout
 
 ```text
 PharmaConnect/
-├─ mobile/                                   Expo React Native customer app
-├─ PharmaConnect_Project_Document.txt        Core project overview
-├─ PharmaConnect_Pathway_Checklist.txt       Customer pathway details
-├─ PharmaConnect_Retailer_Wholesaler_Company.txt
-├─ PharmaConnect_Customer_Module_Progress_Report.txt
-└─ design reference images and diagrams
+|-- assets/
+|   `-- references/                  Branding and flow reference images
+|-- docs/
+|   |-- planning/                    Core project planning documents
+|   `-- reports/                     Progress reports and daily status updates
+|-- mobile/                          Expo React Native customer app prototype
+|-- LICENSE
+`-- README.md
 ```
 
-## Mobile App Highlights
+## What Exists Today
 
-- White / black / blue theme system with dark mode default
-- Animated coded PharmaConnect logo
-- Compact logo in the app header after login
-- Interactive cards, chips, buttons, and bottom navigation with hover zoom and pressed feedback
-- Functional customer tabs:
-  - Home
-  - Search
-  - Orders
-  - Cart
-  - Account
+- Customer mobile frontend prototype in Expo + React Native
+- Mock medicine discovery, comparison, cart, prescription, payment, delivery, tracking, and invoice flow
+- Centralized theme, reusable UI components, and coded PharmaConnect branding
+- Project planning documents for customer, retailer, wholeseller, and company modules
 
-## Run Locally
+## Important Folders
+
+### `mobile/`
+
+Current working application code.
+
+- `src/components/` reusable UI building blocks
+- `src/data/` mock business data
+- `src/screens/` customer module screens
+- `src/theme/` shared theme tokens
+- `src/utils/` shared helper functions
+
+### `docs/planning/`
+
+Project vision and business-flow documents.
+
+- `PharmaConnect_Project_Document.txt`
+- `PharmaConnect_Pathway_Checklist.txt`
+- `PharmaConnect_Retailer_Wholesaler_Company.txt`
+
+### `docs/reports/`
+
+Progress-oriented documentation.
+
+- `PharmaConnect_Customer_Module_Progress_Report.txt`
+- `PharmaConnect_Current_Status_And_Future_Work.txt`
+
+### `assets/references/`
+
+Reference images used for planning and design alignment.
+
+## Run The Customer App
 
 From the `mobile` folder:
 
@@ -49,37 +69,31 @@ npm run web
 
 Then open the local Expo web URL shown in the terminal.
 
-## Technology
+## Current Status
 
-- Expo
-- React Native
-- TypeScript
-- React Native Web
-- Expo Vector Icons
+The repository is still in prototype stage, not production stage.
 
-## Project Status
+Already available:
 
-This is still a prototype frontend, not a production deployment.
+- customer-side frontend
+- mock business data
+- local app build setup
+- structured planning documentation
 
-Already present:
+Still pending for the full platform:
 
-- customer UI flow
-- mock medicine and pharmacy data
-- navigation between key customer screens
-- invoice and order flow prototype
-
-Still needed for production:
-
-- backend APIs
+- backend
 - database
 - authentication
-- prescription file storage
-- retailer workflow integration
-- real payment gateway
-- notifications
+- retailer module
+- wholeseller module
+- company module
+- real payment and prescription integrations
 - deployment pipeline
 
-## Notes
+## Repo Management Notes
 
-- All future Git commits for this repository are configured to use the `chinmay1248` identity.
-- The current codebase is focused on making the customer flow understandable, clickable, and easy to extend.
+- The root folder is now limited to high-level project files only.
+- Documents and reference assets are separated into dedicated folders.
+- Editor-specific files are ignored to keep the repo cleaner.
+- Future Git commits in this repository should use the `chinmay1248` identity.

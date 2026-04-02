@@ -11,6 +11,7 @@ type BottomTabBarProps = {
   onChange: (tab: TabId) => void;
 };
 
+// Tab configuration: each item maps to one main customer screen group.
 const tabs: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'home', label: 'Home', icon: 'home' },
   { id: 'search', label: 'Search', icon: 'search' },
@@ -19,6 +20,7 @@ const tabs: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] 
   { id: 'account', label: 'You', icon: 'user' },
 ];
 
+// Renders the sticky bottom navigation for switching between main customer sections.
 export function BottomTabBar({ mode, activeTab, onChange }: BottomTabBarProps) {
   const theme = themes[mode];
 
@@ -36,6 +38,7 @@ export function BottomTabBar({ mode, activeTab, onChange }: BottomTabBarProps) {
         const active = activeTab === tab.id;
 
         return (
+          // Each button changes the visible screen and highlights the active tab.
           <InteractivePressable
             key={tab.id}
             onPress={() => onChange(tab.id)}
