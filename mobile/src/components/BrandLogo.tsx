@@ -3,7 +3,7 @@ import { ThemeMode } from '../theme/theme';
 
 type BrandLogoProps = {
   mode: ThemeMode;
-  size?: 'hero' | 'compact';
+  size?: 'hero' | 'compact' | 'nav';
   align?: 'center' | 'start';
 };
 
@@ -13,7 +13,8 @@ export function BrandLogo({
   size = 'hero',
   align = 'center',
 }: BrandLogoProps) {
-  const compact = size === 'compact';
+  const compact = size !== 'hero';
+  const nav = size === 'nav';
   const dark = mode === 'dark';
   const teal = '#1dd4c0';
   const navy = dark ? '#edf6ff' : '#0a2134';
@@ -26,21 +27,33 @@ export function BrandLogo({
       <View
         style={[
           styles.pill,
-          compact ? styles.pillCompact : styles.pillHero,
+          size === 'hero'
+            ? styles.pillHero
+            : nav
+              ? styles.pillNav
+              : styles.pillCompact,
         ]}
       >
         <View style={[styles.half, { backgroundColor: mark }]}>
           <View
             style={[
               styles.chainLoop,
-              compact ? styles.chainLoopCompact : styles.chainLoopHero,
+              size === 'hero'
+                ? styles.chainLoopHero
+                : nav
+                  ? styles.chainLoopNav
+                  : styles.chainLoopCompact,
               { borderColor: teal },
             ]}
           />
           <View
             style={[
               styles.chainLoop,
-              compact ? styles.chainLoopCompact : styles.chainLoopHero,
+              size === 'hero'
+                ? styles.chainLoopHero
+                : nav
+                  ? styles.chainLoopNav
+                  : styles.chainLoopCompact,
               styles.chainLoopOffset,
               { borderColor: teal },
             ]}
@@ -48,7 +61,11 @@ export function BrandLogo({
           <View
             style={[
               styles.chainBridge,
-              compact ? styles.chainBridgeCompact : styles.chainBridgeHero,
+              size === 'hero'
+                ? styles.chainBridgeHero
+                : nav
+                  ? styles.chainBridgeNav
+                  : styles.chainBridgeCompact,
               { backgroundColor: teal },
             ]}
           />
@@ -57,14 +74,22 @@ export function BrandLogo({
           <View
             style={[
               styles.plusBar,
-              compact ? styles.plusBarCompact : styles.plusBarHero,
+              size === 'hero'
+                ? styles.plusBarHero
+                : nav
+                  ? styles.plusBarNav
+                  : styles.plusBarCompact,
               { backgroundColor: mark },
             ]}
           />
           <View
             style={[
               styles.plusBar,
-              compact ? styles.plusBarCompact : styles.plusBarHero,
+              size === 'hero'
+                ? styles.plusBarHero
+                : nav
+                  ? styles.plusBarNav
+                  : styles.plusBarCompact,
               styles.plusBarVertical,
               { backgroundColor: mark },
             ]}
@@ -76,7 +101,11 @@ export function BrandLogo({
         <Text
           style={[
             styles.wordmark,
-            compact ? styles.wordmarkCompact : styles.wordmarkHero,
+            size === 'hero'
+              ? styles.wordmarkHero
+              : nav
+                ? styles.wordmarkNav
+                : styles.wordmarkCompact,
           ]}
         >
           <Text style={{ color: navy }}>Pharma</Text>
@@ -86,28 +115,44 @@ export function BrandLogo({
           <View
             style={[
               styles.heartbeatLine,
-              compact ? styles.heartbeatLineCompact : styles.heartbeatLineHero,
+              size === 'hero'
+                ? styles.heartbeatLineHero
+                : nav
+                  ? styles.heartbeatLineNav
+                  : styles.heartbeatLineCompact,
               { backgroundColor: beat },
             ]}
           />
           <View
             style={[
               styles.heartbeatPeak,
-              compact ? styles.heartbeatPeakCompact : styles.heartbeatPeakHero,
+              size === 'hero'
+                ? styles.heartbeatPeakHero
+                : nav
+                  ? styles.heartbeatPeakNav
+                  : styles.heartbeatPeakCompact,
               { borderColor: beat },
             ]}
           />
           <View
             style={[
               styles.heartbeatPeakTall,
-              compact ? styles.heartbeatPeakTallCompact : styles.heartbeatPeakTallHero,
+              size === 'hero'
+                ? styles.heartbeatPeakTallHero
+                : nav
+                  ? styles.heartbeatPeakTallNav
+                  : styles.heartbeatPeakTallCompact,
               { borderColor: beat },
             ]}
           />
           <View
             style={[
               styles.heartbeatPeak,
-              compact ? styles.heartbeatPeakCompact : styles.heartbeatPeakHero,
+              size === 'hero'
+                ? styles.heartbeatPeakHero
+                : nav
+                  ? styles.heartbeatPeakNav
+                  : styles.heartbeatPeakCompact,
               styles.heartbeatPeakDown,
               { borderColor: beat },
             ]}
@@ -115,7 +160,11 @@ export function BrandLogo({
           <View
             style={[
               styles.heartbeatLine,
-              compact ? styles.heartbeatLineCompact : styles.heartbeatLineHero,
+              size === 'hero'
+                ? styles.heartbeatLineHero
+                : nav
+                  ? styles.heartbeatLineNav
+                  : styles.heartbeatLineCompact,
               { backgroundColor: beat },
             ]}
           />
@@ -146,6 +195,11 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
   },
+  pillNav: {
+    width: 76,
+    height: 32,
+    borderRadius: 16,
+  },
   half: {
     flex: 1,
     alignItems: 'center',
@@ -165,6 +219,11 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 6,
   },
+  chainLoopNav: {
+    width: 13,
+    height: 8,
+    borderRadius: 5,
+  },
   chainLoopOffset: {
     transform: [{ rotate: '-41deg' }, { translateX: 10 }],
   },
@@ -180,6 +239,10 @@ const styles = StyleSheet.create({
     width: 12,
     height: 4,
   },
+  chainBridgeNav: {
+    width: 9,
+    height: 3,
+  },
   plusBar: {
     borderRadius: 999,
   },
@@ -190,6 +253,10 @@ const styles = StyleSheet.create({
   plusBarCompact: {
     width: 20,
     height: 5,
+  },
+  plusBarNav: {
+    width: 14,
+    height: 4,
   },
   plusBarVertical: {
     position: 'absolute',
@@ -212,6 +279,9 @@ const styles = StyleSheet.create({
   wordmarkCompact: {
     fontSize: 22,
   },
+  wordmarkNav: {
+    fontSize: 15,
+  },
   heartbeat: {
     marginTop: 7,
     flexDirection: 'row',
@@ -227,6 +297,9 @@ const styles = StyleSheet.create({
   heartbeatLineCompact: {
     width: 16,
   },
+  heartbeatLineNav: {
+    width: 10,
+  },
   heartbeatPeak: {
     borderLeftWidth: 2,
     borderBottomWidth: 2,
@@ -241,6 +314,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
   },
+  heartbeatPeakNav: {
+    width: 6,
+    height: 6,
+  },
   heartbeatPeakTall: {
     borderLeftWidth: 2,
     borderBottomWidth: 2,
@@ -254,6 +331,10 @@ const styles = StyleSheet.create({
   heartbeatPeakTallCompact: {
     width: 11,
     height: 11,
+  },
+  heartbeatPeakTallNav: {
+    width: 8,
+    height: 8,
   },
   heartbeatPeakDown: {
     transform: [{ rotate: '135deg' }],

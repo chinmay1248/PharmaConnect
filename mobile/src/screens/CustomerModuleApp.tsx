@@ -266,6 +266,7 @@ export function CustomerModuleApp() {
   const dealCardWidth = Math.floor((sectionWidth - 10) / 2);
   const optionCardWidth = Math.floor((sectionWidth - 10) / 2);
   const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.52, 168), 212);
+  const isHomeScreen = screen === 'home';
 
   // Splash animation: logo fades/scales in, then hands off to signup.
   useEffect(() => {
@@ -1373,40 +1374,87 @@ export function CustomerModuleApp() {
           },
         ]}
       >
-        <View style={styles.headerTop}>
-          <BrandLogo mode={themeMode} size="compact" align="start" />
-          <View style={styles.headerActions}>
-            <HeaderIcon
+        {isHomeScreen ? (
+          <>
+            <View style={styles.homeHeaderRow}>
+              <View style={styles.homeLogoWrap}>
+                <BrandLogo mode={themeMode} size="nav" align="start" />
+              </View>
+              <View style={styles.headerSearchFlex}>
+                <SearchBar
+                  mode={themeMode}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmit={() => setScreen('search')}
+                />
+              </View>
+            </View>
+
+            <View style={styles.homeUtilityRow}>
+              <InteractivePressable
+                onPress={() => setScreen('account')}
+                style={[styles.locationBar, styles.locationBarInline]}
+                hoveredStyle={{ backgroundColor: theme.surface }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
+              >
+                <View style={styles.locationCopy}>
+                  <Feather name="map-pin" size={15} color={theme.primary} />
+                  <Text style={[styles.locationText, { color: theme.text }]}>
+                    Deliver to {signup.address || 'your saved address'}
+                  </Text>
+                </View>
+                <Text style={[styles.locationAction, { color: theme.primary }]}>Change</Text>
+              </InteractivePressable>
+
+              <View style={styles.headerActions}>
+                <HeaderIcon
+                  mode={themeMode}
+                  icon={themeMode === 'dark' ? 'sun' : 'moon'}
+                  onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+                />
+                <HeaderIcon mode={themeMode} icon="bell" onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')} />
+                <HeaderIcon mode={themeMode} icon="shopping-cart" onPress={() => setScreen('cart')} />
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.headerTop}>
+              <BrandLogo mode={themeMode} size="compact" align="start" />
+              <View style={styles.headerActions}>
+                <HeaderIcon
+                  mode={themeMode}
+                  icon={themeMode === 'dark' ? 'sun' : 'moon'}
+                  onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+                />
+                <HeaderIcon mode={themeMode} icon="bell" onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')} />
+                <HeaderIcon mode={themeMode} icon="shopping-cart" onPress={() => setScreen('cart')} />
+              </View>
+            </View>
+
+            <SearchBar
               mode={themeMode}
-              icon={themeMode === 'dark' ? 'sun' : 'moon'}
-              onPress={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmit={() => setScreen('search')}
             />
-            <HeaderIcon mode={themeMode} icon="bell" onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')} />
-            <HeaderIcon mode={themeMode} icon="shopping-cart" onPress={() => setScreen('cart')} />
-          </View>
-        </View>
 
-        <SearchBar
-          mode={themeMode}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onSubmit={() => setScreen('search')}
-        />
-
-        <InteractivePressable
-          onPress={() => setScreen('account')}
-          style={styles.locationBar}
-          hoveredStyle={{ backgroundColor: theme.surface }}
-          pressedStyle={{ backgroundColor: theme.elevated }}
-        >
-          <View style={styles.locationCopy}>
-            <Feather name="map-pin" size={15} color={theme.primary} />
-            <Text style={[styles.locationText, { color: theme.text }]}>
-              Deliver to {signup.address || 'your saved address'}
-            </Text>
-          </View>
-          <Text style={[styles.locationAction, { color: theme.primary }]}>Change</Text>
-        </InteractivePressable>
+            <InteractivePressable
+              onPress={() => setScreen('account')}
+              style={styles.locationBar}
+              hoveredStyle={{ backgroundColor: theme.surface }}
+              pressedStyle={{ backgroundColor: theme.elevated }}
+            >
+              <View style={styles.locationCopy}>
+                <Feather name="map-pin" size={15} color={theme.primary} />
+                <Text style={[styles.locationText, { color: theme.text }]}>
+                  Deliver to {signup.address || 'your saved address'}
+                </Text>
+              </View>
+              <Text style={[styles.locationAction, { color: theme.primary }]}>Change</Text>
+            </InteractivePressable>
+          </>
+        )}
       </View>
 
       {/* Visible page body based on the current screen state */}
@@ -1486,8 +1534,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
+  homeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  homeLogoWrap: {
+    width: 86,
+    alignItems: 'flex-start',
+  },
+  headerSearchFlex: {
+    flex: 1,
+  },
   headerActions: {
     flexDirection: 'row',
+    gap: 10,
+  },
+  homeUtilityRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   iconButton: {
@@ -1526,6 +1592,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+  },
+  locationBarInline: {
+    marginTop: 0,
+    flex: 1,
   },
   locationCopy: {
     flexDirection: 'row',
