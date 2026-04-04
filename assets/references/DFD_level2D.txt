@@ -1,0 +1,97 @@
+@startuml DFD_Level2D_Analytics
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+    BackgroundColor #F9EBEA
+    BorderColor #C0392B
+    BorderThickness 1
+    RoundCorner 8
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:15><b>Level 2D - Offers, Analytics, and Notifications</b></size>
+
+actor "Company"    as CO
+actor "Wholesaler" as W
+actor "Retailer"   as R
+actor "Customer"   as C
+
+database "D6: Offers &\nSchemes"      as D6
+database "D8: Analytics"              as D8
+database "D4: Orders"                 as D4
+database "D3: Inventory"              as D3
+database "D7: Notifications"          as D7
+database "D1: Users &\nProfiles"      as D1
+
+rectangle "P9.1\nCompany Creates\nOffer for Wholesaler"   as P91
+rectangle "P9.2\nWholesaler Responds\nto Offer"           as P92
+rectangle "P9.3\nTrack Offer\nPerformance"                as P93
+rectangle "P9.4\nWholesaler Creates\nScheme for Retailer" as P94
+rectangle "P9.5\nDeliver Scheme\nto Retailer"             as P95
+
+rectangle "P10.1\nAggregate Sales\nData"                  as P101
+rectangle "P10.2\nGenerate Retailer\nDashboard"           as P102
+rectangle "P10.3\nGenerate Wholesaler\nDashboard"         as P103
+rectangle "P10.4\nGenerate Company\nPerformance Report"   as P104
+
+rectangle "P11.1\nCapture\nSystem Event"                  as P111
+rectangle "P11.2\nRoute to\nTarget User"                  as P112
+rectangle "P11.3\nDeliver\nNotification"                  as P113
+
+' P9: Offers and schemes
+CO  --> P91 : Create targeted offer\n(discount / volume incentive)
+P91 --> D8  : Fetch wholesaler\nperformance data
+P91 --> D6  : Save offer
+P91 --> W   : Send offer notification
+W   --> P92 : Accept or decline offer
+P92 --> D6  : Update offer status
+P92 --> CO  : Notify company\nof response
+P92 --> P93 : If accepted
+P93 --> D4  : Monitor order volumes\npost-offer
+P93 --> D8  : Store uplift vs baseline
+P93 --> CO  : Impact report
+
+W   --> P94 : Create custom scheme\nfor retailer
+P94 --> D6  : Save scheme
+P94 --> P95 : Trigger delivery
+P95 --> R   : Scheme notification\n+ offer details
+
+' P10: Analytics
+D4  --> P101 : Raw order and\nrevenue data
+P101 --> D8  : Aggregate and\nstore metrics
+D8  --> P102 : Retailer metrics
+P102 --> R   : Sales / revenue /\ntop medicines dashboard
+D8  --> P103 : Wholesaler metrics
+P103 --> W   : Sales / top retailers /\nbusiness dashboard
+D8  --> P104 : Company metrics
+P104 --> CO  : Wholesaler performance /\nregion-wise / medicine-wise report
+
+' P11: Notifications
+D4   --> P111 : Order events
+D6   --> P111 : Offer / scheme events
+D3   --> P111 : Stock / expiry events
+P111 --> P112 : Event type +\nreference ID + payload
+P112 --> D1   : Fetch target\nuser details
+P112 --> P113 : Notification payload\n+ user device info
+P113 --> D7   : Persist notification
+P113 --> C    : Push / in-app alert
+P113 --> R    : Push / in-app alert
+P113 --> W    : Push / in-app alert
+P113 --> CO   : Push / in-app alert
+
+@enduml

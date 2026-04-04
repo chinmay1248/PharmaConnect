@@ -1,0 +1,99 @@
+@startuml DFD_Level2C_B2BOrders
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+    BackgroundColor #FEF5E7
+    BorderColor #E67E22
+    BorderThickness 1
+    RoundCorner 8
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:15><b>Level 2C - B2B Order Management</b></size>
+title <size:12><b>(Retailer -> Wholesaler and Wholesaler -> Company)</b></size>
+
+actor "Retailer"    as R
+actor "Wholesaler"  as W
+actor "Company"     as CO
+
+database "D3a: Wholesaler\nInventory"         as D3a
+database "D3b: Retailer\nInventory"           as D3b
+database "D4d: Retailer\nPurchase Orders"     as D4d
+database "D4e: Wholesaler\nPurchase Orders"   as D4e
+database "D5: Payments &\nInvoices"           as D5
+database "D6: Offers &\nSchemes"              as D6
+database "D9: Supplier\nLinks"                as D9
+database "D4f: B2B Delivery\nTracking"        as D4f
+
+rectangle "P4.1\nRetailer Searches\nMedicine to Buy"      as P41
+rectangle "P4.2\nFetch Wholesalers\nand Best Schemes"     as P42
+rectangle "P4.3\nPlace Retailer\nPurchase Order"          as P43
+rectangle "P4.4\nWholesaler Reviews\nand Approves Order"  as P44
+rectangle "P4.5\nPayment and\nDispatch"                   as P45
+rectangle "P4.6\nUpdate Retailer\nInventory"              as P46
+
+rectangle "P5.1\nVerify Supplier\nLink"                   as P51
+rectangle "P5.2\nPlace Wholesaler\nBulk Order"           as P52
+rectangle "P5.3\nCompany Reviews\nand Approves Order"    as P53
+rectangle "P5.4\nPayment and\nDispatch"                  as P54
+rectangle "P5.5\nUpdate Wholesaler\nInventory"           as P55
+
+' P4 flow
+R   --> P41 : Search medicine\nto purchase
+P41 --> D3a : Check wholesaler\nstock availability
+P41 --> P42 : Medicine found
+P42 --> D6  : Fetch active schemes\nfor this retailer
+P42 --> D9  : Fetch frequent\nwholesalers
+P42 --> R   : Wholesaler list +\nbest schemes ranked
+R   --> P43 : Select wholesaler\nand confirm order
+P43 --> D4d : Save purchase order
+P43 --> W   : Purchase order\nnotification
+W   --> P44 : Approve or deny\n(with reason)
+P44 --> D4d : Update order status
+P44 --> D6  : Apply custom pricing\nand scheme if any
+P44 --> R   : Approval / denial\nnotification
+P44 --> P45 : If approved
+R   --> P45 : Make payment
+P45 --> D5  : Record payment\nand generate invoice
+P45 --> D4f : Update B2B\ndelivery tracking
+P45 --> W   : Confirm dispatch
+P45 --> P46 : On delivery received
+P46 --> D3b : Add stock to\nretailer inventory
+P46 --> R   : Delivery confirmed\n+ invoice download
+
+' P5 flow
+W   --> P51 : Select company\nand medicine
+P51 --> D9  : Check wholesaler-\ncompany supplier link
+P51 --> CO  : Send supplier\nrequest if not linked
+CO  --> P51 : Approve supplier link
+P51 --> P52 : Link confirmed
+P52 --> D4e : Save bulk order
+P52 --> CO  : Bulk order\nnotification
+CO  --> P53 : Approve or deny\n(with reason)
+P53 --> D4e : Update order status
+P53 --> W   : Approval / denial\nnotification
+P53 --> P54 : If approved
+W   --> P54 : Make payment
+P54 --> D5  : Record payment\nand generate invoice
+P54 --> D4f : Update B2B\ndelivery tracking
+P54 --> CO  : Confirm dispatch
+P54 --> P55 : On delivery received
+P55 --> D3a : Add stock to\nwholesaler inventory
+P55 --> W   : Delivery confirmed\n+ invoice download
+
+@enduml

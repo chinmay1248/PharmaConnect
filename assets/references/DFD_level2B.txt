@@ -1,0 +1,93 @@
+@startuml DFD_Level2B_CustomerOrder
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+    BackgroundColor #EBF5FB
+    BorderColor #2980B9
+    BorderThickness 1
+    RoundCorner 8
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:15><b>Level 2B - Customer Order Management</b></size>
+
+actor "Customer" as C
+actor "Retailer" as R
+
+database "D4a: Customer\nOrders"            as D4a
+database "D4b: Prescriptions"               as D4b
+database "D3: Retailer\nInventory"          as D3
+database "D5: Payments &\nInvoices"         as D5
+database "D4c: Delivery\nTracking"          as D4c
+database "D7: Notifications"                as D7
+
+rectangle "P3.1\nCreate and\nValidate Order"        as P31
+rectangle "P3.2\nCheck Prescription\nRequirement"   as P32
+rectangle "P3.3\nPrescription Upload\nand Review"   as P33
+rectangle "P3.4\nRetailer Approval\nProcessing"     as P34
+rectangle "P3.5\nPayment\nProcessing"               as P35
+rectangle "P3.6\nInventory Reservation\nand Deduction" as P36
+rectangle "P3.7\nInvoice\nGeneration"               as P37
+rectangle "P3.8\nDelivery and\nTracking"            as P38
+
+C   --> P31 : Cart items + retailer\n+ delivery type
+P31 --> D3  : Validate stock\nand reserve quantity
+P31 --> D4a : Save pending order
+P31 --> P32 : Order details
+
+P32 --> D3  : Check prescription\nrequired flag
+P32 --> P33 : If prescription required
+P32 --> P34 : If prescription not required
+
+C   --> P33 : Upload prescription file
+P33 --> D4b : Save prescription\nlinked to order
+P33 --> D7  : Queue retailer\nreview notification
+P33 --> R   : Notify retailer\nto review prescription
+R   --> P34 : Approve or deny\n(with reason)
+P34 --> D4a : Update order status
+P34 --> D4b : Update prescription status
+P34 --> D7  : Queue customer\napproval update
+P34 --> C   : Approval / denial\nnotification
+P34 --> P35 : If approved
+
+C   --> P35 : Select payment\nmethod and pay
+P35 --> D5  : Record payment\ntransaction
+P35 --> D4a : Update payment status
+P35 --> P36 : On payment success
+P35 --> D3  : Release reservation\nif payment fails
+P35 --> D7  : Queue payment\nfailure alert
+
+P36 --> D3  : Deduct stock\n(FIFO by batch)
+P36 --> D7  : Trigger low stock\nalert if needed
+P36 --> D4a : Update order to\nconfirmed / packed
+P36 --> P37 : Trigger invoice
+
+P37 --> D4a : Fetch order details
+P37 --> D5  : Save invoice record\nand PDF reference
+P37 --> D7  : Queue invoice\nnotification
+P37 --> C   : Send invoice +\ndownload link
+P37 --> P38 : Start delivery tracking
+
+R   --> P38 : Update delivery or\npickup status
+P38 --> D4c : Save tracking event
+P38 --> D4a : Update final order status
+P38 --> D7  : Queue push notification
+P38 --> C   : Delivery status update
+C   --> P38 : Confirm delivery\nor pickup received
+
+@enduml

@@ -1,0 +1,58 @@
+@startuml DFD_Level2A_Search
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+skinparam rectangle {
+    BackgroundColor #E8F8F5
+    BorderColor #1ABC9C
+    BorderThickness 1
+    RoundCorner 8
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:15><b>Level 2A - Medicine Search and Discovery</b></size>
+
+actor "Customer" as C
+
+database "D2a: Salt\nCompositions"    as D2a
+database "D2b: Medicines"             as D2b
+database "D2c: Diseases"              as D2c
+database "D3: Retailer\nInventory"    as D3
+database "D1: Retailer Profiles\nand Location" as D1
+
+rectangle "P2.1\nParse Search\nQuery"              as P21
+rectangle "P2.2\nFetch Medicines\nby Salt Content" as P22
+rectangle "P2.3\nApply Filters\nand Sort"          as P23
+rectangle "P2.4\nFetch Retailer\nStock"            as P24
+rectangle "P2.5\nSort Retailers\nby Distance"      as P25
+rectangle "P2.6\nReturn Results\nto Customer"      as P26
+
+C   --> P21 : Search keyword\n+ selected filters
+P21 --> D2a : Match salt name
+P21 --> P22 : Resolved salt ID
+P22 --> D2b : Fetch all medicines\nwith this salt
+P22 --> D2c : Fetch diseases\ncured by this salt
+P22 --> P23 : Raw medicine list
+P23 --> P23 : Apply brand / price /\nrating / generic toggle /\nin-stock filter
+P23 --> P24 : Filtered medicine list
+P24 --> D3  : Query stock per\nretailer per medicine
+P24 --> P25 : Retailers with\nstock data
+P25 --> D1  : Fetch retailer\nGPS coordinates
+P25 --> P26 : Retailers sorted\nby nearest first
+P26 --> C   : Medicine list +\nretailer list with\nstock, price, distance,\nrating, and substitutes
+
+@enduml

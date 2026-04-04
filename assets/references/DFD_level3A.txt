@@ -1,0 +1,91 @@
+@startuml DFD_Level3A_SearchDetail
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam rectangle {
+    BackgroundColor #E8F8F5
+    BorderColor #1ABC9C
+    BorderThickness 1
+    RoundCorner 6
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:14><b>Level 3A - Medicine Search Deep Detail</b></size>
+
+actor "Customer" as C
+
+database "D2a: Salt DB"                 as DB1
+database "D2b: Medicine DB"             as DB2
+database "D2 Search Index DB"           as DB3
+database "D3: Retailer Inventory DB"    as DB4
+database "D1: Retailer Profile DB"      as DB5
+
+rectangle "P2.1.1\nTokenize and\nnormalize query"        as P2101
+rectangle "P2.1.2\nMatch query to\nsalt name"            as P2102
+rectangle "P2.1.3\nResolve brand\nname aliases"          as P2103
+rectangle "P2.2.1\nFetch all medicines\nwith salt ID"    as P2201
+rectangle "P2.2.2\nRank searched\nbrand first"           as P2202
+rectangle "P2.2.3\nAttach disease\ncures to results"     as P2203
+rectangle "P2.3.1\nApply brand\nname filter"             as P2301
+rectangle "P2.3.2\nApply price\nrange filter"            as P2302
+rectangle "P2.3.3\nApply brand\nrating filter"           as P2303
+rectangle "P2.3.4\nApply in-stock\nonly filter"          as P2304
+rectangle "P2.3.5\nApply generic /\nbranded toggle"      as P2305
+rectangle "P2.4.1\nQuery retailer\nstock per medicine"   as P2401
+rectangle "P2.4.2\nExclude zero\nstock records"          as P2402
+rectangle "P2.4.3\nExclude expired\nbatches"             as P2403
+rectangle "P2.5.1\nFetch retailer\nGPS coordinates"      as P2501
+rectangle "P2.5.2\nCalculate distance\n(Haversine)"      as P2502
+rectangle "P2.5.3\nSort retailers\nby distance ASC"      as P2503
+rectangle "P2.6.1\nBundle medicine\nand retailer data"   as P2601
+rectangle "P2.6.2\nReturn paginated\nresults"            as P2602
+
+C      --> P2101 : Raw search text\n+ applied filters
+P2101  --> P2102 : Cleaned tokens
+P2102  --> DB1   : Lookup salt by name
+P2102  --> P2103 : Salt ID returned
+P2103  --> DB2   : Resolve brand aliases\nto canonical name
+P2103  --> P2201 : Canonical salt ID
+
+P2201  --> DB3   : Query search index\nby salt ID
+P2201  --> P2202 : Raw medicine list
+P2202  --> P2203 : Searched brand\nmoved to top
+P2203  --> DB1   : Fetch diseases\nfor this salt
+P2203  --> P2301 : Enriched\nmedicine list
+
+P2301  --> P2302 : Brand filtered
+P2302  --> P2303 : Price filtered
+P2303  --> P2304 : Rating filtered
+P2304  --> DB4   : Check stock\nper retailer
+P2304  --> P2305 : In-stock filtered
+P2305  --> P2401 : Generic / branded\nfilter applied
+
+P2401  --> DB4   : Query inventory\nby medicine ID
+P2401  --> P2402 : Stock records returned
+P2402  --> P2403 : Zero-stock excluded
+P2403  --> DB4   : Cross-check\nbatch expiry dates
+P2403  --> P2501 : Valid stock\nretailers list
+
+P2501  --> DB5   : Fetch latitude and\nlongitude per retailer
+P2501  --> P2502 : Coordinates fetched
+P2502  --> P2503 : Distances calculated
+P2503  --> P2601 : Sorted retailer list
+
+P2601  --> P2602 : Merged medicine\n+ retailer payload
+P2602  --> C     : Paginated results:\nmedicines + retailers\nwith stock, price,\ndistance, and rating
+
+@enduml

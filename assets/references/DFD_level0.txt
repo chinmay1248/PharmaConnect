@@ -1,0 +1,52 @@
+@startuml DFD_Level0_PharmaConnect
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+
+skinparam rectangle {
+    BackgroundColor #1D6FA4
+    FontColor #FFFFFF
+    BorderColor #0D4F7A
+    BorderThickness 2
+    RoundCorner 12
+}
+
+skinparam actor {
+    BackgroundColor #F5F5F5
+    BorderColor #333333
+    FontColor #111111
+}
+
+skinparam arrow {
+    Color #444444
+    FontColor #222222
+    FontSize 11
+}
+
+title <size:18><b>PharmaConnect - Level 0 Context Diagram</b></size>
+
+actor "Customer" as C
+actor "Retailer" as R
+actor "Wholesaler" as W
+actor "Company" as CO
+
+rectangle "                    PharmaConnect System                    " as SYS
+
+' Customer
+C -right-> SYS : Search medicine / Place order /\nUpload prescription / Make payment
+SYS -left-> C  : Medicine results / Order status /\nInvoice / Delivery updates / Notifications
+
+' Retailer
+R -right-> SYS : Manage orders / Approve prescriptions /\nUpdate inventory / Buy from wholesaler
+SYS -left-> R  : Order alerts / Stock alerts /\nPurchase invoice / Sales analytics
+
+' Wholesaler
+W -right-> SYS : Manage retailer orders / Buy from company /\nCreate schemes / Manage inventory
+SYS -left-> W  : Order notifications / Company offers /\nPurchase invoice / Business analytics
+
+' Company
+CO -right-> SYS : Manage catalogue / Set pricing /\nApprove suppliers / Create offers
+SYS -left-> CO  : Wholesaler sales data /\nPerformance reports / Supplier requests
+
+@enduml

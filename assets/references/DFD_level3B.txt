@@ -1,0 +1,123 @@
+@startuml DFD_Level3B_CustomerOrderDetail
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam rectangle {
+    BackgroundColor #EBF5FB
+    BorderColor #2980B9
+    BorderThickness 1
+    RoundCorner 6
+}
+skinparam database {
+    BackgroundColor #FEF9E7
+    BorderColor #F39C12
+}
+skinparam actor {
+    BackgroundColor #F9F9F9
+    BorderColor #555555
+}
+skinparam arrow {
+    Color #555555
+    FontColor #333333
+    FontSize 10
+}
+
+title <size:14><b>Level 3B - Customer Order Deep Detail</b></size>
+
+actor "Customer" as C
+actor "Retailer" as R
+
+database "D4a: Order DB"                 as DB1
+database "D4b: Prescription DB"          as DB2
+database "D3: Retailer Inventory DB"     as DB3
+database "D5: Payment and Invoice DB"    as DB4
+database "D4c: Delivery Tracking DB"     as DB5
+database "D7: Notification Queue"        as DB6
+
+rectangle "P3.1.1\nValidate cart,\nretailer, and address"      as P311
+rectangle "P3.1.2\nReserve available\nstock"                    as P312
+rectangle "P3.1.3\nCreate pending\norder record"                as P313
+rectangle "P3.2.1\nCheck medicine\nprescription rule"           as P321
+rectangle "P3.2.2\nRoute order to\nRx or direct approval"       as P322
+rectangle "P3.3.1\nStore uploaded\nprescription"                as P331
+rectangle "P3.3.2\nNotify retailer\nfor review"                 as P332
+rectangle "P3.4.1\nCapture retailer\napproval decision"         as P341
+rectangle "P3.4.2\nPersist approval\nor rejection reason"       as P342
+rectangle "P3.5.1\nCreate payment\nrequest"                     as P351
+rectangle "P3.5.2\nVerify payment\nresult"                      as P352
+rectangle "P3.5.3\nRelease stock if\npayment fails"             as P353
+rectangle "P3.6.1\nDeduct stock by\nbatch / FIFO"               as P361
+rectangle "P3.6.2\nTrigger low-stock\nor out-of-stock alert"    as P362
+rectangle "P3.7.1\nGenerate invoice\nrecord"                    as P371
+rectangle "P3.7.2\nShare invoice\nwith customer"                as P372
+rectangle "P3.8.1\nCreate initial\ntracking event"              as P381
+rectangle "P3.8.2\nUpdate delivery\nor pickup status"           as P382
+rectangle "P3.8.3\nClose order on\ncustomer confirmation"       as P383
+
+C     --> P311 : Cart items + retailer\n+ delivery method + address
+P311  --> DB3  : Validate stock availability
+P311  --> P312 : Valid request
+P312  --> DB3  : Reserve stock quantity
+P312  --> P313 : Reservation created
+P313  --> DB1  : Save pending order
+P313  --> P321 : Order ID + medicine IDs
+
+P321  --> DB3  : Check prescription-required\nflag from mapped inventory / medicine
+P321  --> P322 : Prescription requirement result
+P322  --> P331 : If prescription required
+P322  --> P341 : If prescription not required
+
+C     --> P331 : Prescription file upload
+P331  --> DB2  : Save prescription metadata\nand file reference
+P331  --> P332 : Prescription linked to order
+P332  --> DB6  : Queue retailer review alert
+P332  --> R    : Review prescription request
+
+R     --> P341 : Approve or deny order
+P341  --> P342 : Decision + optional reason
+P342  --> DB1  : Update order status
+P342  --> DB2  : Update prescription status
+P342  --> DB6  : Queue customer decision alert
+P342  --> C    : Approval / denial update
+P342  --> P351 : If approved
+
+C     --> P351 : Select payment method\nand submit payment
+P351  --> DB4  : Create payment record
+P351  --> P352 : Payment attempt created
+P352  --> DB4  : Update payment status
+P352  --> P361 : If payment success
+P352  --> P353 : If payment failed
+
+P353  --> DB3  : Release reserved stock
+P353  --> DB1  : Mark order as payment failed
+P353  --> DB6  : Queue payment retry alert
+P353  --> C    : Payment failed notification
+
+P361  --> DB3  : Deduct stock using\nFIFO batch logic
+P361  --> DB1  : Update order to confirmed
+P361  --> P362 : Post-deduction stock state
+P362  --> DB6  : Queue low-stock or\nout-of-stock alert
+P362  --> P371 : Continue to invoice
+
+P371  --> DB1  : Fetch confirmed order
+P371  --> DB4  : Save invoice record\nand PDF reference
+P371  --> P372 : Invoice generated
+P372  --> DB6  : Queue invoice notification
+P372  --> C    : Invoice + download link
+P372  --> P381 : Start tracking
+
+P381  --> DB5  : Save initial tracking event
+P381  --> DB1  : Mark order in fulfillment
+R     --> P382 : Update packed /\nout for delivery /\nready for pickup
+P382  --> DB5  : Append tracking event
+P382  --> DB1  : Update live order status
+P382  --> DB6  : Queue customer tracking alert
+P382  --> C    : Live delivery / pickup update
+C     --> P383 : Confirm delivery or pickup received
+P383  --> DB5  : Save completion event
+P383  --> DB1  : Mark order delivered
+P383  --> DB6  : Queue completion notification
+
+@enduml
