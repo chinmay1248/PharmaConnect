@@ -12,6 +12,7 @@ The repository currently contains the customer-facing mobile prototype, structur
 PharmaConnect/
 |-- assets/
 |   `-- references/                  Branding and flow reference images
+|-- backend/                         Express + Prisma backend foundation
 |-- docs/
 |   |-- planning/                    Core project planning documents
 |   `-- reports/                     Progress reports and daily status updates
@@ -23,6 +24,7 @@ PharmaConnect/
 ## What Exists Today
 
 - Customer mobile frontend prototype in Expo + React Native
+- Backend foundation in Express + Prisma
 - Mock medicine discovery, comparison, cart, prescription, payment, delivery, tracking, and invoice flow
 - Centralized theme, reusable UI components, and coded PharmaConnect branding
 - Project planning documents for customer, retailer, wholeseller, and company modules
@@ -38,6 +40,15 @@ Current working application code.
 - `src/screens/` customer module screens
 - `src/theme/` shared theme tokens
 - `src/utils/` shared helper functions
+
+### `backend/`
+
+Production backend foundation.
+
+- `src/config/` environment and backend config
+- `src/modules/` domain-wise API modules
+- `src/routes/` top-level API routing
+- `prisma/` database schema
 
 ### `docs/planning/`
 
@@ -76,6 +87,8 @@ The repository is still in prototype stage, not production stage.
 Already available:
 
 - customer-side frontend
+- backend skeleton
+- initial Prisma data model
 - mock business data
 - local app build setup
 - structured planning documentation
@@ -83,8 +96,8 @@ Already available:
 Still pending for the full platform:
 
 - backend
-- database
 - authentication
+- real database migrations and data access
 - retailer module
 - wholeseller module
 - company module
