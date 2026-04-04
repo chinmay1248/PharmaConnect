@@ -15,20 +15,41 @@ enum UserRole {
   ADMIN
 }
 
+enum AddressType {
+  HOME
+  BILLING
+  SHOP
+  WAREHOUSE
+  REGISTERED_OFFICE
+}
+
 enum MedicineType {
   OTC
   PRESCRIPTION
 }
 
-enum OrderStatus {
+enum CustomerOrderStatus {
   PENDING_RETAILER_APPROVAL
   REJECTED_BY_RETAILER
   APPROVED_BY_RETAILER
   PAYMENT_PENDING
+  PAYMENT_FAILED
   PAID
   PACKED
   OUT_FOR_DELIVERY
   READY_FOR_PICKUP
+  DELIVERED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  PENDING_APPROVAL
+  REJECTED
+  APPROVED
+  PAYMENT_PENDING
+  PAYMENT_FAILED
+  PAID
+  DISPATCHED
   DELIVERED
   CANCELLED
 }
@@ -64,79 +85,150 @@ enum InvoiceStatus {
   DRAFT
   GENERATED
   SHARED
+  CANCELLED
 }
 
-// Core login and role table used across customer, retailer, wholeseller, and company modules.
+enum LinkStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+}
+
+enum OfferStatus {
+  DRAFT
+  ACTIVE
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum SchemeStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  ORDER
+  PAYMENT
+  DELIVERY
+  PRESCRIPTION
+  OFFER
+  SCHEME
+  STOCK
+  SYSTEM
+}
+
+enum AnalyticsScope {
+  RETAILER
+  WHOLESELLER
+  COMPANY
+  PLATFORM
+}
+
+enum InventoryAlertType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  EXPIRY_WARNING
+  EXPIRED_BATCH
+}
+
+// Shared login and profile table across every PharmaConnect role.
 model User {
-  id                String          @id @default(cuid())
-  role              UserRole
-  fullName          String
-  email             String          @unique
-  phone             String          @unique
-  passwordHash      String?
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  addresses         Address[]
-  customerOrders    Order[]         @relation("CustomerOrders")
-  prescriptionFiles Prescription[]  @relation("PrescriptionCustomer")
-  feedbacks         Feedback[]
-  notifications     Notification[]
-  retailerProfile   Retailer?
+  id                 String               @id @default(cuid())
+  role               UserRole
+  fullName           String
+  email              String               @unique
+  phone              String               @unique
+  passwordHash       String?
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  addresses          Address[]
+  customerOrders     CustomerOrder[]      @relation("CustomerOrders")
+  prescriptionFiles  Prescription[]       @relation("PrescriptionCustomer")
+  feedbacks          Feedback[]
+  notifications      Notification[]
+  notificationDevices NotificationDevice[]
+  retailerProfile    Retailer?
   wholesellerProfile Wholeseller?
-  companyProfile    Company?
+  companyProfile     Company?
 }
 
-// Saved addresses for delivery, billing, and pickup-related user details.
+// User addresses used for home delivery, billing, shop, and registered office storage.
 model Address {
-  id           String   @id @default(cuid())
-  userId       String
-  label        String?
-  line1        String
-  line2        String?
-  area         String
-  city         String
-  state        String
-  postalCode   String
-  isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customerOrders Order[] @relation("DeliveryAddressOrders")
+  id             String          @id @default(cuid())
+  userId         String
+  type           AddressType     @default(HOME)
+  label          String?
+  line1          String
+  line2          String?
+  area           String
+  city           String
+  state          String
+  postalCode     String
+  latitude       Float?
+  longitude      Float?
+  isDefault      Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerOrders CustomerOrder[] @relation("DeliveryAddressOrders")
+
+  @@index([userId])
 }
 
-// Manufacturer or parent pharma entity used above wholeseller level.
+// Pharma company profile used for catalogue ownership and offer creation.
 model Company {
-  id              String        @id @default(cuid())
-  userId          String        @unique
-  legalName       String
-  gstNumber       String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  owner           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  medicines       Medicine[]
-  wholesellers    Wholeseller[]
+  id                 String                     @id @default(cuid())
+  userId             String                     @unique
+  legalName          String
+  gstNumber          String?
+  contactEmail       String?
+  contactPhone       String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  owner              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medicines          Medicine[]
+  supplierLinks      SupplierLink[]
+  wholesellerOrders  WholesellerPurchaseOrder[] @relation("CompanyWholesellerOrders")
+  offers             Offer[]
+  feedbacks          Feedback[]
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([legalName])
 }
 
-// Wholeseller profile reserved for phase 2 supply-chain expansion.
+// Wholeseller profile used for B2B ordering, inventory, schemes, and analytics.
 model Wholeseller {
-  id              String       @id @default(cuid())
-  userId          String       @unique
-  companyId       String?
-  businessName    String
-  serviceArea     String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  owner           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company         Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  retailers       Retailer[]
+  id                 String                     @id @default(cuid())
+  userId             String                     @unique
+  businessName       String
+  gstNumber          String?
+  serviceArea        String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  owner              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventoryItems     WholesellerInventory[]
+  retailerLinks      RetailerWholesellerLink[]
+  companyLinks       SupplierLink[]
+  retailerOrders     RetailerPurchaseOrder[]    @relation("WholesellerRetailerPurchaseOrders")
+  companyOrders      WholesellerPurchaseOrder[] @relation("WholesellerCompanyPurchaseOrders")
+  offers             Offer[]
+  schemes            Scheme[]
+  feedbacks          Feedback[]
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([businessName])
 }
 
-// Retailer or pharmacy profile used by customer ordering and retailer operations.
+// Retailer or pharmacy profile used by customer orders and retailer purchase flows.
 model Retailer {
-  id                 String             @id @default(cuid())
-  userId             String             @unique
-  wholesellerId      String?
+  id                 String                   @id @default(cuid())
+  userId             String                   @unique
   businessName       String
   licenseNumber      String?
   area               String
@@ -145,157 +237,534 @@ model Retailer {
   postalCode         String
   latitude           Float?
   longitude          Float?
-  rating             Float              @default(0)
-  deliveryAvailable  Boolean            @default(true)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  owner              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wholeseller        Wholeseller?       @relation(fields: [wholesellerId], references: [id], onDelete: SetNull)
-  inventory          RetailerInventory[]
-  receivedOrders     Order[]            @relation("RetailerOrders")
-  invoices           Invoice[]
+  rating             Float                    @default(0)
+  deliveryAvailable  Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  owner              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inventoryItems     RetailerInventory[]
+  supplierLinks      RetailerWholesellerLink[]
+  customerOrders     CustomerOrder[]          @relation("RetailerCustomerOrders")
+  purchaseOrders     RetailerPurchaseOrder[]  @relation("RetailerPurchaseOrders")
+  schemes            Scheme[]
   feedbacks          Feedback[]
+  trackingEventsCreated DeliveryTrackingEvent[]
+  analyticsSnapshots AnalyticsSnapshot[]
+
+  @@index([businessName])
+  @@index([city, area])
 }
 
-// Medicine master catalogue visible to customer and retailer search flows.
+// Frequent or approved retailer-wholeseller buying relationship used in B2B ranking.
+model RetailerWholesellerLink {
+  id           String      @id @default(cuid())
+  retailerId   String
+  wholesellerId String
+  isPreferred  Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  retailer     Retailer    @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  wholeseller  Wholeseller @relation(fields: [wholesellerId], references: [id], onDelete: Cascade)
+
+  @@unique([retailerId, wholesellerId])
+}
+
+// Approved supplier relationship between wholeseller and company.
+model SupplierLink {
+  id           String      @id @default(cuid())
+  wholesellerId String
+  companyId    String
+  status       LinkStatus  @default(PENDING)
+  notes        String?
+  requestedAt  DateTime    @default(now())
+  respondedAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  wholeseller  Wholeseller @relation(fields: [wholesellerId], references: [id], onDelete: Cascade)
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([wholesellerId, companyId])
+}
+
+// Medicine master catalogue used across customer search and B2B ordering.
 model Medicine {
-  id                    String             @id @default(cuid())
-  companyId             String?
-  brandName             String
-  genericName           String
-  dosage                String
-  packSize              String
-  description           String?
-  medicineType          MedicineType       @default(OTC)
-  mrp                   Decimal            @db.Decimal(10, 2)
-  isGeneric             Boolean            @default(false)
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  company               Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  inventoryItems        RetailerInventory[]
-  orderItems            OrderItem[]
-  prescriptions         Prescription[]
+  id                        String                       @id @default(cuid())
+  companyId                 String?
+  brandName                 String
+  genericName               String
+  dosage                    String
+  packSize                  String
+  description               String?
+  medicineType              MedicineType                 @default(OTC)
+  mrp                       Decimal                      @db.Decimal(10, 2)
+  isGeneric                 Boolean                      @default(false)
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  company                   Company?                     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  searchAliases             MedicineSearchAlias[]
+  compositions              MedicineComposition[]
+  diseases                  MedicineDisease[]
+  retailerInventoryItems    RetailerInventory[]
+  wholesellerInventoryItems WholesellerInventory[]
+  customerOrderItems        CustomerOrderItem[]
+  retailerPurchaseItems     RetailerPurchaseOrderItem[]
+  wholesellerPurchaseItems  WholesellerPurchaseOrderItem[]
+  prescriptions             Prescription[]
+
+  @@index([brandName])
+  @@index([genericName])
 }
 
-// Live stock and price information visible per retailer for one medicine.
-model RetailerInventory {
-  id                String   @id @default(cuid())
-  retailerId        String
+// Search aliases and brand synonyms used by the medicine discovery flow.
+model MedicineSearchAlias {
+  id         String    @id @default(cuid())
+  medicineId String
+  alias      String
+  createdAt  DateTime  @default(now())
+  medicine   Medicine  @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@unique([medicineId, alias])
+  @@index([alias])
+}
+
+// Salt composition master list used by search and substitute logic.
+model SaltComposition {
+  id           String                @id @default(cuid())
+  name         String                @unique
+  description  String?
+  compositions MedicineComposition[]
+}
+
+// Join table connecting one medicine to one or more salt compositions.
+model MedicineComposition {
+  id                String          @id @default(cuid())
   medicineId        String
-  salePrice         Decimal  @db.Decimal(10, 2)
-  stockQuantity     Int
-  isActive          Boolean  @default(true)
-  updatedAt         DateTime @updatedAt
-  retailer          Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
-  medicine          Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  saltCompositionId String
+  strength          String
+  unit              String
+  medicine          Medicine        @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  saltComposition   SaltComposition @relation(fields: [saltCompositionId], references: [id], onDelete: Cascade)
+
+  @@unique([medicineId, saltCompositionId])
+}
+
+// Disease or usage catalogue used to enrich medicine search results.
+model Disease {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  description String?
+  medicines   MedicineDisease[]
+}
+
+// Join table connecting medicines to diseases / uses.
+model MedicineDisease {
+  id         String   @id @default(cuid())
+  medicineId String
+  diseaseId  String
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  disease    Disease  @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+
+  @@unique([medicineId, diseaseId])
+}
+
+// Visible stock and price information for a retailer and medicine pair.
+model RetailerInventory {
+  id               String                 @id @default(cuid())
+  retailerId       String
+  medicineId       String
+  salePrice        Decimal                @db.Decimal(10, 2)
+  stockQuantity    Int
+  reservedQuantity Int                    @default(0)
+  reorderLevel     Int?
+  isActive         Boolean                @default(true)
+  updatedAt        DateTime               @updatedAt
+  retailer         Retailer               @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  medicine         Medicine               @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batches          RetailerInventoryBatch[]
+  alerts           InventoryAlert[]
 
   @@unique([retailerId, medicineId])
 }
 
-// Customer order flowing to a retailer and later through approval, payment, and delivery.
-model Order {
-  id                    String              @id @default(cuid())
-  customerId            String
-  retailerId            String
-  deliveryAddressId     String?
-  status                OrderStatus         @default(PENDING_RETAILER_APPROVAL)
-  deliveryMethod        DeliveryMethod
-  subtotalAmount        Decimal             @db.Decimal(10, 2)
-  deliveryFee           Decimal             @db.Decimal(10, 2)
-  totalAmount           Decimal             @db.Decimal(10, 2)
-  rejectionReason       String?
-  placedAt              DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  customer              User                @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Cascade)
-  retailer              Retailer            @relation("RetailerOrders", fields: [retailerId], references: [id], onDelete: Restrict)
-  deliveryAddress       Address?            @relation("DeliveryAddressOrders", fields: [deliveryAddressId], references: [id], onDelete: SetNull)
-  items                 OrderItem[]
-  prescription          Prescription?
-  payments              Payment[]
-  invoice               Invoice?
-  feedbacks             Feedback[]
+// Batch-wise retailer stock used for FIFO deduction and expiry checks.
+model RetailerInventoryBatch {
+  id                 String            @id @default(cuid())
+  retailerInventoryId String
+  batchNumber        String
+  expiryDate         DateTime
+  quantity           Int
+  purchasePrice      Decimal?          @db.Decimal(10, 2)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  retailerInventory  RetailerInventory @relation(fields: [retailerInventoryId], references: [id], onDelete: Cascade)
+
+  @@index([retailerInventoryId, expiryDate])
+}
+
+// Visible stock and price information for a wholeseller and medicine pair.
+model WholesellerInventory {
+  id                 String                    @id @default(cuid())
+  wholesellerId      String
+  medicineId         String
+  salePrice          Decimal                   @db.Decimal(10, 2)
+  stockQuantity      Int
+  reservedQuantity   Int                       @default(0)
+  reorderLevel       Int?
+  isActive           Boolean                   @default(true)
+  updatedAt          DateTime                  @updatedAt
+  wholeseller        Wholeseller               @relation(fields: [wholesellerId], references: [id], onDelete: Cascade)
+  medicine           Medicine                  @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  batches            WholesellerInventoryBatch[]
+  alerts             InventoryAlert[]
+
+  @@unique([wholesellerId, medicineId])
+}
+
+// Batch-wise wholeseller stock used for FIFO deduction and expiry checks.
+model WholesellerInventoryBatch {
+  id                    String               @id @default(cuid())
+  wholesellerInventoryId String
+  batchNumber           String
+  expiryDate            DateTime
+  quantity              Int
+  purchasePrice         Decimal?             @db.Decimal(10, 2)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  wholesellerInventory  WholesellerInventory @relation(fields: [wholesellerInventoryId], references: [id], onDelete: Cascade)
+
+  @@index([wholesellerInventoryId, expiryDate])
+}
+
+// Customer order flowing through retailer approval, payment, invoice, and delivery.
+model CustomerOrder {
+  id                String              @id @default(cuid())
+  customerId        String
+  retailerId        String
+  deliveryAddressId String?
+  status            CustomerOrderStatus @default(PENDING_RETAILER_APPROVAL)
+  deliveryMethod    DeliveryMethod
+  subtotalAmount    Decimal             @db.Decimal(10, 2)
+  deliveryFee       Decimal             @db.Decimal(10, 2)
+  totalAmount       Decimal             @db.Decimal(10, 2)
+  rejectionReason   String?
+  placedAt          DateTime            @default(now())
+  approvedAt        DateTime?
+  completedAt       DateTime?
+  updatedAt         DateTime            @updatedAt
+  customer          User                @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Cascade)
+  retailer          Retailer            @relation("RetailerCustomerOrders", fields: [retailerId], references: [id], onDelete: Restrict)
+  deliveryAddress   Address?            @relation("DeliveryAddressOrders", fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  items             CustomerOrderItem[]
+  prescription      Prescription?
+  payments          PaymentRecord[]
+  invoices          InvoiceRecord[]
+  trackingEvents    DeliveryTrackingEvent[]
+  feedbacks         Feedback[]
+
+  @@index([customerId, placedAt])
+  @@index([retailerId, placedAt])
 }
 
 // Line items within a customer order.
-model OrderItem {
-  id                String   @id @default(cuid())
-  orderId           String
-  medicineId        String
-  quantity          Int
-  unitPrice         Decimal  @db.Decimal(10, 2)
-  lineTotal         Decimal  @db.Decimal(10, 2)
-  createdAt         DateTime @default(now())
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  medicine          Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+model CustomerOrderItem {
+  id              String        @id @default(cuid())
+  customerOrderId String
+  medicineId      String
+  quantity        Int
+  unitPrice       Decimal       @db.Decimal(10, 2)
+  lineTotal       Decimal       @db.Decimal(10, 2)
+  createdAt       DateTime      @default(now())
+  customerOrder   CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  medicine        Medicine      @relation(fields: [medicineId], references: [id], onDelete: Restrict)
 }
 
-// Prescription metadata linked to one order when the selected medicine requires it.
+// Prescription uploaded for a customer order when one or more medicines require it.
 model Prescription {
-  id                String              @id @default(cuid())
-  orderId           String              @unique
-  customerId        String
-  medicineId        String?
-  fileUrl           String
-  originalFileName  String?
-  status            PrescriptionStatus  @default(UPLOADED)
-  retailerNotes     String?
-  reviewedAt        DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  customer          User                @relation("PrescriptionCustomer", fields: [customerId], references: [id], onDelete: Cascade)
-  medicine          Medicine?           @relation(fields: [medicineId], references: [id], onDelete: SetNull)
+  id               String             @id @default(cuid())
+  customerOrderId  String             @unique
+  customerId       String
+  medicineId       String?
+  fileUrl          String
+  originalFileName String?
+  status           PrescriptionStatus @default(UPLOADED)
+  retailerNotes    String?
+  reviewedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  customerOrder    CustomerOrder      @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  customer         User               @relation("PrescriptionCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  medicine         Medicine?          @relation(fields: [medicineId], references: [id], onDelete: SetNull)
 }
 
-// Payment records for online or COD-backed orders.
-model Payment {
-  id                String         @id @default(cuid())
-  orderId           String
-  method            PaymentMethod
-  status            PaymentStatus  @default(PENDING)
-  amount            Decimal        @db.Decimal(10, 2)
-  gatewayRef        String?
-  paidAt            DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+// Shared payment table used for customer, retailer, and wholeseller transactions.
+model PaymentRecord {
+  id                        String                    @id @default(cuid())
+  customerOrderId           String?
+  retailerPurchaseOrderId   String?
+  wholesellerPurchaseOrderId String?
+  method                    PaymentMethod
+  status                    PaymentStatus             @default(PENDING)
+  amount                    Decimal                   @db.Decimal(10, 2)
+  gatewayReference          String?
+  paidAt                    DateTime?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  customerOrder             CustomerOrder?            @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  retailerPurchaseOrder     RetailerPurchaseOrder?    @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: Cascade)
+  wholesellerPurchaseOrder  WholesellerPurchaseOrder? @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([customerOrderId])
+  @@index([retailerPurchaseOrderId])
+  @@index([wholesellerPurchaseOrderId])
 }
 
-// Bill and invoice summary generated after order approval and payment.
-model Invoice {
-  id                String         @id @default(cuid())
-  orderId           String         @unique
-  retailerId        String
-  invoiceNumber     String         @unique
-  status            InvoiceStatus  @default(GENERATED)
-  pdfUrl            String?
-  generatedAt       DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  order             Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  retailer          Retailer       @relation(fields: [retailerId], references: [id], onDelete: Restrict)
+// Shared invoice table used for customer and B2B orders.
+model InvoiceRecord {
+  id                        String                    @id @default(cuid())
+  customerOrderId           String?                   @unique
+  retailerPurchaseOrderId   String?                   @unique
+  wholesellerPurchaseOrderId String?                  @unique
+  invoiceNumber             String                    @unique
+  status                    InvoiceStatus             @default(GENERATED)
+  pdfUrl                    String?
+  generatedAt               DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  customerOrder             CustomerOrder?            @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  retailerPurchaseOrder     RetailerPurchaseOrder?    @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: Cascade)
+  wholesellerPurchaseOrder  WholesellerPurchaseOrder? @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: Cascade)
 }
 
-// Customer feedback after delivery or pickup completion.
+// Step-by-step customer delivery or pickup tracking events.
+model DeliveryTrackingEvent {
+  id                  String        @id @default(cuid())
+  customerOrderId     String
+  createdByRetailerId String?
+  statusLabel         String
+  notes               String?
+  createdAt           DateTime      @default(now())
+  customerOrder       CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  createdByRetailer   Retailer?     @relation(fields: [createdByRetailerId], references: [id], onDelete: SetNull)
+
+  @@index([customerOrderId, createdAt])
+}
+
+// Retailer purchase order sent to a wholeseller.
+model RetailerPurchaseOrder {
+  id                   String                  @id @default(cuid())
+  retailerId           String
+  wholesellerId        String
+  status               PurchaseOrderStatus     @default(PENDING_APPROVAL)
+  subtotalAmount       Decimal                 @db.Decimal(10, 2)
+  schemeDiscountAmount Decimal                 @default(0) @db.Decimal(10, 2)
+  totalAmount          Decimal                 @db.Decimal(10, 2)
+  rejectionReason      String?
+  placedAt             DateTime                @default(now())
+  deliveredAt          DateTime?
+  updatedAt            DateTime                @updatedAt
+  retailer             Retailer                @relation("RetailerPurchaseOrders", fields: [retailerId], references: [id], onDelete: Restrict)
+  wholeseller          Wholeseller             @relation("WholesellerRetailerPurchaseOrders", fields: [wholesellerId], references: [id], onDelete: Restrict)
+  items                RetailerPurchaseOrderItem[]
+  payments             PaymentRecord[]
+  invoices             InvoiceRecord[]
+  trackingEvents       B2BShipmentTrackingEvent[]
+  feedbacks            Feedback[]
+
+  @@index([retailerId, placedAt])
+  @@index([wholesellerId, placedAt])
+}
+
+// Line items within a retailer purchase order.
+model RetailerPurchaseOrderItem {
+  id                      String                @id @default(cuid())
+  retailerPurchaseOrderId String
+  medicineId              String
+  quantity                Int
+  unitPrice               Decimal               @db.Decimal(10, 2)
+  lineTotal               Decimal               @db.Decimal(10, 2)
+  retailerPurchaseOrder   RetailerPurchaseOrder @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: Cascade)
+  medicine                Medicine              @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+}
+
+// Wholeseller bulk purchase order sent to a company.
+model WholesellerPurchaseOrder {
+  id                    String                     @id @default(cuid())
+  wholesellerId         String
+  companyId             String
+  status                PurchaseOrderStatus        @default(PENDING_APPROVAL)
+  subtotalAmount        Decimal                    @db.Decimal(10, 2)
+  offerDiscountAmount   Decimal                    @default(0) @db.Decimal(10, 2)
+  totalAmount           Decimal                    @db.Decimal(10, 2)
+  rejectionReason       String?
+  placedAt              DateTime                   @default(now())
+  deliveredAt           DateTime?
+  updatedAt             DateTime                   @updatedAt
+  wholeseller           Wholeseller                @relation("WholesellerCompanyPurchaseOrders", fields: [wholesellerId], references: [id], onDelete: Restrict)
+  company               Company                    @relation("CompanyWholesellerOrders", fields: [companyId], references: [id], onDelete: Restrict)
+  items                 WholesellerPurchaseOrderItem[]
+  payments              PaymentRecord[]
+  invoices              InvoiceRecord[]
+  trackingEvents        B2BShipmentTrackingEvent[]
+  feedbacks             Feedback[]
+
+  @@index([wholesellerId, placedAt])
+  @@index([companyId, placedAt])
+}
+
+// Line items within a wholeseller purchase order.
+model WholesellerPurchaseOrderItem {
+  id                         String                   @id @default(cuid())
+  wholesellerPurchaseOrderId String
+  medicineId                 String
+  quantity                   Int
+  unitPrice                  Decimal                  @db.Decimal(10, 2)
+  lineTotal                  Decimal                  @db.Decimal(10, 2)
+  wholesellerPurchaseOrder   WholesellerPurchaseOrder @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: Cascade)
+  medicine                   Medicine                 @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+}
+
+// B2B tracking events for retailer-wholeseller and wholeseller-company shipments.
+model B2BShipmentTrackingEvent {
+  id                         String                    @id @default(cuid())
+  retailerPurchaseOrderId    String?
+  wholesellerPurchaseOrderId String?
+  statusLabel                String
+  notes                      String?
+  createdAt                  DateTime                  @default(now())
+  retailerPurchaseOrder      RetailerPurchaseOrder?    @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: Cascade)
+  wholesellerPurchaseOrder   WholesellerPurchaseOrder? @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([retailerPurchaseOrderId, createdAt])
+  @@index([wholesellerPurchaseOrderId, createdAt])
+}
+
+// Company-created offer targeted at a wholeseller.
+model Offer {
+  id            String      @id @default(cuid())
+  companyId     String
+  wholesellerId String
+  title         String
+  description   String?
+  status        OfferStatus @default(DRAFT)
+  discountType  String?
+  discountValue Decimal?    @db.Decimal(10, 2)
+  startsAt      DateTime
+  endsAt        DateTime
+  acceptedAt    DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  wholeseller   Wholeseller @relation(fields: [wholesellerId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([wholesellerId, status])
+}
+
+// Wholeseller-created scheme targeted at a retailer.
+model Scheme {
+  id            String       @id @default(cuid())
+  wholesellerId String
+  retailerId    String?
+  title         String
+  description   String?
+  status        SchemeStatus @default(DRAFT)
+  discountType  String?
+  discountValue Decimal?     @db.Decimal(10, 2)
+  startsAt      DateTime
+  endsAt        DateTime
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  wholeseller   Wholeseller  @relation(fields: [wholesellerId], references: [id], onDelete: Cascade)
+  retailer      Retailer?    @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+
+  @@index([wholesellerId, status])
+  @@index([retailerId, status])
+}
+
+// Feedback collected after customer or B2B order completion.
 model Feedback {
-  id                String   @id @default(cuid())
-  userId            String
-  retailerId        String?
-  orderId           String?
-  rating            Int
-  comment           String?
-  createdAt         DateTime @default(now())
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  retailer          Retailer? @relation(fields: [retailerId], references: [id], onDelete: SetNull)
-  order             Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  id                         String                    @id @default(cuid())
+  userId                     String
+  retailerId                 String?
+  wholesellerId              String?
+  companyId                  String?
+  customerOrderId            String?
+  retailerPurchaseOrderId    String?
+  wholesellerPurchaseOrderId String?
+  rating                     Int
+  comment                    String?
+  createdAt                  DateTime                  @default(now())
+  user                       User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  retailer                   Retailer?                 @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  wholeseller                Wholeseller?              @relation(fields: [wholesellerId], references: [id], onDelete: SetNull)
+  company                    Company?                  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  customerOrder              CustomerOrder?            @relation(fields: [customerOrderId], references: [id], onDelete: SetNull)
+  retailerPurchaseOrder      RetailerPurchaseOrder?    @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: SetNull)
+  wholesellerPurchaseOrder   WholesellerPurchaseOrder? @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
-// App notifications for customer and retailer events.
+// Persisted in-app and push notification records.
 model Notification {
-  id                String   @id @default(cuid())
-  userId            String
-  title             String
-  body              String
-  isRead            Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String           @id @default(cuid())
+  userId        String
+  type          NotificationType
+  title         String
+  body          String
+  referenceKind String?
+  referenceId   String?
+  isRead        Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Device tokens used for push notification delivery.
+model NotificationDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  deviceToken String   @unique
+  platform    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Precomputed analytics records for retailer, wholeseller, company, and platform dashboards.
+model AnalyticsSnapshot {
+  id            String          @id @default(cuid())
+  scope         AnalyticsScope
+  retailerId    String?
+  wholesellerId String?
+  companyId     String?
+  metricKey     String
+  metricValue   Decimal         @db.Decimal(14, 2)
+  periodStart   DateTime
+  periodEnd     DateTime
+  createdAt     DateTime        @default(now())
+  retailer      Retailer?       @relation(fields: [retailerId], references: [id], onDelete: SetNull)
+  wholeseller   Wholeseller?    @relation(fields: [wholesellerId], references: [id], onDelete: SetNull)
+  company       Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([scope, periodStart, periodEnd])
+}
+
+// Inventory alerts for low stock, out-of-stock, and expiry monitoring.
+model InventoryAlert {
+  id                    String                @id @default(cuid())
+  retailerInventoryId   String?
+  wholesellerInventoryId String?
+  type                  InventoryAlertType
+  message               String
+  isResolved            Boolean               @default(false)
+  createdAt             DateTime              @default(now())
+  resolvedAt            DateTime?
+  retailerInventory     RetailerInventory?    @relation(fields: [retailerInventoryId], references: [id], onDelete: SetNull)
+  wholesellerInventory  WholesellerInventory? @relation(fields: [wholesellerInventoryId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
 }
