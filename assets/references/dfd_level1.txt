@@ -1,139 +1,132 @@
 @startuml DFD_Level1_PharmaConnect
 !theme plain
+
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
 skinparam rectangle {
-    BackgroundColor #E8F4FD
-    BorderColor #2980B9
-    BorderThickness 1
-    RoundCorner 8
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    BorderThickness 2
+    RoundCorner 10
+    FontSize 11
 }
 
 skinparam database {
-    BackgroundColor #FEF9E7
-    BorderColor #F39C12
-    BorderThickness 1
-}
-
-skinparam actor {
-    BackgroundColor #F9F9F9
-    BorderColor #555555
-    FontColor #111111
-}
-
-skinparam arrow {
-    Color #555555
-    FontColor #333333
+    BackgroundColor #FFF9E6
+    BorderColor #F57C00
+    BorderThickness 2
     FontSize 10
 }
 
-title <size:16><b>PharmaConnect - Level 1 DFD</b></size>
+skinparam actor {
+    BackgroundColor #F5F5F5
+    BorderColor #424242
+    FontColor #000000
+}
 
-actor "Customer"    as C
-actor "Retailer"    as R
-actor "Wholesaler"  as W
-actor "Company"     as CO
+skinparam arrow {
+    Color #616161
+    FontColor #424242
+    FontSize 10
+}
 
-database "D1: Users &\nProfiles"               as D1
-database "D2: Medicine Catalogue\n& Search Data" as D2
-database "D3: Inventory"                       as D3
-database "D4: Orders"                          as D4
-database "D5: Payments &\nInvoices"            as D5
-database "D6: Offers &\nSchemes"               as D6
-database "D7: Notifications"                   as D7
-database "D8: Analytics"                       as D8
-database "D9: Supplier Links"                  as D9
+title <size:17><b>PharmaConnect - Level 1 DFD</b></size>\n
 
-rectangle "P1\nUser Auth &\nProfile Management" as P1
-rectangle "P2\nMedicine Search\n& Discovery"    as P2
-rectangle "P3\nCustomer Order\nManagement"      as P3
-rectangle "P4\nRetailer Purchase\nManagement"   as P4
-rectangle "P5\nWholesaler Purchase\nManagement" as P5
-rectangle "P6\nInventory\nManagement"           as P6
-rectangle "P7\nPayment\nProcessing"             as P7
-rectangle "P8\nInvoice\nGeneration"             as P8
-rectangle "P9\nOffers & Schemes\nManagement"    as P9
-rectangle "P10\nAnalytics &\nReporting"         as P10
-rectangle "P11\nNotification\nService"          as P11
+' === ACTORS ===
+actor Customer as C
+actor Retailer as R
+actor Wholesaler as W
+actor Company as CO
 
-' P1: Auth
-C  --> P1 : Register / Login
-R  --> P1 : Register / Login
-W  --> P1 : Register / Login
-CO --> P1 : Register / Login
-P1 --> D1 : Store & fetch\nuser profiles
+' === PROCESSES ===
+rectangle "P1\nAuth & Profile" as P1
+rectangle "P2\nSearch Medicine" as P2
+rectangle "P3\nCustomer Orders" as P3
+rectangle "P4\nRetailer Orders" as P4
+rectangle "P5\nWholesaler Orders" as P5
+rectangle "P6\nInventory Mgmt" as P6
+rectangle "P7\nPayment" as P7
+rectangle "P8\nInvoicing" as P8
+rectangle "P9\nOffers & Schemes" as P9
+rectangle "P10\nAnalytics" as P10
+rectangle "P11\nNotifications" as P11
 
-' P2: Search
-C  --> P2 : Search query + filters
-P2 --> D2 : Fetch medicines\nby salt / brand
-P2 --> D3 : Check stock\nper retailer
-P2 --> C  : Filtered medicine list\n+ nearest retailers
+' === DATA STORES ===
+database "D1\nUsers" as D1
+database "D2\nMedicines" as D2
+database "D3\nInventory" as D3
+database "D4\nOrders" as D4
+database "D5\nPayments" as D5
+database "D6\nOffers" as D6
+database "D7\nNotifications" as D7
+database "D8\nAnalytics" as D8
 
-' P3: Customer Orders
-C  --> P3 : Place order +\nupload prescription
-P3 --> D4 : Save & update\ncustomer order
-P3 --> R  : Order notification
-P3 --> P6 : Trigger stock\nreservation / deduction
-P3 --> P7 : Trigger payment
-P3 --> P11: Trigger notification
-R  --> P3 : Approve / deny\nprescription & order
-P3 --> C  : Order status update
+' === CUSTOMER FLOWS ===
+C --> P1 : Login/Register
+C --> P2 : Search
+C --> P3 : Place Order
+P3 --> C : Status
+P8 --> C : Invoice
+P11 --> C : Alerts
 
-' P4: Retailer Purchase
-R  --> P4 : Search & order\nfrom wholesaler
-P4 --> D4 : Save purchase order
-P4 --> W  : Purchase order\nnotification
-W  --> P4 : Approve / deny order
-P4 --> P6 : Trigger stock update
-P4 --> P7 : Trigger payment
-P4 --> R  : Order status + invoice
+' === RETAILER FLOWS ===
+R --> P1 : Login/Register
+R --> P3 : Approve Order
+R --> P4 : Order Stock
+R --> P6 : Update Stock
+P4 --> R : Status
+P8 --> R : Invoice
+P10 --> R : Reports
+P11 --> R : Alerts
 
-' P5: Wholesaler Purchase
-W  --> P5 : Place bulk order\nto company
-P5 --> D4 : Save bulk order
-P5 --> CO : Bulk order\nnotification
-CO --> P5 : Approve / deny order
-P5 --> P6 : Trigger stock update
-P5 --> P7 : Trigger payment
-P5 --> W  : Order status + invoice
+' === WHOLESALER FLOWS ===
+W --> P1 : Login/Register
+W --> P4 : Fulfill Order
+W --> P5 : Order Stock
+W --> P6 : Update Stock
+W --> P9 : Create Scheme
+P5 --> W : Status
+P8 --> W : Invoice
+P9 --> W : Offers
+P10 --> W : Reports
+P11 --> W : Alerts
 
-' P6: Inventory
-P6 --> D3 : Update stock levels\n(add / deduct)
-P6 --> P11: Trigger low stock\n& expiry alerts
+' === COMPANY FLOWS ===
+CO --> P1 : Login/Register
+CO --> P5 : Fulfill Order
+CO --> P9 : Create Offer
+P10 --> CO : Reports
+P11 --> CO : Alerts
 
-' P7: Payment
-P7 --> D5 : Record transaction
-P7 --> P8 : Trigger invoice\ngeneration
+' === PROCESS TO DATA STORE ===
+P1 <--> D1
+P2 --> D2
+P2 --> D3
+P3 <--> D4
+P4 <--> D4
+P5 <--> D4
+P6 <--> D3
+P7 <--> D5
+P8 --> D5
+P8 --> D4
+P9 <--> D6
+P10 --> D4
+P10 --> D8
+P11 <--> D7
 
-' P8: Invoice
-P8 --> D4 : Fetch order details
-P8 --> D5 : Save invoice
-P8 --> C  : Send invoice
-P8 --> R  : Send invoice
-P8 --> W  : Send invoice
-
-' P9: Offers & Schemes
-CO --> P9 : Create offer\nfor wholesaler
-W  --> P9 : Create scheme\nfor retailer
-P9 --> D6 : Save offer / scheme
-P9 --> W  : Deliver offer
-P9 --> R  : Deliver scheme
-P9 --> D8 : Log offer\nperformance
-
-' P10: Analytics
-P10 --> D4 : Fetch order data
-P10 --> D8 : Store & fetch\naggregated metrics
-P10 --> R  : Retailer dashboard
-P10 --> W  : Wholesaler dashboard
-P10 --> CO : Company performance\nreports
-
-' P11: Notifications
-P11 --> D7 : Store notification
-P11 --> C  : Push / in-app alert
-P11 --> R  : Push / in-app alert
-P11 --> W  : Push / in-app alert
-P11 --> CO : Push / in-app alert
+' === INTER-PROCESS ===
+P3 --> P6
+P3 --> P7
+P3 --> P11
+P4 --> P6
+P4 --> P7
+P4 --> P11
+P5 --> P6
+P5 --> P7
+P5 --> P11
+P6 --> P11
+P7 --> P8
 
 @enduml
