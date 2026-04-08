@@ -13,6 +13,7 @@ import {
   shortcutChips,
 } from '../data/mockData';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
+import { createDemoCustomerOrder } from '../services/orderFlow';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { AccountScreen } from './customer/AccountScreen';
 import { CartScreen } from './customer/CartScreen';
@@ -106,6 +107,7 @@ export function CustomerModuleApp() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [retailerLoading, setRetailerLoading] = useState(false);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
   const [detailHelperText, setDetailHelperText] = useState<string | null>(null);
   const [retailerHelperText, setRetailerHelperText] = useState<string | null>(null);
@@ -460,10 +462,8 @@ export function CustomerModuleApp() {
     setScreen('payment');
   }
 
-  // Creates a mock order and invoice after payment and delivery are selected.
-  function placeOrder() {
+  function createLocalOrder() {
     if (!cart || !paymentMethod || !deliveryMethod) {
-      Alert.alert('Complete checkout', 'Please choose payment and delivery to place the order.');
       return;
     }
 
@@ -500,6 +500,64 @@ export function CustomerModuleApp() {
       deliveryMethod,
     });
     setScreen('tracking');
+  }
+
+  // Creates a real backend order when possible, then falls back to the local demo flow.
+  async function placeOrder() {
+    if (!cart || !paymentMethod || !deliveryMethod) {
+      Alert.alert('Complete checkout', 'Please choose payment and delivery to place the order.');
+      return;
+    }
+
+    if (orderSubmitting) {
+      return;
+    }
+
+    setOrderSubmitting(true);
+
+    try {
+      const createdOrder = await createDemoCustomerOrder({
+        retailerId: cart.retailerId,
+        medicineId: cart.medicineId,
+        quantity: cart.quantity,
+        paymentMethod,
+        deliveryMethod,
+        prescriptionUploaded,
+        prescriptionRequired: selectedMedicine.prescriptionRequired,
+      });
+
+      setOrders((current) => [
+        {
+          id: createdOrder.orderId,
+          retailerId: createdOrder.retailerId,
+          dateLabel: 'Just now',
+          status: createdOrder.displayStatus,
+          total: createdOrder.total,
+          items: [
+            {
+              medicineId: createdOrder.medicineId,
+              quantity: createdOrder.quantity,
+              unitPrice: createdOrder.subtotal / Math.max(createdOrder.quantity, 1),
+            },
+          ],
+        },
+        ...current,
+      ]);
+
+      setInvoice(createdOrder.invoice);
+      setScreen('tracking');
+      Alert.alert('Order placed', 'The order was created in the backend and is now waiting for retailer approval.');
+    } catch (error) {
+      createLocalOrder();
+      Alert.alert(
+        'Using local demo order',
+        error instanceof Error
+          ? `The backend order could not be created right now, so the app used the local demo flow instead.\n\n${error.message}`
+          : 'The backend order could not be created right now, so the app used the local demo flow instead.',
+      );
+    } finally {
+      setOrderSubmitting(false);
+    }
   }
 
   // Updates one signup field while keeping the rest of the form intact.
