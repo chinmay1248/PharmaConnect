@@ -13,13 +13,14 @@ type ApiErrorPayload = {
 };
 
 // Sends one JSON request to the PharmaConnect backend and normalizes API errors.
-export async function getJson<T>(path: string) {
+async function requestJson<T>(path: string, init?: RequestInit) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
     headers: {
       Accept: 'application/json',
+      ...(init?.headers ?? {}),
     },
   });
-
   const payload = (await response.json().catch(() => null)) as T | ApiErrorPayload | null;
 
   if (!response.ok) {
@@ -32,4 +33,18 @@ export async function getJson<T>(path: string) {
   }
 
   return payload as T;
+}
+
+export async function getJson<T>(path: string) {
+  return requestJson<T>(path);
+}
+
+export async function postJson<TResponse, TBody>(path: string, body: TBody) {
+  return requestJson<TResponse>(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
 }
