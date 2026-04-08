@@ -12,8 +12,8 @@ The platform allows each participant to manage their part of the supply chain di
 
 ## Current Development Status
 
-**What's Built:** Customer-facing mobile app prototype  
-**What's In Progress:** Backend foundation and database structure  
+**What's Built:** Customer-facing mobile app prototype plus backend foundation  
+**What's In Progress:** Customer-to-backend integration and database seeding  
 **What's Planned:** Retailer, Wholesaler, and Company modules
 
 This is currently a **working prototype**, not a production-ready system. It demonstrates the core features and user experience for the customer side of the platform.
@@ -78,8 +78,9 @@ This folder contains the server code that will handle data storage, user authent
 **Current Status:**
 - Basic server structure is set up
 - Database schema is defined
-- API routes are outlined
-- **Not yet connected to the mobile app** (still using mock data)
+- Seed data is available for medicine discovery
+- Medicine discovery APIs are implemented
+- **Partially connected to the mobile app** for search, medicine detail, and retailer comparison
 
 ---
 
@@ -171,14 +172,16 @@ The app will open in your browser as a web version of the mobile interface.
 **Partially Built:**
 - Backend server structure
 - Database schema
-- API route definitions
+- Seed data
+- Auth route structure
+- Medicine discovery API integration with the mobile app
 
 ---
 
 ## What's Still To Be Built
 
 **Customer Module:**
-- Real backend integration (currently using fake data)
+- Full backend integration across the remaining customer flow
 - User authentication (login/signup)
 - Real payment gateway integration
 - Real prescription verification
@@ -256,11 +259,11 @@ Monitor product distribution, manage relationships with wholesalers, track suppl
 
 This repository is in **active development** - features are being added regularly
 
-The customer app uses **mock data** - no real medicines or pharmacies are connected yet
+The customer app currently uses a **mixed live + mock setup** - medicine discovery can use backend APIs, while cart/order/payment/tracking flows are still prototype-based
 
 **Do not use this for real medical orders** - it's a demonstration prototype
 
-Future updates will connect the frontend to the real backend and add the other three modules
+Future updates will complete customer backend integration and then add the other three modules
 
 Git commits in this repository should use the identity: **chinmay1248**
 
@@ -268,9 +271,9 @@ Git commits in this repository should use the identity: **chinmay1248**
 
 ## Next Development Priorities
 
-1. Connect customer mobile app to real backend APIs
+1. Finish customer cart, order, prescription, payment, invoice, and tracking backend integration
 2. Implement user authentication (login/signup)
-3. Set up production database with real data
+3. Verify the seeded database and live mobile discovery flow end to end
 4. Build retailer dashboard interface
 5. Create wholesaler management system
 6. Develop company oversight platform

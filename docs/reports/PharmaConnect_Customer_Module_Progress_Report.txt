@@ -1,7 +1,7 @@
 PHARMACONNECT CUSTOMER MODULE
 Short Progress Report
 
-Date: 30 March 2026
+Date: 8 April 2026
 
 1. What PharmaConnect Is
 
@@ -59,6 +59,15 @@ Customer frontend prototype was built with:
 - cart view
 - order tracking view
 
+Backend and integration work now added:
+- Express backend foundation in `backend/`
+- Prisma schema and migration
+- seed data for medicines, salts, diseases, retailer inventory, and sample users
+- medicine search API
+- medicine detail API
+- retailer comparison API
+- mobile discovery flow connected to live backend data with mock fallback
+
 
 5. Main Files Created
 
@@ -78,13 +87,14 @@ Customer frontend prototype was built with:
 - Branded splash and onboarding flow
 - Phone-number-based mock entry screen
 - Customer home screen with categories and offers
-- Medicine search using mock data
-- Medicine detail page with Rx and generic info
-- Nearby retailer list with price, stock, distance, and rating
+- Medicine search using backend APIs when available
+- Medicine detail page with backend sync support
+- Nearby retailer list with backend stock comparison support
 - Cart with quantity controls
 - Prototype order placement using mock data
 - Order tracking UI
 - Orders and profile tabs
+- Backend build and mobile TypeScript verification
 
 
 7. What Is Still Pending
@@ -92,10 +102,10 @@ Customer frontend prototype was built with:
 - Firebase OTP login
 - Google sign-in
 - Expo Router navigation
-- real API integration
+- cart and order API integration
 - barcode scan
 - live location
-- prescription upload
+- prescription upload integration
 - payment integration
 - notifications
 - address management
@@ -110,13 +120,13 @@ TypeScript check completed successfully:
 
 9. Current Status
 
-The customer frontend has been started successfully.
-The project now has a real mobile app base and a working customer-side prototype built from the PharmaConnect documents.
+The customer module has moved beyond a pure mock frontend.
+The project now has a real mobile app base, a backend foundation, and partial live API integration for customer medicine discovery.
 
 
 10. Next Best Step
 
 Best next step:
-- split the prototype into proper screen files and set up Expo Router
-- then connect auth, API, cart, and prescription flow
+- verify the seeded backend with the mobile discovery flow end to end
+- then connect cart, orders, auth, prescription, payment, invoice, and tracking to backend APIs
 
