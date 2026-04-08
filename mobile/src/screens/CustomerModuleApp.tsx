@@ -12,6 +12,7 @@ import {
   retailers,
   shortcutChips,
 } from '../data/mockData';
+import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { AccountScreen } from './customer/AccountScreen';
 import { CartScreen } from './customer/CartScreen';
@@ -35,11 +36,49 @@ import {
   InvoiceState,
   PaymentMethod,
   PharmacySort,
+  SortedPharmacy,
   Screen,
   SignupState,
-  SortedPharmacy,
 } from './customer/customerTypes';
 import { customerStyles } from './customer/customerStyles';
+
+function filterMockMedicines(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  return medicines.filter((medicine) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return (
+      medicine.brandName.toLowerCase().includes(normalizedQuery) ||
+      medicine.genericName.toLowerCase().includes(normalizedQuery) ||
+      medicine.company.toLowerCase().includes(normalizedQuery) ||
+      medicine.diseases.some((disease) => disease.toLowerCase().includes(normalizedQuery))
+    );
+  });
+}
+
+function sortMockPharmacies(medicineId: string, sortBy: PharmacySort) {
+  const list = retailers
+    .map((retailer) => {
+      const stock = retailer.stocks.find((item) => item.medicineId === medicineId);
+      return stock ? { retailer, stock } : null;
+    })
+    .filter((item): item is SortedPharmacy => item !== null);
+
+  return list.sort((a, b) => {
+    if (sortBy === 'cheapest') {
+      return a.stock.price - b.stock.price;
+    }
+
+    if (sortBy === 'rating') {
+      return b.retailer.rating - a.retailer.rating;
+    }
+
+    return (a.retailer.distanceKm ?? Number.MAX_SAFE_INTEGER) - (b.retailer.distanceKm ?? Number.MAX_SAFE_INTEGER);
+  });
+}
 
 // Main customer module component that controls the full frontend flow and screen switching.
 export function CustomerModuleApp() {
@@ -51,7 +90,7 @@ export function CustomerModuleApp() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
   const [screen, setScreen] = useState<Screen>('home');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMedicineId, setSelectedMedicineId] = useState(medicines[0].id);
+  const [selectedMedicineId, setSelectedMedicineId] = useState('');
   const [sortBy, setSortBy] = useState<PharmacySort>('closest');
   const [cart, setCart] = useState<CartState | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
@@ -59,6 +98,17 @@ export function CustomerModuleApp() {
   const [prescriptionUploaded, setPrescriptionUploaded] = useState(false);
   const [orders, setOrders] = useState(initialOrders);
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
+  const [catalogueMedicines, setCatalogueMedicines] = useState(medicines);
+  const [searchResults, setSearchResults] = useState(medicines);
+  const [detailMedicinesById, setDetailMedicinesById] = useState<Record<string, (typeof medicines)[number]>>({});
+  const [liveSortedPharmacies, setLiveSortedPharmacies] = useState<SortedPharmacy[]>([]);
+  const [catalogueLoading, setCatalogueLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [retailerLoading, setRetailerLoading] = useState(false);
+  const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
+  const [detailHelperText, setDetailHelperText] = useState<string | null>(null);
+  const [retailerHelperText, setRetailerHelperText] = useState<string | null>(null);
   const [signup, setSignup] = useState<SignupState>({
     fullName: '',
     email: '',
@@ -124,59 +174,215 @@ export function CustomerModuleApp() {
     return () => animation.stop();
   }, [stage, splashOpacity, splashScale]);
 
-  // Filters the medicine catalogue for the search screen and header search behavior.
-  const filteredMedicines = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  useEffect(() => {
+    if (stage !== 'app') {
+      return;
+    }
 
-    return medicines.filter((medicine) => {
-      if (!query) {
-        return true;
-      }
+    let active = true;
+    setCatalogueLoading(true);
+    setSearchHelperText(null);
 
-      return (
-        medicine.brandName.toLowerCase().includes(query) ||
-        medicine.genericName.toLowerCase().includes(query) ||
-        medicine.company.toLowerCase().includes(query) ||
-        medicine.diseases.some((disease) => disease.toLowerCase().includes(query))
-      );
-    });
-  }, [searchQuery]);
+    fetchCatalogueMedicines()
+      .then((liveCatalogue) => {
+        if (!active || !liveCatalogue.length) {
+          return;
+        }
 
-  // Resolves the medicine currently being viewed in detail, pharmacy, and cart flows.
+        setCatalogueMedicines(liveCatalogue);
+        setSearchResults((current) => (searchQuery.trim() ? current : liveCatalogue));
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setCatalogueMedicines(medicines);
+        setSearchHelperText('Showing the local prototype catalogue until the backend API is reachable.');
+      })
+      .finally(() => {
+        if (active) {
+          setCatalogueLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [stage]);
+
+  useEffect(() => {
+    if (!catalogueMedicines.length) {
+      return;
+    }
+
+    const currentSelectionExists = catalogueMedicines.some((medicine) => medicine.id === selectedMedicineId);
+
+    if (!selectedMedicineId || !currentSelectionExists) {
+      setSelectedMedicineId(catalogueMedicines[0].id);
+    }
+  }, [catalogueMedicines, selectedMedicineId]);
+
+  useEffect(() => {
+    if (stage !== 'app') {
+      return;
+    }
+
+    const query = searchQuery.trim();
+
+    if (!query) {
+      setSearchResults(catalogueMedicines);
+      setSearchLoading(catalogueLoading);
+      return;
+    }
+
+    let active = true;
+    const timeoutId = setTimeout(() => {
+      setSearchLoading(true);
+      setSearchHelperText(null);
+
+      searchMedicines(query)
+        .then((results) => {
+          if (!active) {
+            return;
+          }
+
+          setSearchResults(results);
+        })
+        .catch(() => {
+          if (!active) {
+            return;
+          }
+
+          setSearchResults(filterMockMedicines(query));
+          setSearchHelperText('Showing mock search results because the live discovery API could not be reached.');
+        })
+        .finally(() => {
+          if (active) {
+            setSearchLoading(false);
+          }
+        });
+    }, 260);
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
+  }, [catalogueLoading, catalogueMedicines, searchQuery, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app' || !selectedMedicineId) {
+      return;
+    }
+
+    let active = true;
+    setDetailLoading(true);
+    setDetailHelperText(null);
+
+    fetchMedicineDetail(selectedMedicineId)
+      .then((medicine) => {
+        if (!active) {
+          return;
+        }
+
+        setDetailMedicinesById((current) => ({
+          ...current,
+          [medicine.id]: medicine,
+        }));
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setDetailHelperText('Showing prototype details until this medicine is fully synced with the backend.');
+      })
+      .finally(() => {
+        if (active) {
+          setDetailLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedMedicineId, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app' || screen !== 'pharmacies' || !selectedMedicineId) {
+      return;
+    }
+
+    let active = true;
+    setRetailerLoading(true);
+    setRetailerHelperText(null);
+    setLiveSortedPharmacies([]);
+
+    fetchMedicineRetailers(selectedMedicineId, sortBy)
+      .then((pharmacies) => {
+        if (!active) {
+          return;
+        }
+
+        setLiveSortedPharmacies(pharmacies);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setLiveSortedPharmacies(sortMockPharmacies(selectedMedicineId, sortBy));
+        setRetailerHelperText('Showing prototype retailer comparison because live stock data is not available right now.');
+      })
+      .finally(() => {
+        if (active) {
+          setRetailerLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [screen, selectedMedicineId, sortBy, stage]);
+
+  const allKnownMedicines = useMemo(() => {
+    const entries = [...medicines, ...catalogueMedicines, ...searchResults, ...Object.values(detailMedicinesById)];
+    const byId = new Map(entries.map((medicine) => [medicine.id, medicine]));
+
+    return Array.from(byId.values());
+  }, [catalogueMedicines, detailMedicinesById, searchResults]);
+
   const selectedMedicine = useMemo(
-    () => medicines.find((medicine) => medicine.id === selectedMedicineId) ?? medicines[0],
-    [selectedMedicineId],
+    () => allKnownMedicines.find((medicine) => medicine.id === selectedMedicineId) ?? allKnownMedicines[0] ?? medicines[0],
+    [allKnownMedicines, selectedMedicineId],
   );
 
-  // Sorts nearby pharmacies by closest, cheapest, or highest rating.
-  const sortedPharmacies = useMemo(() => {
-    const list = retailers
-      .map((retailer) => {
-        const stock = retailer.stocks.find((item) => item.medicineId === selectedMedicine.id);
-        return stock ? { retailer, stock } : null;
-      })
-      .filter((item): item is SortedPharmacy => item !== null);
+  const fallbackSortedPharmacies = useMemo(
+    () => sortMockPharmacies(selectedMedicine.id, sortBy),
+    [selectedMedicine.id, sortBy],
+  );
 
-    return list.sort((a, b) => {
-      if (!a || !b) {
-        return 0;
-      }
-      if (sortBy === 'cheapest') {
-        return a.stock.price - b.stock.price;
-      }
-      if (sortBy === 'rating') {
-        return b.retailer.rating - a.retailer.rating;
-      }
-      return a.retailer.distanceKm - b.retailer.distanceKm;
-    });
-  }, [selectedMedicine.id, sortBy]);
+  const sortedPharmacies = useMemo(() => {
+    if (liveSortedPharmacies.length) {
+      return liveSortedPharmacies;
+    }
+
+    return fallbackSortedPharmacies;
+  }, [fallbackSortedPharmacies, liveSortedPharmacies]);
+
+  const allKnownRetailers = useMemo(() => {
+    const entries = [...retailers, ...sortedPharmacies.map((entry) => entry.retailer)];
+    const byId = new Map(entries.map((retailer) => [retailer.id, retailer]));
+
+    return Array.from(byId.values());
+  }, [sortedPharmacies]);
 
   // Pulls the selected medicine and retailer details into the cart summary.
   const cartMedicine = cart
-    ? medicines.find((medicine) => medicine.id === cart.medicineId) ?? medicines[0]
+    ? allKnownMedicines.find((medicine) => medicine.id === cart.medicineId) ?? allKnownMedicines[0] ?? medicines[0]
     : null;
   const cartRetailer = cart
-    ? retailers.find((retailer) => retailer.id === cart.retailerId) ?? retailers[0]
+    ? allKnownRetailers.find((retailer) => retailer.id === cart.retailerId) ?? allKnownRetailers[0] ?? retailers[0]
     : null;
   const cartUnitPrice =
     cart && cartRetailer
@@ -200,9 +406,7 @@ export function CustomerModuleApp() {
 
   // Opens the search screen and optionally pre-fills a term.
   function openSearchFor(term?: string) {
-    if (term) {
-      setSearchQuery(term);
-    }
+    setSearchQuery(term ?? '');
     setScreen('search');
   }
 
@@ -263,7 +467,7 @@ export function CustomerModuleApp() {
       return;
     }
 
-    const retailer = retailers.find((item) => item.id === cart.retailerId) ?? retailers[0];
+    const retailer = allKnownRetailers.find((item) => item.id === cart.retailerId) ?? allKnownRetailers[0] ?? retailers[0];
     const unitPrice =
       retailer.stocks.find((item) => item.medicineId === cart.medicineId)?.price ?? selectedMedicine.salePrice;
     const subtotal = unitPrice * cart.quantity;
@@ -363,7 +567,9 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           recentSearches={recentSearches}
-          filteredMedicines={filteredMedicines}
+          filteredMedicines={searchResults}
+          isLoading={searchLoading}
+          helperText={searchHelperText}
           onOpenSearchFor={openSearchFor}
           onGoToMedicine={goToMedicine}
           onOpenPharmacies={openPharmacies}
@@ -378,6 +584,8 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           selectedMedicine={selectedMedicine}
+          isLoading={detailLoading}
+          helperText={detailHelperText}
           onOpenSearchFor={openSearchFor}
           onOpenPharmacies={openPharmacies}
           onOpenSearch={() => setScreen('search')}
@@ -393,6 +601,8 @@ export function CustomerModuleApp() {
           contentContainerStyle={contentContainerStyle}
           sortBy={sortBy}
           sortedPharmacies={sortedPharmacies}
+          isLoading={retailerLoading}
+          helperText={retailerHelperText}
           onChangeSort={setSortBy}
           onSelectRetailer={selectRetailer}
         />
@@ -478,8 +688,8 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           invoice={invoice}
-          medicines={medicines}
-          retailers={retailers}
+          medicines={allKnownMedicines}
+          retailers={allKnownRetailers}
         />
       );
     }
@@ -491,7 +701,7 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           orders={orders}
-          retailers={retailers}
+          retailers={allKnownRetailers}
           onOpenTracking={() => setScreen('tracking')}
         />
       );
@@ -517,8 +727,8 @@ export function CustomerModuleApp() {
         shortcutChips={shortcutChips}
         categories={categories}
         banners={banners}
-        medicines={medicines}
-        retailers={retailers}
+        medicines={catalogueMedicines}
+        retailers={allKnownRetailers}
         cartMedicine={cartMedicine}
         categoryCardWidth={categoryCardWidth}
         mobileProductCardWidth={mobileProductCardWidth}

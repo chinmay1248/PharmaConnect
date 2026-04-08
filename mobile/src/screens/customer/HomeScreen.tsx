@@ -31,12 +31,12 @@ type HomeScreenProps = {
 };
 
 // Computes the lowest visible retailer price for a medicine on the home deals section.
-function getLowestPrice(medicineId: string, retailers: Retailer[]) {
+function getLowestPrice(medicine: Medicine, retailers: Retailer[]) {
   const prices = retailers.flatMap((retailer) =>
-    retailer.stocks.filter((stock) => stock.medicineId === medicineId).map((stock) => stock.price),
+    retailer.stocks.filter((stock) => stock.medicineId === medicine.id).map((stock) => stock.price),
   );
 
-  return prices.length ? Math.min(...prices) : 0;
+  return prices.length ? Math.min(...prices) : medicine.salePrice;
 }
 
 // Renders the customer home screen with shortcuts, banners, categories, and deal cards.
@@ -248,7 +248,7 @@ export function HomeScreen({
               Compare closest, cheapest, and top rated pharmacies
             </Text>
             <Text style={[customerStyles.dealPrice, { color: theme.text }]}>
-              From {formatCurrency(getLowestPrice(medicine.id, retailers))}
+              From {formatCurrency(getLowestPrice(medicine, retailers))}
             </Text>
           </InteractivePressable>
         ))}

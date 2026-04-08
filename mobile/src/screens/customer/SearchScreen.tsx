@@ -14,6 +14,8 @@ type SearchScreenProps = {
   contentContainerStyle: StyleProp<ViewStyle>;
   recentSearches: string[];
   filteredMedicines: Medicine[];
+  isLoading: boolean;
+  helperText: string | null;
   onOpenSearchFor: (term?: string) => void;
   onGoToMedicine: (medicineId: string) => void;
   onOpenPharmacies: (medicineId: string) => void;
@@ -26,6 +28,8 @@ export function SearchScreen({
   contentContainerStyle,
   recentSearches,
   filteredMedicines,
+  isLoading,
+  helperText,
   onOpenSearchFor,
   onGoToMedicine,
   onOpenPharmacies,
@@ -58,6 +62,26 @@ export function SearchScreen({
             </InteractivePressable>
           ))}
         </ScrollView>
+      ) : null}
+
+      {isLoading ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Loading live catalogue results...</Text>
+        </View>
+      ) : null}
+
+      {helperText ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>{helperText}</Text>
+        </View>
+      ) : null}
+
+      {!filteredMedicines.length && !isLoading ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
+            No medicines matched this search yet. Try a brand name, salt, or disease keyword.
+          </Text>
+        </View>
       ) : null}
 
       {filteredMedicines.map((medicine) => (

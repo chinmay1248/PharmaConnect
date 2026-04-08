@@ -12,6 +12,8 @@ type MedicineDetailScreenProps = {
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
   selectedMedicine: Medicine;
+  isLoading: boolean;
+  helperText: string | null;
   onOpenSearchFor: (term?: string) => void;
   onOpenPharmacies: (medicineId: string) => void;
   onOpenSearch: () => void;
@@ -23,6 +25,8 @@ export function MedicineDetailScreen({
   theme,
   contentContainerStyle,
   selectedMedicine,
+  isLoading,
+  helperText,
   onOpenSearchFor,
   onOpenPharmacies,
   onOpenSearch,
@@ -34,6 +38,16 @@ export function MedicineDetailScreen({
         title="Medicine details"
         description="Everything the customer should see before ordering."
       />
+      {isLoading ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Refreshing medicine details from the backend...</Text>
+        </View>
+      ) : null}
+      {helperText ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>{helperText}</Text>
+        </View>
+      ) : null}
       <View style={[customerStyles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={[customerStyles.detailThumb, { backgroundColor: selectedMedicine.imageColor }]}>
           <Text style={customerStyles.detailThumbText}>{selectedMedicine.genericName.slice(0, 2).toUpperCase()}</Text>
@@ -60,19 +74,25 @@ export function MedicineDetailScreen({
         </View>
 
         <Text style={[customerStyles.subSectionTitle, { color: theme.text }]}>Substitutes</Text>
-        <View style={customerStyles.tagRow}>
-          {selectedMedicine.substitutes.map((substitute) => (
-            <InteractivePressable
-              key={substitute}
-              onPress={() => onOpenSearchFor(substitute)}
-              style={[customerStyles.infoTag, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
-              pressedStyle={{ backgroundColor: theme.elevated }}
-            >
-              <Text style={[customerStyles.infoTagText, { color: theme.text }]}>{substitute}</Text>
-            </InteractivePressable>
-          ))}
-        </View>
+        {selectedMedicine.substitutes.length ? (
+          <View style={customerStyles.tagRow}>
+            {selectedMedicine.substitutes.map((substitute) => (
+              <InteractivePressable
+                key={substitute}
+                onPress={() => onOpenSearchFor(substitute)}
+                style={[customerStyles.infoTag, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+                pressedStyle={{ backgroundColor: theme.elevated }}
+              >
+                <Text style={[customerStyles.infoTagText, { color: theme.text }]}>{substitute}</Text>
+              </InteractivePressable>
+            ))}
+          </View>
+        ) : (
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
+            Substitute brands will appear here once the backend has matched same-salt alternatives.
+          </Text>
+        )}
 
         <View style={customerStyles.inlineRow}>
           <ActionButton mode={mode} label="Compare pharmacies" icon="map-pin" onPress={() => onOpenPharmacies(selectedMedicine.id)} />

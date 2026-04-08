@@ -31,7 +31,7 @@ export type Retailer = {
   id: string;
   name: string;
   area: string;
-  distanceKm: number;
+  distanceKm: number | null;
   rating: number;
   deliveryTime: string;
   deliveryAvailable: boolean;

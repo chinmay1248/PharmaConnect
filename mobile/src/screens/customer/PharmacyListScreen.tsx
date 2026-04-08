@@ -13,6 +13,8 @@ type PharmacyListScreenProps = {
   contentContainerStyle: StyleProp<ViewStyle>;
   sortBy: PharmacySort;
   sortedPharmacies: SortedPharmacy[];
+  isLoading: boolean;
+  helperText: string | null;
   onChangeSort: (sort: PharmacySort) => void;
   onSelectRetailer: (retailerId: string) => void;
 };
@@ -24,6 +26,8 @@ export function PharmacyListScreen({
   contentContainerStyle,
   sortBy,
   sortedPharmacies,
+  isLoading,
+  helperText,
   onChangeSort,
   onSelectRetailer,
 }: PharmacyListScreenProps) {
@@ -63,6 +67,26 @@ export function PharmacyListScreen({
         })}
       </ScrollView>
 
+      {isLoading ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Checking live retailer stock and price availability...</Text>
+        </View>
+      ) : null}
+
+      {helperText ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>{helperText}</Text>
+        </View>
+      ) : null}
+
+      {!sortedPharmacies.length && !isLoading ? (
+        <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
+            No pharmacy stock is available for this medicine yet.
+          </Text>
+        </View>
+      ) : null}
+
       {sortedPharmacies.map(({ retailer, stock }) => (
         <InteractivePressable
           key={retailer.id}
@@ -81,7 +105,9 @@ export function PharmacyListScreen({
             <View style={customerStyles.pharmacyHeaderCopy}>
               <Text style={[customerStyles.pharmacyName, { color: theme.text }]}>{retailer.name}</Text>
               <Text style={[customerStyles.pharmacyMeta, { color: theme.subtext }]}>
-                {retailer.area} - {retailer.distanceKm} km - {retailer.deliveryTime}
+                {[retailer.area, retailer.distanceKm != null ? `${retailer.distanceKm} km` : null, retailer.deliveryTime]
+                  .filter(Boolean)
+                  .join(' - ')}
               </Text>
             </View>
             <Text style={[customerStyles.pharmacyPrice, { color: theme.text }]}>{formatCurrency(stock.price)}</Text>
