@@ -14,6 +14,8 @@ type SignupScreenProps = {
   onChangeField: (field: keyof SignupState, value: string) => void;
   onToggleTheme: () => void;
   onContinue: () => void;
+  helperText: string;
+  isSubmitting: boolean;
 };
 
 // Renders the entry form that collects the customer's basic details before app access.
@@ -25,6 +27,8 @@ export function SignupScreen({
   onChangeField,
   onToggleTheme,
   onContinue,
+  helperText,
+  isSubmitting,
 }: SignupScreenProps) {
   return (
     <SafeAreaView style={[customerStyles.page, { backgroundColor: theme.bg }]}>
@@ -78,11 +82,12 @@ export function SignupScreen({
 
           <ActionButton
             mode={mode}
-            label="Continue to customer app"
+            label={isSubmitting ? 'Creating account...' : 'Continue to customer app'}
             icon="arrow-right"
             onPress={onContinue}
             fullWidth
           />
+          <Text style={[customerStyles.helperText, { color: theme.subtext }]}>{helperText}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

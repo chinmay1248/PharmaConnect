@@ -36,6 +36,30 @@ export type SignupState = {
   address: string;
 };
 
+export type CustomerAddress = {
+  id: string;
+  label?: string | null;
+  line1: string;
+  line2?: string | null;
+  area: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  isDefault: boolean;
+};
+
+export type CustomerSession = {
+  token: string;
+  user: {
+    id: string;
+    role: 'CUSTOMER' | string;
+    fullName: string;
+    email: string;
+    phone: string;
+    addresses: CustomerAddress[];
+  };
+};
+
 // Cart state used for the single-medicine prototype checkout flow.
 export type CartState = {
   medicineId: string;

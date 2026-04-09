@@ -42,6 +42,10 @@ export const customerStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
   },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
   input: {
     borderWidth: 1,
     borderRadius: 14,

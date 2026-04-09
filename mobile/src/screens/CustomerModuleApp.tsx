@@ -12,8 +12,9 @@ import {
   retailers,
   shortcutChips,
 } from '../data/mockData';
+import { formatCustomerAddress, signupOrLoginCustomer, validateSignupState } from '../services/customerAuth';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
-import { createDemoCustomerOrder } from '../services/orderFlow';
+import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { AccountScreen } from './customer/AccountScreen';
 import { CartScreen } from './customer/CartScreen';
@@ -39,6 +40,7 @@ import {
   PharmacySort,
   SortedPharmacy,
   Screen,
+  CustomerSession,
   SignupState,
 } from './customer/customerTypes';
 import { customerStyles } from './customer/customerStyles';
@@ -108,9 +110,11 @@ export function CustomerModuleApp() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [retailerLoading, setRetailerLoading] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
   const [detailHelperText, setDetailHelperText] = useState<string | null>(null);
   const [retailerHelperText, setRetailerHelperText] = useState<string | null>(null);
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [signup, setSignup] = useState<SignupState>({
     fullName: '',
     email: '',
@@ -516,15 +520,18 @@ export function CustomerModuleApp() {
     setOrderSubmitting(true);
 
     try {
-      const createdOrder = await createDemoCustomerOrder({
-        retailerId: cart.retailerId,
-        medicineId: cart.medicineId,
-        quantity: cart.quantity,
-        paymentMethod,
-        deliveryMethod,
-        prescriptionUploaded,
-        prescriptionRequired: selectedMedicine.prescriptionRequired,
-      });
+      const createdOrder = await createCustomerOrder(
+        {
+          retailerId: cart.retailerId,
+          medicineId: cart.medicineId,
+          quantity: cart.quantity,
+          paymentMethod,
+          deliveryMethod,
+          prescriptionUploaded,
+          prescriptionRequired: selectedMedicine.prescriptionRequired,
+        },
+        customerSession ? buildCustomerOrderContext(customerSession) : undefined,
+      );
 
       setOrders((current) => [
         {
@@ -557,6 +564,48 @@ export function CustomerModuleApp() {
       );
     } finally {
       setOrderSubmitting(false);
+    }
+  }
+
+  async function continueFromSignup() {
+    if (authSubmitting) {
+      return;
+    }
+
+    const validationMessage = validateSignupState(signup);
+
+    if (validationMessage) {
+      Alert.alert('Complete your details', validationMessage);
+      return;
+    }
+
+    setAuthSubmitting(true);
+
+    try {
+      const session = await signupOrLoginCustomer(signup);
+      const defaultAddress = session.user.addresses.find((address) => address.isDefault) ?? session.user.addresses[0];
+
+      setCustomerSession(session);
+      setSignup((current) => ({
+        ...current,
+        fullName: session.user.fullName,
+        email: session.user.email,
+        phone: session.user.phone,
+        address: defaultAddress ? formatCustomerAddress(defaultAddress) : current.address,
+      }));
+      setStage('app');
+      Alert.alert('Account synced', 'Customer signup is now connected to the backend auth service.');
+    } catch (error) {
+      setCustomerSession(null);
+      setStage('app');
+      Alert.alert(
+        'Using local profile',
+        error instanceof Error
+          ? `The backend signup could not be completed right now, so the app switched to local prototype mode.\n\n${error.message}`
+          : 'The backend signup could not be completed right now, so the app switched to local prototype mode.',
+      );
+    } finally {
+      setAuthSubmitting(false);
     }
   }
 
@@ -611,7 +660,13 @@ export function CustomerModuleApp() {
         contentContainerStyle={contentContainerStyle}
         onChangeField={updateSignupField}
         onToggleTheme={toggleTheme}
-        onContinue={() => setStage('app')}
+        onContinue={continueFromSignup}
+        helperText={
+          authSubmitting
+            ? 'Creating or restoring your backend customer account.'
+            : 'This screen now tries live customer signup first and falls back to local prototype mode if the backend is unavailable.'
+        }
+        isSubmitting={authSubmitting}
       />
     );
   }
@@ -772,6 +827,7 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           signup={signup}
+          customerSession={customerSession}
         />
       );
     }

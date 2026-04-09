@@ -1,19 +1,5 @@
-import type { InvoiceState, DeliveryMethod, PaymentMethod } from '../screens/customer/customerTypes';
+import type { CustomerSession, InvoiceState, DeliveryMethod, PaymentMethod } from '../screens/customer/customerTypes';
 import { postJson } from './api';
-
-type DemoCustomerLoginResponse = {
-  token: string;
-  user: {
-    id: string;
-    role: 'CUSTOMER' | string;
-    fullName: string;
-    phone: string;
-    addresses: Array<{
-      id: string;
-      isDefault: boolean;
-    }>;
-  };
-};
 
 type CreateOrderResponse = {
   order: {
@@ -128,7 +114,7 @@ function toDisplayStatus(status: string): CreatedOrderResult['displayStatus'] {
 
 async function ensureDemoCustomerContext() {
   if (!demoCustomerContextPromise) {
-    demoCustomerContextPromise = postJson<DemoCustomerLoginResponse, typeof demoCustomerCredentials>(
+    demoCustomerContextPromise = postJson<CustomerSession, typeof demoCustomerCredentials>(
       '/auth/login',
       demoCustomerCredentials,
     ).then((payload) => {
@@ -148,8 +134,20 @@ async function ensureDemoCustomerContext() {
   return demoCustomerContextPromise;
 }
 
-export async function createDemoCustomerOrder(input: CreateDemoOrderInput): Promise<CreatedOrderResult> {
-  const customer = await ensureDemoCustomerContext();
+export function buildCustomerOrderContext(session: CustomerSession): DemoCustomerContext {
+  const defaultAddress = session.user.addresses.find((address) => address.isDefault) ?? session.user.addresses[0];
+
+  return {
+    customerId: session.user.id,
+    deliveryAddressId: defaultAddress?.id,
+  };
+}
+
+export async function createCustomerOrder(
+  input: CreateDemoOrderInput,
+  customerContext?: DemoCustomerContext,
+): Promise<CreatedOrderResult> {
+  const customer = customerContext ?? (await ensureDemoCustomerContext());
   const paymentMethod = toBackendPaymentMethod(input.paymentMethod);
   const deliveryMethod = toBackendDeliveryMethod(input.deliveryMethod);
 
