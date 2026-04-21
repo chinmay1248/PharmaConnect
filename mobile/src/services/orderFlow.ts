@@ -5,12 +5,16 @@ type CreateOrderResponse = {
   order: {
     id: string;
     status: string;
+    timelineStatus?: string;
     deliveryMethod: 'HOME_DELIVERY' | 'PICKUP';
     subtotalAmount: number;
     deliveryFee: number;
     totalAmount: number;
     paymentMethod: 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY' | null;
+    paymentStatus?: string;
     prescriptionStatus: string;
+    invoiceId?: string | null;
+    invoiceNumber?: string | null;
     items: Array<{
       medicineId: string;
       quantity: number;
@@ -19,6 +23,22 @@ type CreateOrderResponse = {
     }>;
   };
   nextStep: string;
+};
+
+type ConfirmPaymentResponse = {
+  payment: {
+    status: string;
+    gatewayReference?: string | null;
+  };
+  order: {
+    id: string;
+    status: string;
+  };
+  invoice: {
+    id: string;
+    invoiceNumber: string;
+    status: string;
+  };
 };
 
 type BackendCreateOrderPayload = {
@@ -173,11 +193,26 @@ export async function createCustomerOrder(
   };
 
   const response = await postJson<CreateOrderResponse, BackendCreateOrderPayload>('/orders', payload);
+  let confirmedPayment: ConfirmPaymentResponse | null = null;
+
+  if (paymentMethod !== 'CASH_ON_DELIVERY') {
+    try {
+      confirmedPayment = await postJson<ConfirmPaymentResponse, { gatewayReference: string }>(
+        `/payments/customer-orders/${response.order.id}/confirm`,
+        {
+          gatewayReference: `demo-${paymentMethod.toLowerCase()}-${Date.now()}`,
+        },
+      );
+    } catch {
+      confirmedPayment = null;
+    }
+  }
+
   const firstItem = response.order.items[0];
 
   return {
     orderId: response.order.id,
-    displayStatus: toDisplayStatus(response.order.status),
+    displayStatus: toDisplayStatus(confirmedPayment?.order.status ?? response.order.timelineStatus ?? response.order.status),
     subtotal: response.order.subtotalAmount,
     deliveryFee: response.order.deliveryFee,
     total: response.order.totalAmount,
@@ -186,7 +221,8 @@ export async function createCustomerOrder(
     medicineId: firstItem?.medicineId ?? input.medicineId,
     nextStep: response.nextStep,
     invoice: {
-      invoiceNo: 'Invoice pending',
+      invoiceId: confirmedPayment?.invoice.id ?? response.order.invoiceId ?? null,
+      invoiceNo: confirmedPayment?.invoice.invoiceNumber ?? response.order.invoiceNumber ?? 'Invoice pending',
       orderId: response.order.id,
       medicineId: firstItem?.medicineId ?? input.medicineId,
       retailerId: input.retailerId,
@@ -195,7 +231,9 @@ export async function createCustomerOrder(
       deliveryFee: response.order.deliveryFee,
       total: response.order.totalAmount,
       paymentMethod: input.paymentMethod,
+      paymentStatus: confirmedPayment?.payment.status ?? response.order.paymentStatus ?? 'PENDING',
       deliveryMethod: input.deliveryMethod,
+      status: confirmedPayment?.invoice.status ?? null,
     },
   };
 }
