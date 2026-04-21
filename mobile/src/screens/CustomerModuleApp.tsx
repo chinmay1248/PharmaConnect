@@ -13,6 +13,7 @@ import {
   shortcutChips,
 } from '../data/mockData';
 import { formatCustomerAddress, signupOrLoginCustomer, validateSignupState } from '../services/customerAuth';
+import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
@@ -41,6 +42,8 @@ import {
   SortedPharmacy,
   Screen,
   CustomerSession,
+  CustomerOrderSummary,
+  CustomerOrderTrackingState,
   SignupState,
 } from './customer/customerTypes';
 import { customerStyles } from './customer/customerStyles';
@@ -83,6 +86,36 @@ function sortMockPharmacies(medicineId: string, sortBy: PharmacySort) {
   });
 }
 
+function mapMockOrderToSummary(order: (typeof initialOrders)[number]): CustomerOrderSummary {
+  return {
+    id: order.id,
+    retailerId: order.retailerId,
+    dateLabel: order.dateLabel,
+    status: order.status,
+    total: order.total,
+    items: order.items,
+    paymentStatus: 'PENDING',
+    prescriptionStatus: 'NOT_REQUIRED',
+    invoiceId: null,
+    invoiceNumber: null,
+  };
+}
+
+function mapSummaryToTracking(order: CustomerOrderSummary): CustomerOrderTrackingState {
+  return {
+    ...order,
+    deliveryMethod: 'home',
+    trackingEvents: [
+      {
+        id: `${order.id}-placed`,
+        statusLabel: 'Order placed',
+        notes: 'Visible in the local prototype timeline.',
+      },
+    ],
+    rejectionReason: null,
+  };
+}
+
 // Main customer module component that controls the full frontend flow and screen switching.
 export function CustomerModuleApp() {
   // Layout values used to keep the UI neat across mobile and web widths.
@@ -99,7 +132,11 @@ export function CustomerModuleApp() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(null);
   const [prescriptionUploaded, setPrescriptionUploaded] = useState(false);
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState<CustomerOrderSummary[]>(() => initialOrders.map(mapMockOrderToSummary));
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(initialOrders[0]?.id ?? null);
+  const [activeOrder, setActiveOrder] = useState<CustomerOrderTrackingState | null>(() =>
+    initialOrders[0] ? mapSummaryToTracking(mapMockOrderToSummary(initialOrders[0])) : null,
+  );
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
   const [catalogueMedicines, setCatalogueMedicines] = useState(medicines);
   const [searchResults, setSearchResults] = useState(medicines);
@@ -109,11 +146,17 @@ export function CustomerModuleApp() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [retailerLoading, setRetailerLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
   const [detailHelperText, setDetailHelperText] = useState<string | null>(null);
   const [retailerHelperText, setRetailerHelperText] = useState<string | null>(null);
+  const [ordersHelperText, setOrdersHelperText] = useState<string | null>(null);
+  const [trackingHelperText, setTrackingHelperText] = useState<string | null>(null);
+  const [invoiceHelperText, setInvoiceHelperText] = useState<string | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [signup, setSignup] = useState<SignupState>({
     fullName: '',
@@ -351,6 +394,142 @@ export function CustomerModuleApp() {
     };
   }, [screen, selectedMedicineId, sortBy, stage]);
 
+  useEffect(() => {
+    if (stage !== 'app' || !customerSession) {
+      return;
+    }
+
+    let active = true;
+    setOrdersLoading(true);
+    setOrdersHelperText(null);
+
+    fetchCustomerOrders(customerSession.user.id)
+      .then((liveOrders) => {
+        if (!active) {
+          return;
+        }
+
+        if (liveOrders.length) {
+          setOrders(liveOrders);
+          setActiveOrderId((current) =>
+            current && liveOrders.some((order) => order.id === current) ? current : liveOrders[0].id,
+          );
+        } else {
+          setOrders([]);
+          setActiveOrderId(null);
+        }
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setOrders(initialOrders.map(mapMockOrderToSummary));
+        setOrdersHelperText('Showing local order history until the backend order list is reachable.');
+      })
+      .finally(() => {
+        if (active) {
+          setOrdersLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [customerSession, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app') {
+      return;
+    }
+
+    if (!activeOrderId) {
+      setActiveOrder(null);
+      return;
+    }
+
+    const fallbackSummary = orders.find((order) => order.id === activeOrderId);
+
+    if (!customerSession) {
+      setActiveOrder(fallbackSummary ? mapSummaryToTracking(fallbackSummary) : null);
+      return;
+    }
+
+    let active = true;
+    setTrackingLoading(true);
+    setTrackingHelperText(null);
+
+    fetchCustomerOrderDetail(activeOrderId)
+      .then((detail) => {
+        if (!active) {
+          return;
+        }
+
+        setActiveOrder(detail);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setActiveOrder(fallbackSummary ? mapSummaryToTracking(fallbackSummary) : null);
+        setTrackingHelperText('Showing the local tracking timeline until the backend order detail API is reachable.');
+      })
+      .finally(() => {
+        if (active) {
+          setTrackingLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeOrderId, customerSession, orders, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app' || screen !== 'invoice') {
+      return;
+    }
+
+    if (!activeOrderId) {
+      setInvoice(null);
+      return;
+    }
+
+    if (!customerSession) {
+      return;
+    }
+
+    let active = true;
+    setInvoiceLoading(true);
+    setInvoiceHelperText(null);
+
+    fetchCustomerInvoice(activeOrderId)
+      .then((liveInvoice) => {
+        if (!active || !liveInvoice) {
+          return;
+        }
+
+        setInvoice(liveInvoice);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setInvoiceHelperText('Showing the current prototype invoice because the live invoice API is unavailable right now.');
+      })
+      .finally(() => {
+        if (active) {
+          setInvoiceLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeOrderId, customerSession, screen, stage]);
+
   const allKnownMedicines = useMemo(() => {
     const entries = [...medicines, ...catalogueMedicines, ...searchResults, ...Object.values(detailMedicinesById)];
     const byId = new Map(entries.map((medicine) => [medicine.id, medicine]));
@@ -397,11 +576,16 @@ export function CustomerModuleApp() {
         0
       : 0;
   const cartSubtotal = cart ? cart.quantity * cartUnitPrice : 0;
-  const activeOrder = orders[0] ?? initialOrders[0];
+  const visibleOrders = ordersLoading && !orders.length ? initialOrders.map(mapMockOrderToSummary) : orders;
 
   // Changes the currently visible top-level customer screen.
   function navigateTo(screenId: Screen) {
     setScreen(screenId);
+  }
+
+  function openOrderTracking(orderId: string) {
+    setActiveOrderId(orderId);
+    setScreen('tracking');
   }
 
   // Opens the selected medicine's detail page.
@@ -478,29 +662,44 @@ export function CustomerModuleApp() {
     const deliveryFee = deliveryMethod === 'home' ? 20 : 0;
     const total = subtotal + deliveryFee;
     const orderId = `ORD-${2200 + orders.length * 13}`;
+    const localOrder: CustomerOrderSummary = {
+      id: orderId,
+      retailerId: retailer.id,
+      retailerName: retailer.name,
+      dateLabel: 'Just now',
+      status: 'Confirmed',
+      total,
+      items: [{ medicineId: cart.medicineId, quantity: cart.quantity, unitPrice }],
+      paymentStatus: paymentMethod === 'cod' ? 'PENDING' : 'SUCCESS',
+      paymentMethod:
+        paymentMethod === 'upi'
+          ? 'UPI'
+          : paymentMethod === 'card'
+            ? 'CARD'
+            : paymentMethod === 'bank'
+              ? 'BANK_TRANSFER'
+              : 'CASH_ON_DELIVERY',
+      prescriptionStatus: selectedMedicine.prescriptionRequired ? 'UPLOADED' : 'NOT_REQUIRED',
+      invoiceId: null,
+      invoiceNumber: null,
+    };
 
-    setOrders((current) => [
-      {
-        id: orderId,
-        retailerId: retailer.id,
-        dateLabel: 'Just now',
-        status: 'Confirmed',
-        total,
-        items: [{ medicineId: cart.medicineId, quantity: cart.quantity, unitPrice }],
-      },
-      ...current,
-    ]);
+    setOrders((current) => [localOrder, ...current]);
+    setActiveOrderId(orderId);
+    setActiveOrder(mapSummaryToTracking(localOrder));
 
     setInvoice({
       invoiceNo: `INV-${3300 + orders.length * 11}`,
       orderId,
       medicineId: cart.medicineId,
       retailerId: retailer.id,
+      retailerName: retailer.name,
       quantity: cart.quantity,
       subtotal,
       deliveryFee,
       total,
       paymentMethod,
+      paymentStatus: paymentMethod === 'cod' ? 'PENDING' : 'SUCCESS',
       deliveryMethod,
     });
     setScreen('tracking');
@@ -537,6 +736,7 @@ export function CustomerModuleApp() {
         {
           id: createdOrder.orderId,
           retailerId: createdOrder.retailerId,
+          retailerName: cartRetailer?.name ?? null,
           dateLabel: 'Just now',
           status: createdOrder.displayStatus,
           total: createdOrder.total,
@@ -547,10 +747,28 @@ export function CustomerModuleApp() {
               unitPrice: createdOrder.subtotal / Math.max(createdOrder.quantity, 1),
             },
           ],
+          paymentStatus: createdOrder.invoice.paymentStatus ?? 'PENDING',
+          paymentMethod:
+            paymentMethod === 'upi'
+              ? 'UPI'
+              : paymentMethod === 'card'
+                ? 'CARD'
+                : paymentMethod === 'bank'
+                  ? 'BANK_TRANSFER'
+                  : 'CASH_ON_DELIVERY',
+          prescriptionStatus: selectedMedicine.prescriptionRequired ? 'UPLOADED' : 'NOT_REQUIRED',
+          invoiceId: createdOrder.invoice.invoiceId ?? null,
+          invoiceNumber: createdOrder.invoice.invoiceNo,
         },
         ...current,
       ]);
 
+      setActiveOrderId(createdOrder.orderId);
+      setTrackingHelperText(
+        customerSession
+          ? 'Refreshing this order from the backend so tracking and invoice details stay live.'
+          : null,
+      );
       setInvoice(createdOrder.invoice);
       setScreen('tracking');
       Alert.alert('Order placed', 'The order was created in the backend and is now waiting for retailer approval.');
@@ -788,6 +1006,11 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           activeOrder={activeOrder}
+          helperText={
+            trackingLoading
+              ? 'Loading the latest tracking timeline from the backend.'
+              : trackingHelperText
+          }
           onOpenInvoice={() => setScreen('invoice')}
           onOpenOrders={() => setScreen('orders')}
         />
@@ -803,6 +1026,9 @@ export function CustomerModuleApp() {
           invoice={invoice}
           medicines={allKnownMedicines}
           retailers={allKnownRetailers}
+          helperText={
+            invoiceLoading ? 'Loading the latest invoice summary from the backend.' : invoiceHelperText
+          }
         />
       );
     }
@@ -813,9 +1039,12 @@ export function CustomerModuleApp() {
           mode={themeMode}
           theme={theme}
           contentContainerStyle={contentContainerStyle}
-          orders={orders}
+          orders={visibleOrders}
           retailers={allKnownRetailers}
-          onOpenTracking={() => setScreen('tracking')}
+          helperText={
+            ordersLoading ? 'Loading the latest order history from the backend.' : ordersHelperText
+          }
+          onOpenTracking={openOrderTracking}
         />
       );
     }
