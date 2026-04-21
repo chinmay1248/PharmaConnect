@@ -33,6 +33,34 @@ function pickParamValue(value: unknown) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function buildInvoiceNumber(orderId: string) {
+  return `INV-${orderId.slice(-10).toUpperCase()}`;
+}
+
+function mapOrderPaymentMethod(method: string | null | undefined) {
+  return method ?? null;
+}
+
+function mapOrderStatusToTimeline(status: string) {
+  if (status === 'APPROVED_BY_RETAILER' || status === 'PAYMENT_PENDING' || status === 'PAID') {
+    return 'Confirmed';
+  }
+
+  if (status === 'PACKED') {
+    return 'Packed';
+  }
+
+  if (status === 'OUT_FOR_DELIVERY' || status === 'READY_FOR_PICKUP') {
+    return 'Out for Delivery';
+  }
+
+  if (status === 'DELIVERED') {
+    return 'Delivered';
+  }
+
+  return 'Order Placed';
+}
+
 // Creates a customer order, reserves stock, and captures prescription metadata when required.
 ordersRouter.post(
   '/',
@@ -144,14 +172,26 @@ ordersRouter.post(
               },
             },
           },
-          include: {
-            items: {
-              include: {
-                medicine: true,
-              },
+        });
+
+        if (payload.paymentMethod) {
+          await transaction.paymentRecord.create({
+            data: {
+              customerOrderId: order.id,
+              method: payload.paymentMethod,
+              status: 'PENDING',
+              amount: totalAmount.toFixed(2),
             },
-            prescription: true,
-            trackingEvents: true,
+          });
+        }
+
+        await transaction.invoiceRecord.upsert({
+          where: { customerOrderId: order.id },
+          update: {},
+          create: {
+            customerOrderId: order.id,
+            invoiceNumber: buildInvoiceNumber(order.id),
+            status: 'GENERATED',
           },
         });
 
@@ -166,19 +206,48 @@ ordersRouter.post(
           });
         }
 
-        return order;
+        return transaction.customerOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            items: {
+              include: {
+                medicine: true,
+              },
+            },
+            prescription: true,
+            payments: {
+              orderBy: {
+                createdAt: 'desc',
+              },
+            },
+            invoices: {
+              orderBy: {
+                generatedAt: 'desc',
+              },
+            },
+            trackingEvents: {
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+        });
       });
 
       response.status(201).json({
         order: {
           id: createdOrder.id,
           status: createdOrder.status,
+          timelineStatus: mapOrderStatusToTimeline(createdOrder.status),
           deliveryMethod: createdOrder.deliveryMethod,
           subtotalAmount: Number(createdOrder.subtotalAmount),
           deliveryFee: Number(createdOrder.deliveryFee),
           totalAmount: Number(createdOrder.totalAmount),
           prescriptionStatus: createdOrder.prescription?.status ?? 'NOT_REQUIRED',
-          paymentMethod: payload.paymentMethod ?? null,
+          paymentMethod: mapOrderPaymentMethod(createdOrder.payments[0]?.method ?? payload.paymentMethod),
+          paymentStatus: createdOrder.payments[0]?.status ?? 'NOT_SELECTED',
+          invoiceId: createdOrder.invoices[0]?.id ?? null,
+          invoiceNumber: createdOrder.invoices[0]?.invoiceNumber ?? null,
           items: createdOrder.items.map((item: any) => ({
             medicineId: item.medicineId,
             brandName: item.medicine.brandName,
@@ -245,9 +314,12 @@ ordersRouter.get(
           })),
           prescriptionStatus: order.prescription?.status ?? 'NOT_REQUIRED',
           paymentStatus: order.payments[0]?.status ?? 'PENDING',
+          paymentMethod: mapOrderPaymentMethod(order.payments[0]?.method),
           invoiceNumber: order.invoices[0]?.invoiceNumber ?? null,
+          invoiceId: order.invoices[0]?.id ?? null,
           latestTrackingStatus:
             order.trackingEvents[order.trackingEvents.length - 1]?.statusLabel ?? null,
+          timelineStatus: mapOrderStatusToTimeline(order.status),
         })),
       });
     } catch (error) {
@@ -327,9 +399,17 @@ ordersRouter.get(
             method: payment.method,
             status: payment.status,
             amount: Number(payment.amount),
+            gatewayReference: payment.gatewayReference,
             paidAt: payment.paidAt,
           })),
-          invoices: order.invoices,
+          invoices: order.invoices.map((invoice: any) => ({
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            status: invoice.status,
+            pdfUrl: invoice.pdfUrl,
+            generatedAt: invoice.generatedAt,
+          })),
+          timelineStatus: mapOrderStatusToTimeline(order.status),
           trackingEvents: order.trackingEvents,
         },
       });
