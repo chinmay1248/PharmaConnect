@@ -14,6 +14,7 @@ type InvoiceScreenProps = {
   invoice: InvoiceState | null;
   medicines: Medicine[];
   retailers: Retailer[];
+  helperText?: string | null;
 };
 
 // Renders the invoice and bill summary shown after an order is placed.
@@ -24,6 +25,7 @@ export function InvoiceScreen({
   invoice,
   medicines,
   retailers,
+  helperText,
 }: InvoiceScreenProps) {
   return (
     <ScrollView style={customerStyles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -32,6 +34,7 @@ export function InvoiceScreen({
         title="Invoice and bill"
         description="The customer can review and download the bill from here."
       />
+      {helperText ? <Text style={[customerStyles.helperText, { color: theme.subtext }]}>{helperText}</Text> : null}
       <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {invoice ? (
           <>
@@ -41,13 +44,21 @@ export function InvoiceScreen({
               Medicine: {medicines.find((medicine) => medicine.id === invoice.medicineId)?.brandName}
             </Text>
             <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
-              Pharmacy: {retailers.find((retailer) => retailer.id === invoice.retailerId)?.name}
+              Pharmacy: {invoice.retailerName ?? retailers.find((retailer) => retailer.id === invoice.retailerId)?.name}
             </Text>
             <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Quantity: {invoice.quantity}</Text>
             <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Payment: {invoice.paymentMethod.toUpperCase()}</Text>
+            {invoice.paymentStatus ? (
+              <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>Payment status: {invoice.paymentStatus}</Text>
+            ) : null}
             <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
               Delivery: {invoice.deliveryMethod === 'home' ? 'Home delivery' : 'Pickup from pharmacy'}
             </Text>
+            {invoice.generatedAt ? (
+              <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
+                Generated: {new Date(invoice.generatedAt).toLocaleString()}
+              </Text>
+            ) : null}
 
             <View style={customerStyles.billBox}>
               <View style={customerStyles.billRow}>
