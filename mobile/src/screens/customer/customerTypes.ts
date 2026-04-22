@@ -67,6 +67,14 @@ export type CartState = {
   quantity: number;
 };
 
+export type PrescriptionUpload = {
+  fileUrl: string;
+  originalFileName: string;
+  source: 'camera' | 'gallery';
+  uploadedAt: string;
+  medicineId?: string | null;
+};
+
 // Invoice summary built after a successful mock order placement.
 export type InvoiceState = {
   invoiceId?: string | null;
