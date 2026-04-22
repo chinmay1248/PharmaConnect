@@ -38,7 +38,7 @@ export function PrescriptionScreen({
       />
       <View style={[customerStyles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
-          Upload prescription, then the retailer can approve or reject the order according to the PharmaConnect customer flow.
+          Upload the prescription before checkout so the retailer receives it with the order for review.
         </Text>
         {helperText ? <Text style={[customerStyles.helperText, { color: theme.subtext }]}>{helperText}</Text> : null}
         {upload ? (
