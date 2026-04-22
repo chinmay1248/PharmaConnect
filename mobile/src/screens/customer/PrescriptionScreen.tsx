@@ -2,6 +2,7 @@ import { ScrollView, Text, View, StyleProp, ViewStyle } from 'react-native';
 import { SectionHeader } from '../../components/SectionHeader';
 import { ThemeMode, ThemePalette } from '../../theme/theme';
 import { ActionButton } from './CustomerShared';
+import { PrescriptionUpload } from './customerTypes';
 import { customerStyles } from './customerStyles';
 
 type PrescriptionScreenProps = {
@@ -9,7 +10,10 @@ type PrescriptionScreenProps = {
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
   prescriptionUploaded: boolean;
-  onSubmitPrescription: () => void;
+  upload?: PrescriptionUpload | null;
+  helperText?: string | null;
+  isUploading?: boolean;
+  onSubmitPrescription: (source: 'camera' | 'gallery') => void;
   onBackToCart: () => void;
 };
 
@@ -19,6 +23,9 @@ export function PrescriptionScreen({
   theme,
   contentContainerStyle,
   prescriptionUploaded,
+  upload,
+  helperText,
+  isUploading = false,
   onSubmitPrescription,
   onBackToCart,
 }: PrescriptionScreenProps) {
@@ -33,12 +40,29 @@ export function PrescriptionScreen({
         <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
           Upload prescription, then the retailer can approve or reject the order according to the PharmaConnect customer flow.
         </Text>
+        {helperText ? <Text style={[customerStyles.helperText, { color: theme.subtext }]}>{helperText}</Text> : null}
+        {upload ? (
+          <View style={customerStyles.billBox}>
+            <Text style={[customerStyles.billText, { color: theme.text }]}>File: {upload.originalFileName}</Text>
+            <Text style={[customerStyles.billText, { color: theme.subtext }]}>Source: {upload.source}</Text>
+            <Text style={[customerStyles.billText, { color: theme.subtext }]}>
+              Uploaded: {new Date(upload.uploadedAt).toLocaleString()}
+            </Text>
+          </View>
+        ) : null}
         <View style={customerStyles.inlineRow}>
           <ActionButton
             mode={mode}
-            label={prescriptionUploaded ? 'Prescription uploaded' : 'Upload now'}
-            icon="upload"
-            onPress={onSubmitPrescription}
+            label={isUploading ? 'Uploading from camera...' : prescriptionUploaded ? 'Upload from camera again' : 'Upload from camera'}
+            icon="camera"
+            onPress={() => onSubmitPrescription('camera')}
+          />
+          <ActionButton
+            mode={mode}
+            label={isUploading ? 'Uploading from gallery...' : prescriptionUploaded ? 'Upload from gallery again' : 'Upload from gallery'}
+            icon="image"
+            variant="secondary"
+            onPress={() => onSubmitPrescription('gallery')}
           />
           <ActionButton mode={mode} label="Back to cart" icon="arrow-left" variant="secondary" onPress={onBackToCart} />
         </View>
