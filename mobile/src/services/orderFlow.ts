@@ -1,4 +1,10 @@
-import type { CustomerSession, InvoiceState, DeliveryMethod, PaymentMethod } from '../screens/customer/customerTypes';
+import type {
+  CustomerSession,
+  InvoiceState,
+  DeliveryMethod,
+  PaymentMethod,
+  PrescriptionUpload,
+} from '../screens/customer/customerTypes';
 import { postJson } from './api';
 
 type CreateOrderResponse = {
@@ -63,8 +69,8 @@ type CreateDemoOrderInput = {
   quantity: number;
   paymentMethod: Exclude<PaymentMethod, null>;
   deliveryMethod: Exclude<DeliveryMethod, null>;
-  prescriptionUploaded: boolean;
   prescriptionRequired: boolean;
+  prescriptionUpload?: PrescriptionUpload | null;
 };
 
 type DemoCustomerContext = {
@@ -184,10 +190,10 @@ export async function createCustomerOrder(
       },
     ],
     prescription:
-      input.prescriptionRequired && input.prescriptionUploaded
+      input.prescriptionRequired && input.prescriptionUpload
         ? {
-            fileUrl: 'https://example.com/pharmaconnect/demo-prescription.jpg',
-            originalFileName: 'demo-prescription.jpg',
+            fileUrl: input.prescriptionUpload.fileUrl,
+            originalFileName: input.prescriptionUpload.originalFileName,
           }
         : undefined,
   };
