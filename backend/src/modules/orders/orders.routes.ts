@@ -166,10 +166,20 @@ ordersRouter.post(
                 }
               : undefined,
             trackingEvents: {
-              create: {
-                statusLabel: 'Order placed',
-                notes: 'Customer created the order and waiting for retailer approval.',
-              },
+              create: [
+                {
+                  statusLabel: 'Order placed',
+                  notes: 'Customer created the order and waiting for retailer approval.',
+                },
+                ...(payload.prescription
+                  ? [
+                      {
+                        statusLabel: 'Prescription uploaded',
+                        notes: 'Prescription was attached during order creation.',
+                      },
+                    ]
+                  : []),
+              ],
             },
           },
         });
