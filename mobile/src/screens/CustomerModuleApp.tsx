@@ -16,6 +16,7 @@ import { formatCustomerAddress, signupOrLoginCustomer, validateSignupState } fro
 import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
+import { uploadCustomerPrescription } from '../services/prescriptions';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { AccountScreen } from './customer/AccountScreen';
 import { CartScreen } from './customer/CartScreen';
@@ -44,6 +45,7 @@ import {
   CustomerSession,
   CustomerOrderSummary,
   CustomerOrderTrackingState,
+  PrescriptionUpload,
   SignupState,
 } from './customer/customerTypes';
 import { customerStyles } from './customer/customerStyles';
@@ -132,6 +134,7 @@ export function CustomerModuleApp() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(null);
   const [prescriptionUploaded, setPrescriptionUploaded] = useState(false);
+  const [prescriptionUpload, setPrescriptionUpload] = useState<PrescriptionUpload | null>(null);
   const [orders, setOrders] = useState<CustomerOrderSummary[]>(() => initialOrders.map(mapMockOrderToSummary));
   const [activeOrderId, setActiveOrderId] = useState<string | null>(initialOrders[0]?.id ?? null);
   const [activeOrder, setActiveOrder] = useState<CustomerOrderTrackingState | null>(() =>
@@ -149,6 +152,7 @@ export function CustomerModuleApp() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [prescriptionSubmitting, setPrescriptionSubmitting] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
@@ -157,6 +161,7 @@ export function CustomerModuleApp() {
   const [ordersHelperText, setOrdersHelperText] = useState<string | null>(null);
   const [trackingHelperText, setTrackingHelperText] = useState<string | null>(null);
   const [invoiceHelperText, setInvoiceHelperText] = useState<string | null>(null);
+  const [prescriptionHelperText, setPrescriptionHelperText] = useState<string | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [signup, setSignup] = useState<SignupState>({
     fullName: '',
@@ -588,8 +593,17 @@ export function CustomerModuleApp() {
     setScreen('tracking');
   }
 
+  function resetPrescriptionState() {
+    setPrescriptionUploaded(false);
+    setPrescriptionUpload(null);
+    setPrescriptionHelperText(null);
+  }
+
   // Opens the selected medicine's detail page.
   function goToMedicine(medicineId: string) {
+    if (medicineId !== selectedMedicineId) {
+      resetPrescriptionState();
+    }
     setSelectedMedicineId(medicineId);
     setScreen('detail');
   }
@@ -602,12 +616,18 @@ export function CustomerModuleApp() {
 
   // Opens the pharmacy comparison screen for one medicine.
   function openPharmacies(medicineId: string) {
+    if (medicineId !== selectedMedicineId) {
+      resetPrescriptionState();
+    }
     setSelectedMedicineId(medicineId);
     setScreen('pharmacies');
   }
 
   // Stores the chosen pharmacy and prepares the cart for checkout.
   function selectRetailer(retailerId: string) {
+    if (!cart || cart.medicineId !== selectedMedicine.id || cart.retailerId !== retailerId) {
+      resetPrescriptionState();
+    }
     setCart({
       medicineId: selectedMedicine.id,
       retailerId,
@@ -644,10 +664,45 @@ export function CustomerModuleApp() {
     setScreen('payment');
   }
 
-  // Marks prescription submission as complete and advances checkout.
-  function submitPrescription() {
-    setPrescriptionUploaded(true);
-    setScreen('payment');
+  // Uploads prescription metadata to the backend when available, then advances checkout.
+  async function submitPrescription(source: 'camera' | 'gallery') {
+    if (prescriptionSubmitting) {
+      return;
+    }
+
+    setPrescriptionSubmitting(true);
+    setPrescriptionHelperText(null);
+
+    try {
+      const uploaded = await uploadCustomerPrescription({
+        customerSession,
+        medicineId: selectedMedicine.id,
+        source,
+      });
+
+      setPrescriptionUpload(uploaded);
+      setPrescriptionUploaded(true);
+      setScreen('payment');
+      setPrescriptionHelperText(
+        customerSession
+          ? 'Prescription uploaded to the backend and ready for order creation.'
+          : 'Prescription prepared in local mode and ready for the prototype checkout flow.',
+      );
+    } catch (error) {
+      setPrescriptionUpload(null);
+      setPrescriptionUploaded(false);
+      setPrescriptionHelperText(
+        error instanceof Error
+          ? `Prescription upload could not be completed right now: ${error.message}`
+          : 'Prescription upload could not be completed right now.',
+      );
+      Alert.alert(
+        'Upload failed',
+        error instanceof Error ? error.message : 'Prescription upload could not be completed right now.',
+      );
+    } finally {
+      setPrescriptionSubmitting(false);
+    }
   }
 
   function createLocalOrder() {
@@ -726,8 +781,8 @@ export function CustomerModuleApp() {
           quantity: cart.quantity,
           paymentMethod,
           deliveryMethod,
-          prescriptionUploaded,
           prescriptionRequired: selectedMedicine.prescriptionRequired,
+          prescriptionUpload,
         },
         customerSession ? buildCustomerOrderContext(customerSession) : undefined,
       );
@@ -965,6 +1020,11 @@ export function CustomerModuleApp() {
           theme={theme}
           contentContainerStyle={contentContainerStyle}
           prescriptionUploaded={prescriptionUploaded}
+          upload={prescriptionUpload}
+          helperText={
+            prescriptionSubmitting ? 'Uploading prescription details to the backend.' : prescriptionHelperText
+          }
+          isUploading={prescriptionSubmitting}
           onSubmitPrescription={submitPrescription}
           onBackToCart={() => setScreen('cart')}
         />
