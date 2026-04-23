@@ -1,5 +1,5 @@
 import type { CustomerAddress, CustomerSession, SignupState } from '../screens/customer/customerTypes';
-import { postJson } from './api';
+import { getJson, postJson } from './api';
 
 type CustomerSignupPayload = {
   fullName: string;
@@ -21,8 +21,45 @@ type LoginPayload = {
   password: string;
 };
 
+type CustomerProfileResponse = {
+  user: CustomerSession['user'];
+};
+
+type BrowserStorage = {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+  removeItem: (key: string) => void;
+};
+
+const customerSessionStorageKey = 'pharmaconnect.customerSession';
+
 function normalizePhone(phone: string) {
   return phone.replace(/\D+/g, '');
+}
+
+function getBrowserStorage(): BrowserStorage | null {
+  const candidate = (globalThis as typeof globalThis & { localStorage?: BrowserStorage }).localStorage;
+
+  return candidate ?? null;
+}
+
+function isStoredSessionPayload(value: unknown): value is CustomerSession {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const session = value as CustomerSession;
+
+  return Boolean(
+    typeof session.token === 'string' &&
+      session.user &&
+      typeof session.user.id === 'string' &&
+      typeof session.user.role === 'string' &&
+      typeof session.user.fullName === 'string' &&
+      typeof session.user.email === 'string' &&
+      typeof session.user.phone === 'string' &&
+      Array.isArray(session.user.addresses),
+  );
 }
 
 function buildAddressPayload(address: string): CustomerSignupPayload['address'] | undefined {
