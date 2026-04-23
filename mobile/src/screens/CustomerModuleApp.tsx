@@ -645,6 +645,18 @@ export function CustomerModuleApp() {
     setPrescriptionHelperText(null);
   }
 
+  function resetOrderState() {
+    const initialSummary = initialOrders[0] ? mapMockOrderToSummary(initialOrders[0]) : null;
+
+    setOrders(initialOrders.map(mapMockOrderToSummary));
+    setActiveOrderId(initialSummary?.id ?? null);
+    setActiveOrder(initialSummary ? mapSummaryToTracking(initialSummary) : null);
+    setInvoice(null);
+    setOrdersHelperText(null);
+    setTrackingHelperText(null);
+    setInvoiceHelperText(null);
+  }
+
   // Opens the selected medicine's detail page.
   function goToMedicine(medicineId: string) {
     if (medicineId !== selectedMedicineId) {
