@@ -935,6 +935,21 @@ export function CustomerModuleApp() {
     }
   }
 
+  function logoutCustomer() {
+    clearPersistedCustomerSession();
+    setCustomerSession(null);
+    setRestoredSession(null);
+    setStage('signup');
+    setScreen('home');
+    setSearchQuery('');
+    setPaymentMethod(null);
+    setDeliveryMethod(null);
+    setCart(null);
+    resetPrescriptionState();
+    resetOrderState();
+    setSignup(emptySignupState);
+  }
+
   // Updates one signup field while keeping the rest of the form intact.
   function updateSignupField(field: keyof SignupState, value: string) {
     setSignup((current) => ({ ...current, [field]: value }));
@@ -1170,6 +1185,7 @@ export function CustomerModuleApp() {
           contentContainerStyle={contentContainerStyle}
           signup={signup}
           customerSession={customerSession}
+          onLogout={logoutCustomer}
         />
       );
     }
