@@ -268,6 +268,8 @@ export async function signupOrLoginCustomer(signup: SignupState) {
       password: signup.password,
     };
     const existingSession = await postJson<CustomerSession, LoginPayload>('/auth/login', loginPayload);
-    return normalizeSession(existingSession);
+    const normalizedSession = normalizeSession(existingSession);
+    writeStoredSession(normalizedSession);
+    return normalizedSession;
   }
 }
