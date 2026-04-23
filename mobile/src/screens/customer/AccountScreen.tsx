@@ -2,6 +2,7 @@ import { ScrollView, Text, View, StyleProp, ViewStyle } from 'react-native';
 import { SectionHeader } from '../../components/SectionHeader';
 import { ThemeMode, ThemePalette } from '../../theme/theme';
 import { formatCustomerAddress } from '../../services/customerAuth';
+import { ActionButton } from './CustomerShared';
 import { customerStyles } from './customerStyles';
 import { CustomerSession, SignupState } from './customerTypes';
 
@@ -11,10 +12,18 @@ type AccountScreenProps = {
   contentContainerStyle: StyleProp<ViewStyle>;
   signup: SignupState;
   customerSession: CustomerSession | null;
+  onLogout: () => void;
 };
 
 // Renders the saved customer profile details captured during signup.
-export function AccountScreen({ mode, theme, contentContainerStyle, signup, customerSession }: AccountScreenProps) {
+export function AccountScreen({
+  mode,
+  theme,
+  contentContainerStyle,
+  signup,
+  customerSession,
+  onLogout,
+}: AccountScreenProps) {
   const defaultAddress = customerSession?.user.addresses.find((address) => address.isDefault) ?? customerSession?.user.addresses[0];
   const syncedAddress = defaultAddress ? formatCustomerAddress(defaultAddress) : null;
 
@@ -45,6 +54,9 @@ export function AccountScreen({ mode, theme, contentContainerStyle, signup, cust
         <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
           Mode: {customerSession ? 'Backend-linked customer session' : 'Local prototype profile'}
         </Text>
+        {customerSession ? (
+          <ActionButton mode={mode} label="Sign out" icon="log-out" variant="secondary" onPress={onLogout} fullWidth />
+        ) : null}
       </View>
     </ScrollView>
   );
