@@ -112,6 +112,20 @@ function normalizeSession(session: CustomerSession): CustomerSession {
   };
 }
 
+function writeStoredSession(session: CustomerSession) {
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(customerSessionStorageKey, JSON.stringify(normalizeSession(session)));
+  } catch {
+    // Ignore storage write failures so auth still works in restricted runtimes.
+  }
+}
+
 function isExistingAccountError(error: unknown) {
   return error instanceof Error && /same unique field already exists/i.test(error.message);
 }
@@ -158,12 +172,92 @@ export function formatCustomerAddress(address: CustomerAddress) {
     .join(', ');
 }
 
+export function buildSignupStateFromSession(session: CustomerSession): SignupState {
+  const defaultAddress = session.user.addresses.find((address) => address.isDefault) ?? session.user.addresses[0];
+
+  return {
+    fullName: session.user.fullName,
+    email: session.user.email,
+    password: '',
+    phone: session.user.phone,
+    address: defaultAddress ? formatCustomerAddress(defaultAddress) : '',
+  };
+}
+
+export function clearPersistedCustomerSession() {
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(customerSessionStorageKey);
+  } catch {
+    // Ignore storage cleanup failures so logout can continue.
+  }
+}
+
+export async function restorePersistedCustomerSession() {
+  const storage = getBrowserStorage();
+
+  if (!storage) {
+    return null;
+  }
+
+  let storedValue: string | null = null;
+
+  try {
+    storedValue = storage.getItem(customerSessionStorageKey);
+  } catch {
+    return null;
+  }
+
+  if (!storedValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(storedValue) as unknown;
+
+    if (!isStoredSessionPayload(parsed)) {
+      clearPersistedCustomerSession();
+      return null;
+    }
+
+    const cachedSession = normalizeSession(parsed);
+
+    try {
+      const profile = await getJson<CustomerProfileResponse>(`/auth/users/${cachedSession.user.id}`);
+      const refreshedSession = normalizeSession({
+        token: cachedSession.token,
+        user: profile.user,
+      });
+
+      writeStoredSession(refreshedSession);
+      return refreshedSession;
+    } catch (error) {
+      if (error instanceof Error && /not found/i.test(error.message)) {
+        clearPersistedCustomerSession();
+        return null;
+      }
+
+      return cachedSession;
+    }
+  } catch {
+    clearPersistedCustomerSession();
+    return null;
+  }
+}
+
 export async function signupOrLoginCustomer(signup: SignupState) {
   const signupPayload = buildSignupPayload(signup);
 
   try {
     const createdSession = await postJson<CustomerSession, CustomerSignupPayload>('/auth/signup/customer', signupPayload);
-    return normalizeSession(createdSession);
+    const normalizedSession = normalizeSession(createdSession);
+    writeStoredSession(normalizedSession);
+    return normalizedSession;
   } catch (error) {
     if (!isExistingAccountError(error)) {
       throw error;
