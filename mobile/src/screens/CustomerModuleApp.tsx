@@ -12,7 +12,13 @@ import {
   retailers,
   shortcutChips,
 } from '../data/mockData';
-import { formatCustomerAddress, signupOrLoginCustomer, validateSignupState } from '../services/customerAuth';
+import {
+  buildSignupStateFromSession,
+  clearPersistedCustomerSession,
+  signupOrLoginCustomer,
+  validateSignupState,
+  restorePersistedCustomerSession,
+} from '../services/customerAuth';
 import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
@@ -118,6 +124,14 @@ function mapSummaryToTracking(order: CustomerOrderSummary): CustomerOrderTrackin
   };
 }
 
+const emptySignupState: SignupState = {
+  fullName: '',
+  email: '',
+  password: '',
+  phone: '',
+  address: '',
+};
+
 // Main customer module component that controls the full frontend flow and screen switching.
 export function CustomerModuleApp() {
   // Layout values used to keep the UI neat across mobile and web widths.
@@ -163,13 +177,9 @@ export function CustomerModuleApp() {
   const [invoiceHelperText, setInvoiceHelperText] = useState<string | null>(null);
   const [prescriptionHelperText, setPrescriptionHelperText] = useState<string | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
-  const [signup, setSignup] = useState<SignupState>({
-    fullName: '',
-    email: '',
-    password: '',
-    phone: '',
-    address: '',
-  });
+  const [restoredSession, setRestoredSession] = useState<CustomerSession | null | undefined>(undefined);
+  const [signup, setSignup] = useState<SignupState>(emptySignupState);
+  const [splashAnimationComplete, setSplashAnimationComplete] = useState(false);
   const splashOpacity = useRef(new Animated.Value(0)).current;
   const splashScale = useRef(new Animated.Value(0.92)).current;
   const theme = themes[themeMode];
@@ -180,7 +190,35 @@ export function CustomerModuleApp() {
   const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.52, 168), 212);
   const isHomeScreen = screen === 'home';
 
-  // Splash animation: logo fades/scales in, then hands off to signup.
+  // Restores the last backend-linked customer session before leaving the splash screen.
+  useEffect(() => {
+    let active = true;
+
+    restorePersistedCustomerSession()
+      .then((session) => {
+        if (!active) {
+          return;
+        }
+
+        setRestoredSession(session);
+
+        if (session) {
+          setCustomerSession(session);
+          setSignup(buildSignupStateFromSession(session));
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setRestoredSession(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Splash animation: logo fades/scales in before the app decides whether to restore a session or show signup.
   useEffect(() => {
     if (stage !== 'splash') {
       return;
@@ -221,12 +259,20 @@ export function CustomerModuleApp() {
 
     animation.start(({ finished }) => {
       if (finished) {
-        setStage('signup');
+        setSplashAnimationComplete(true);
       }
     });
 
     return () => animation.stop();
   }, [stage, splashOpacity, splashScale]);
+
+  useEffect(() => {
+    if (stage !== 'splash' || !splashAnimationComplete || restoredSession === undefined) {
+      return;
+    }
+
+    setStage(restoredSession ? 'app' : 'signup');
+  }, [restoredSession, splashAnimationComplete, stage]);
 
   useEffect(() => {
     if (stage !== 'app') {
@@ -856,20 +902,15 @@ export function CustomerModuleApp() {
 
     try {
       const session = await signupOrLoginCustomer(signup);
-      const defaultAddress = session.user.addresses.find((address) => address.isDefault) ?? session.user.addresses[0];
 
       setCustomerSession(session);
-      setSignup((current) => ({
-        ...current,
-        fullName: session.user.fullName,
-        email: session.user.email,
-        phone: session.user.phone,
-        address: defaultAddress ? formatCustomerAddress(defaultAddress) : current.address,
-      }));
+      setRestoredSession(session);
+      setSignup(buildSignupStateFromSession(session));
       setStage('app');
       Alert.alert('Account synced', 'Customer signup is now connected to the backend auth service.');
     } catch (error) {
       setCustomerSession(null);
+      setRestoredSession(null);
       setStage('app');
       Alert.alert(
         'Using local profile',
