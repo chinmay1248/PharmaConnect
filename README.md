@@ -105,7 +105,7 @@ If the backend is unavailable, the customer app will still open in local prototy
 
 Priority order for the next implementation steps:
 
-1. Replace demo payment confirmation with a real payment integration path
+1. Replace  demo  payment  confirmation  with  a  real payment  integration  path
 2. Add real prescription file storage and order-linked prescription review flow
 3. Connect invoice download/export instead of the current placeholder button
 4. Add session token handling to the API client instead of relying on lightweight demo session behavior
