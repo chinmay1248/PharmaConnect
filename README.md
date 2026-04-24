@@ -108,7 +108,7 @@ Priority order for the next implementation steps:
 1. Replace  demo  payment  confirmation  with  a  real payment  integration  path
 2. Add  real  prescription  file  storage  and  order-linked  prescription  review  flow
 3. Connect  invoice  download/export  instead  of  the  current  placeholder  button
-4. Add session token handling to the API client instead of relying on lightweight demo session behavior
+4. Add  session  token  handling  to  the  API  client  instead  of  relying  on  lightweight  demo  session  behavior
 5. Expand customer profile management with editable addresses
 6. Build the retailer workflow needed to make the customer flow operational in real business terms
 7. Add notifications and richer tracking updates
