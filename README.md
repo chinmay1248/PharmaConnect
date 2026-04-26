@@ -19,6 +19,7 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 - Customer order creation wired to backend order APIs
 - Prescription upload draft flow wired to backend prescription endpoints
 - Order history, order tracking, and invoice fetch wired to backend endpoints
+- Invoice download/export wired to backend invoice links and fallback export endpoint
 - Graceful fallback to local prototype data when backend services are unavailable
 - Verified builds:
   - `mobile`: `npx tsc --noEmit`
@@ -28,7 +29,7 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 
 - Payment is still a demo confirmation flow, not a real gateway integration
 - Prescription upload currently stores metadata and mock file URLs, not real cloud storage
-- Download invoice action is still a placeholder in the mobile UI
+- Invoice export is currently text-file based; generated PDF storage is still pending
 - Some customer screens still rely on fallback mock data when the related backend service is missing or offline
 
 ### Not Started Yet
@@ -107,7 +108,7 @@ Priority order for the next implementation steps:
 
 1. Replace  demo  payment  confirmation  with  a  real payment  integration  path
 2. Add  real  prescription  file  storage  and  order-linked  prescription  review  flow
-3. Connect  invoice  download/export  instead  of  the  current  placeholder  button
+3. Upgrade invoice export to generated PDF storage and signed-access links
 4. Add  session  token  handling  to  the  API  client  instead  of  relying  on  lightweight  demo  session  behavior
 5. Expand customer profile management with editable addresses
 6. Build the retailer workflow needed to make the customer flow operational in real business terms
