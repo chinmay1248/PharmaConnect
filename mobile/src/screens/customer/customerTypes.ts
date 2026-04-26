@@ -79,6 +79,7 @@ export type PrescriptionUpload = {
 export type InvoiceState = {
   invoiceId?: string | null;
   invoiceNo: string;
+  pdfUrl?: string | null;
   orderId: string;
   medicineId: string;
   retailerId: string;
