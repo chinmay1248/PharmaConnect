@@ -1,4 +1,4 @@
-import { getJson } from './api';
+import { apiBaseUrl, getJson, resolveApiUrl } from './api';
 import type {
   CustomerOrderSummary,
   CustomerOrderTrackingState,
@@ -76,6 +76,7 @@ type BackendInvoiceResponse = {
     id: string;
     invoiceNumber: string;
     status: string;
+    pdfUrl?: string | null;
     generatedAt: string;
     retailer: {
       id: string;
@@ -226,6 +227,7 @@ export async function fetchCustomerInvoice(orderId: string): Promise<InvoiceStat
   return {
     invoiceId: invoice.id,
     invoiceNo: invoice.invoiceNumber,
+    pdfUrl: invoice.pdfUrl ? resolveApiUrl(invoice.pdfUrl) : null,
     orderId: invoice.order.id,
     medicineId: firstItem.medicineId,
     retailerId: invoice.retailer.id,
@@ -240,4 +242,8 @@ export async function fetchCustomerInvoice(orderId: string): Promise<InvoiceStat
     generatedAt: invoice.generatedAt,
     status: invoice.status,
   };
+}
+
+export function buildCustomerInvoiceDownloadUrl(invoiceId: string) {
+  return `${apiBaseUrl}/invoices/${encodeURIComponent(invoiceId)}/download`;
 }
