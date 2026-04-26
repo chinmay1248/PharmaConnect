@@ -8,6 +8,12 @@ export const apiBaseUrl = trimTrailingSlash(
   process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || fallbackApiBaseUrl,
 );
 
+const httpUrlPattern = /^https?:\/\//i;
+
+function buildApiOrigin() {
+  return apiBaseUrl.replace(/\/api(?:\/.*)?$/i, '');
+}
+
 type ApiErrorPayload = {
   error?: string;
 };
@@ -47,4 +53,18 @@ export async function postJson<TResponse, TBody>(path: string, body: TBody) {
     },
     body: JSON.stringify(body),
   });
+}
+
+export function resolveApiUrl(pathOrUrl: string) {
+  const trimmed = pathOrUrl.trim();
+
+  if (httpUrlPattern.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return `${buildApiOrigin()}${trimmed}`;
+  }
+
+  return `${apiBaseUrl}/${trimmed.replace(/^\/+/, '')}`;
 }
