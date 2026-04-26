@@ -1,8 +1,9 @@
-import { Alert, ScrollView, Text, View, StyleProp, ViewStyle } from 'react-native';
+import { Alert, Linking, ScrollView, Text, View, StyleProp, ViewStyle } from 'react-native';
 import { Medicine, Retailer } from '../../data/mockData';
 import { SectionHeader } from '../../components/SectionHeader';
 import { ThemeMode, ThemePalette } from '../../theme/theme';
 import { formatCurrency } from '../../utils/format';
+import { buildCustomerInvoiceDownloadUrl } from '../../services/customerOrders';
 import { ActionButton } from './CustomerShared';
 import { InvoiceState } from './customerTypes';
 import { customerStyles } from './customerStyles';
@@ -27,6 +28,40 @@ export function InvoiceScreen({
   retailers,
   helperText,
 }: InvoiceScreenProps) {
+  async function downloadInvoice() {
+    if (!invoice) {
+      return;
+    }
+
+    const fallbackDownloadUrl = invoice.invoiceId ? buildCustomerInvoiceDownloadUrl(invoice.invoiceId) : null;
+    const downloadUrl = invoice.pdfUrl?.trim() || fallbackDownloadUrl;
+
+    if (!downloadUrl) {
+      Alert.alert(
+        'Invoice unavailable',
+        'This order is in local prototype mode, so no backend invoice download link is available yet.',
+      );
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(downloadUrl);
+
+      if (!supported) {
+        throw new Error('This device cannot open the invoice download link right now.');
+      }
+
+      await Linking.openURL(downloadUrl);
+    } catch (error) {
+      Alert.alert(
+        'Download failed',
+        error instanceof Error
+          ? error.message
+          : 'The invoice download link could not be opened right now.',
+      );
+    }
+  }
+
   return (
     <ScrollView style={customerStyles.scroll} contentContainerStyle={contentContainerStyle}>
       <SectionHeader
@@ -79,7 +114,9 @@ export function InvoiceScreen({
               mode={mode}
               label="Download invoice"
               icon="download"
-              onPress={() => Alert.alert('Download invoice', 'PDF download can be connected when the backend invoice service is added.')}
+              onPress={() => {
+                void downloadInvoice();
+              }}
               fullWidth
             />
           </>
