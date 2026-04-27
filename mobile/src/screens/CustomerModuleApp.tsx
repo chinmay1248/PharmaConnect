@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, SafeAreaView, useWindowDimensions } from 'react-native';
+import { Alert, Animated, Easing, SafeAreaView, useWindowDimensions, type ViewStyle } from 'react-native';
 import { BottomTabBar, TabId } from '../components/BottomTabBar';
 import {
   banners,
@@ -14,8 +14,14 @@ import {
 } from '../data/mockData';
 import {
   buildSignupStateFromSession,
+  createCustomerAddress,
+  deleteCustomerAddress,
   clearPersistedCustomerSession,
+  CustomerAddressDraft,
+  setDefaultCustomerAddress,
   signupOrLoginCustomer,
+  updateCustomerAddress,
+  validateCustomerAddressDraft,
   validateSignupState,
   restorePersistedCustomerSession,
 } from '../services/customerAuth';
@@ -176,18 +182,27 @@ export function CustomerModuleApp() {
   const [trackingHelperText, setTrackingHelperText] = useState<string | null>(null);
   const [invoiceHelperText, setInvoiceHelperText] = useState<string | null>(null);
   const [prescriptionHelperText, setPrescriptionHelperText] = useState<string | null>(null);
+  const [accountHelperText, setAccountHelperText] = useState<string | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
   const [restoredSession, setRestoredSession] = useState<CustomerSession | null | undefined>(undefined);
   const [signup, setSignup] = useState<SignupState>(emptySignupState);
+  const [addressSubmitting, setAddressSubmitting] = useState(false);
   const [splashAnimationComplete, setSplashAnimationComplete] = useState(false);
   const splashOpacity = useRef(new Animated.Value(0)).current;
   const splashScale = useRef(new Animated.Value(0.92)).current;
   const theme = themes[themeMode];
-  const sectionWidth = Math.min(Math.max(viewportWidth - 28, 300), 460);
-  const categoryCardWidth = Math.floor((sectionWidth - 30) / 4);
-  const dealCardWidth = Math.floor((sectionWidth - 10) / 2);
-  const optionCardWidth = Math.floor((sectionWidth - 10) / 2);
-  const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.52, 168), 212);
+  const horizontalPadding = viewportWidth >= 1024 ? 24 : 14;
+  const sectionWidth = Math.min(Math.max(viewportWidth - horizontalPadding * 2, 320), 980);
+  const gridGap = 10;
+  const isCompactLayout = sectionWidth < 380;
+  const categoryColumns = sectionWidth >= 900 ? 6 : sectionWidth >= 700 ? 5 : sectionWidth >= 520 ? 4 : 3;
+  const dealColumns = sectionWidth >= 900 ? 3 : sectionWidth >= 620 ? 2 : 1;
+  const optionColumns = sectionWidth >= 820 ? 3 : sectionWidth >= 500 ? 2 : 1;
+  const categoryCardWidth = Math.max(96, Math.floor((sectionWidth - gridGap * (categoryColumns - 1)) / categoryColumns));
+  const dealCardWidth = Math.max(180, Math.floor((sectionWidth - gridGap * (dealColumns - 1)) / dealColumns));
+  const optionCardWidth = Math.max(180, Math.floor((sectionWidth - gridGap * (optionColumns - 1)) / optionColumns));
+  const bannerCardWidth = Math.min(Math.max(sectionWidth * (sectionWidth >= 700 ? 0.46 : 0.78), 250), 390);
+  const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.42, 176), 240);
   const isHomeScreen = screen === 'home';
 
   // Restores the last backend-linked customer session before leaving the splash screen.
@@ -918,9 +933,11 @@ export function CustomerModuleApp() {
       setCustomerSession(session);
       setRestoredSession(session);
       setSignup(buildSignupStateFromSession(session));
+      setAccountHelperText(null);
       setStage('app');
       Alert.alert('Account synced', 'Customer signup is now connected to the backend auth service.');
     } catch (error) {
+      clearPersistedCustomerSession();
       setCustomerSession(null);
       setRestoredSession(null);
       setStage('app');
@@ -939,6 +956,7 @@ export function CustomerModuleApp() {
     clearPersistedCustomerSession();
     setCustomerSession(null);
     setRestoredSession(null);
+    setAccountHelperText(null);
     setStage('signup');
     setScreen('home');
     setSearchQuery('');
@@ -948,6 +966,125 @@ export function CustomerModuleApp() {
     resetPrescriptionState();
     resetOrderState();
     setSignup(emptySignupState);
+  }
+
+  async function saveAddress(draft: CustomerAddressDraft, addressId?: string) {
+    const validationMessage = validateCustomerAddressDraft(draft);
+
+    if (validationMessage) {
+      Alert.alert('Address details', validationMessage);
+      return false;
+    }
+
+    if (!customerSession) {
+      const localAddress = [draft.line1, draft.line2, draft.area, draft.city, draft.state, draft.postalCode]
+        .filter((segment) => segment.trim())
+        .join(', ');
+
+      setSignup((current) => ({ ...current, address: localAddress }));
+      setAccountHelperText('Saved this address in local prototype mode.');
+      return true;
+    }
+
+    if (addressSubmitting) {
+      return false;
+    }
+
+    setAddressSubmitting(true);
+    setAccountHelperText(null);
+
+    try {
+      const updatedSession = addressId
+        ? await updateCustomerAddress(customerSession, addressId, draft)
+        : await createCustomerAddress(customerSession, draft);
+
+      let finalSession = updatedSession;
+
+      if (draft.isDefault && addressId) {
+        finalSession = await setDefaultCustomerAddress(updatedSession, addressId);
+      }
+
+      setCustomerSession(finalSession);
+      setRestoredSession(finalSession);
+      setSignup(buildSignupStateFromSession(finalSession));
+      setAccountHelperText(addressId ? 'Address updated successfully.' : 'Address saved successfully.');
+      return true;
+    } catch (error) {
+      setAccountHelperText(
+        error instanceof Error
+          ? `Address could not be saved right now: ${error.message}`
+          : 'Address could not be saved right now.',
+      );
+      Alert.alert(
+        'Address update failed',
+        error instanceof Error ? error.message : 'Address could not be saved right now.',
+      );
+      return false;
+    } finally {
+      setAddressSubmitting(false);
+    }
+  }
+
+  async function markDefaultAddress(addressId: string) {
+    if (!customerSession || addressSubmitting) {
+      return false;
+    }
+
+    setAddressSubmitting(true);
+    setAccountHelperText(null);
+
+    try {
+      const updatedSession = await setDefaultCustomerAddress(customerSession, addressId);
+      setCustomerSession(updatedSession);
+      setRestoredSession(updatedSession);
+      setSignup(buildSignupStateFromSession(updatedSession));
+      setAccountHelperText('Default address updated.');
+      return true;
+    } catch (error) {
+      setAccountHelperText(
+        error instanceof Error
+          ? `Default address could not be updated: ${error.message}`
+          : 'Default address could not be updated.',
+      );
+      Alert.alert(
+        'Default address failed',
+        error instanceof Error ? error.message : 'Default address could not be updated right now.',
+      );
+      return false;
+    } finally {
+      setAddressSubmitting(false);
+    }
+  }
+
+  async function removeAddress(addressId: string) {
+    if (!customerSession || addressSubmitting) {
+      return false;
+    }
+
+    setAddressSubmitting(true);
+    setAccountHelperText(null);
+
+    try {
+      const updatedSession = await deleteCustomerAddress(customerSession, addressId);
+      setCustomerSession(updatedSession);
+      setRestoredSession(updatedSession);
+      setSignup(buildSignupStateFromSession(updatedSession));
+      setAccountHelperText('Address removed from your profile.');
+      return true;
+    } catch (error) {
+      setAccountHelperText(
+        error instanceof Error
+          ? `Address could not be removed right now: ${error.message}`
+          : 'Address could not be removed right now.',
+      );
+      Alert.alert(
+        'Delete failed',
+        error instanceof Error ? error.message : 'Address could not be removed right now.',
+      );
+      return false;
+    } finally {
+      setAddressSubmitting(false);
+    }
   }
 
   // Updates one signup field while keeping the rest of the form intact.
@@ -984,7 +1121,15 @@ export function CustomerModuleApp() {
     return 'home';
   }
 
-  const contentContainerStyle = [customerStyles.scrollContent, { paddingBottom: 110 }];
+  const centeredContentStyle: ViewStyle = {
+    paddingBottom: 118,
+    paddingHorizontal: horizontalPadding,
+    width: '100%',
+    maxWidth: sectionWidth,
+    alignSelf: 'center',
+  };
+
+  const contentContainerStyle = [customerStyles.scrollContent, centeredContentStyle];
 
   // Shows the initial animated splash screen before signup.
   if (stage === 'splash') {
@@ -1020,6 +1165,7 @@ export function CustomerModuleApp() {
           mode={themeMode}
           theme={theme}
           contentContainerStyle={contentContainerStyle}
+          isCompactLayout={isCompactLayout}
           recentSearches={recentSearches}
           filteredMedicines={searchResults}
           isLoading={searchLoading}
@@ -1037,6 +1183,7 @@ export function CustomerModuleApp() {
           mode={themeMode}
           theme={theme}
           contentContainerStyle={contentContainerStyle}
+          isCompactLayout={isCompactLayout}
           selectedMedicine={selectedMedicine}
           isLoading={detailLoading}
           helperText={detailHelperText}
@@ -1087,6 +1234,7 @@ export function CustomerModuleApp() {
           mode={themeMode}
           theme={theme}
           contentContainerStyle={contentContainerStyle}
+          isCompactLayout={isCompactLayout}
           prescriptionUploaded={prescriptionUploaded}
           upload={prescriptionUpload}
           helperText={
@@ -1133,6 +1281,7 @@ export function CustomerModuleApp() {
           mode={themeMode}
           theme={theme}
           contentContainerStyle={contentContainerStyle}
+          isCompactLayout={isCompactLayout}
           activeOrder={activeOrder}
           helperText={
             trackingLoading
@@ -1185,6 +1334,11 @@ export function CustomerModuleApp() {
           contentContainerStyle={contentContainerStyle}
           signup={signup}
           customerSession={customerSession}
+          helperText={addressSubmitting ? 'Saving address changes...' : accountHelperText}
+          isSavingAddress={addressSubmitting}
+          onSaveAddress={saveAddress}
+          onSetDefaultAddress={markDefaultAddress}
+          onDeleteAddress={removeAddress}
           onLogout={logoutCustomer}
         />
       );
@@ -1195,6 +1349,8 @@ export function CustomerModuleApp() {
         mode={themeMode}
         theme={theme}
         contentContainerStyle={contentContainerStyle}
+        bannerCardWidth={bannerCardWidth}
+        isCompactLayout={isCompactLayout}
         quickServices={quickServices}
         shortcutChips={shortcutChips}
         categories={categories}

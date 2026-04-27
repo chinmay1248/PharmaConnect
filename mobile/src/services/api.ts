@@ -9,6 +9,7 @@ export const apiBaseUrl = trimTrailingSlash(
 );
 
 const httpUrlPattern = /^https?:\/\//i;
+let apiSessionToken: string | null = null;
 
 function buildApiOrigin() {
   return apiBaseUrl.replace(/\/api(?:\/.*)?$/i, '');
@@ -18,13 +19,31 @@ type ApiErrorPayload = {
   error?: string;
 };
 
+function normalizeHeaders(headers?: HeadersInit) {
+  if (!headers) {
+    return {} as Record<string, string>;
+  }
+
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+
+  return { ...headers };
+}
+
 // Sends one JSON request to the PharmaConnect backend and normalizes API errors.
 async function requestJson<T>(path: string, init?: RequestInit) {
+  const resolvedHeaders = normalizeHeaders(init?.headers);
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
-      ...(init?.headers ?? {}),
+      ...(apiSessionToken ? { Authorization: `Bearer ${apiSessionToken}` } : {}),
+      ...resolvedHeaders,
     },
   });
   const payload = (await response.json().catch(() => null)) as T | ApiErrorPayload | null;
@@ -53,6 +72,30 @@ export async function postJson<TResponse, TBody>(path: string, body: TBody) {
     },
     body: JSON.stringify(body),
   });
+}
+
+export async function patchJson<TResponse, TBody>(path: string, body: TBody) {
+  return requestJson<TResponse>(path, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteJson<TResponse>(path: string) {
+  return requestJson<TResponse>(path, {
+    method: 'DELETE',
+  });
+}
+
+export function setApiSessionToken(token: string) {
+  apiSessionToken = token.trim() || null;
+}
+
+export function clearApiSessionToken() {
+  apiSessionToken = null;
 }
 
 export function resolveApiUrl(pathOrUrl: string) {

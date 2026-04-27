@@ -1,5 +1,5 @@
 import type { CustomerAddress, CustomerSession, SignupState } from '../screens/customer/customerTypes';
-import { getJson, postJson } from './api';
+import { clearApiSessionToken, deleteJson, getJson, patchJson, postJson, setApiSessionToken } from './api';
 
 type CustomerSignupPayload = {
   fullName: string;
@@ -23,6 +23,30 @@ type LoginPayload = {
 
 type CustomerProfileResponse = {
   user: CustomerSession['user'];
+};
+
+type CustomerAddressMutationPayload = {
+  label?: string | null;
+  line1: string;
+  line2?: string | null;
+  area: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  isDefault?: boolean;
+};
+
+type CustomerAddressUpdatePayload = Partial<Omit<CustomerAddressMutationPayload, 'isDefault'>>;
+
+export type CustomerAddressDraft = {
+  label: string;
+  line1: string;
+  line2: string;
+  area: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  isDefault: boolean;
 };
 
 type BrowserStorage = {
@@ -98,6 +122,48 @@ function normalizeAddress(address: CustomerAddress): CustomerAddress {
   };
 }
 
+function normalizeAddressDraft(draft: CustomerAddressDraft) {
+  return {
+    label: draft.label.trim(),
+    line1: draft.line1.trim(),
+    line2: draft.line2.trim(),
+    area: draft.area.trim(),
+    city: draft.city.trim(),
+    state: draft.state.trim(),
+    postalCode: draft.postalCode.trim(),
+    isDefault: Boolean(draft.isDefault),
+  };
+}
+
+function buildCreateAddressPayload(draft: CustomerAddressDraft): CustomerAddressMutationPayload {
+  const normalized = normalizeAddressDraft(draft);
+
+  return {
+    ...(normalized.label ? { label: normalized.label } : {}),
+    line1: normalized.line1,
+    ...(normalized.line2 ? { line2: normalized.line2 } : {}),
+    area: normalized.area,
+    city: normalized.city,
+    state: normalized.state,
+    postalCode: normalized.postalCode,
+    isDefault: normalized.isDefault,
+  };
+}
+
+function buildUpdateAddressPayload(draft: CustomerAddressDraft): CustomerAddressUpdatePayload {
+  const normalized = normalizeAddressDraft(draft);
+
+  return {
+    label: normalized.label || null,
+    line1: normalized.line1,
+    line2: normalized.line2 || null,
+    area: normalized.area,
+    city: normalized.city,
+    state: normalized.state,
+    postalCode: normalized.postalCode,
+  };
+}
+
 function normalizeSession(session: CustomerSession): CustomerSession {
   return {
     token: session.token,
@@ -166,6 +232,18 @@ export function validateSignupState(signup: SignupState) {
   return null;
 }
 
+export function validateCustomerAddressDraft(draft: CustomerAddressDraft) {
+  if (!draft.line1.trim() || !draft.area.trim() || !draft.city.trim() || !draft.state.trim() || !draft.postalCode.trim()) {
+    return 'Fill in line 1, area, city, state, and postal code before saving the address.';
+  }
+
+  if (draft.postalCode.trim().length < 4) {
+    return 'Postal code should have at least 4 characters.';
+  }
+
+  return null;
+}
+
 export function formatCustomerAddress(address: CustomerAddress) {
   return [address.line1, address.line2, address.area, address.city, address.state, address.postalCode]
     .filter(Boolean)
@@ -185,6 +263,7 @@ export function buildSignupStateFromSession(session: CustomerSession): SignupSta
 }
 
 export function clearPersistedCustomerSession() {
+  clearApiSessionToken();
   const storage = getBrowserStorage();
 
   if (!storage) {
@@ -202,6 +281,7 @@ export async function restorePersistedCustomerSession() {
   const storage = getBrowserStorage();
 
   if (!storage) {
+    clearApiSessionToken();
     return null;
   }
 
@@ -214,6 +294,7 @@ export async function restorePersistedCustomerSession() {
   }
 
   if (!storedValue) {
+    clearApiSessionToken();
     return null;
   }
 
@@ -226,6 +307,7 @@ export async function restorePersistedCustomerSession() {
     }
 
     const cachedSession = normalizeSession(parsed);
+    setApiSessionToken(cachedSession.token);
 
     try {
       const profile = await getJson<CustomerProfileResponse>(`/auth/users/${cachedSession.user.id}`);
@@ -234,6 +316,7 @@ export async function restorePersistedCustomerSession() {
         user: profile.user,
       });
 
+      setApiSessionToken(refreshedSession.token);
       writeStoredSession(refreshedSession);
       return refreshedSession;
     } catch (error) {
@@ -242,6 +325,7 @@ export async function restorePersistedCustomerSession() {
         return null;
       }
 
+      setApiSessionToken(cachedSession.token);
       return cachedSession;
     }
   } catch {
@@ -256,6 +340,7 @@ export async function signupOrLoginCustomer(signup: SignupState) {
   try {
     const createdSession = await postJson<CustomerSession, CustomerSignupPayload>('/auth/signup/customer', signupPayload);
     const normalizedSession = normalizeSession(createdSession);
+    setApiSessionToken(normalizedSession.token);
     writeStoredSession(normalizedSession);
     return normalizedSession;
   } catch (error) {
@@ -269,7 +354,58 @@ export async function signupOrLoginCustomer(signup: SignupState) {
     };
     const existingSession = await postJson<CustomerSession, LoginPayload>('/auth/login', loginPayload);
     const normalizedSession = normalizeSession(existingSession);
+    setApiSessionToken(normalizedSession.token);
     writeStoredSession(normalizedSession);
     return normalizedSession;
   }
+}
+
+function mergeSessionWithProfile(session: CustomerSession, profile: CustomerProfileResponse) {
+  const mergedSession = normalizeSession({
+    token: session.token,
+    user: profile.user,
+  });
+
+  setApiSessionToken(mergedSession.token);
+  writeStoredSession(mergedSession);
+  return mergedSession;
+}
+
+export async function createCustomerAddress(session: CustomerSession, draft: CustomerAddressDraft) {
+  const payload = buildCreateAddressPayload(draft);
+  const profile = await postJson<CustomerProfileResponse, CustomerAddressMutationPayload>(
+    `/auth/users/${session.user.id}/addresses`,
+    payload,
+  );
+
+  return mergeSessionWithProfile(session, profile);
+}
+
+export async function updateCustomerAddress(
+  session: CustomerSession,
+  addressId: string,
+  draft: CustomerAddressDraft,
+) {
+  const payload = buildUpdateAddressPayload(draft);
+  const profile = await patchJson<CustomerProfileResponse, CustomerAddressUpdatePayload>(
+    `/auth/users/${session.user.id}/addresses/${addressId}`,
+    payload,
+  );
+
+  return mergeSessionWithProfile(session, profile);
+}
+
+export async function setDefaultCustomerAddress(session: CustomerSession, addressId: string) {
+  const profile = await patchJson<CustomerProfileResponse, Record<string, never>>(
+    `/auth/users/${session.user.id}/addresses/${addressId}/default`,
+    {},
+  );
+
+  return mergeSessionWithProfile(session, profile);
+}
+
+export async function deleteCustomerAddress(session: CustomerSession, addressId: string) {
+  const profile = await deleteJson<CustomerProfileResponse>(`/auth/users/${session.user.id}/addresses/${addressId}`);
+
+  return mergeSessionWithProfile(session, profile);
 }
