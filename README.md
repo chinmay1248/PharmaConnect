@@ -16,7 +16,10 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 - Live medicine catalogue, search, medicine detail, and retailer comparison APIs
 - Backend-linked customer signup/login flow in the mobile app
 - Persisted customer session restore on app startup, plus sign-out from the account screen
+- Session token handling in the mobile API client for authenticated backend requests
+- Editable customer addresses with add, update, delete, and default-address controls
 - Customer order creation wired to backend order APIs
+- Retailer order operations APIs for queue, approve/reject, fulfilment status, and delivery stock settlement
 - Prescription upload draft flow wired to backend prescription endpoints
 - Order history, order tracking, and invoice fetch wired to backend endpoints
 - Invoice download/export wired to backend invoice links and fallback export endpoint
@@ -30,11 +33,12 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 - Payment is still a demo confirmation flow, not a real gateway integration
 - Prescription upload currently stores metadata and mock file URLs, not real cloud storage
 - Invoice export is currently text-file based; generated PDF storage is still pending
+- Retailer workflow is backend-first right now; dedicated retailer app UI is still pending
 - Some customer screens still rely on fallback mock data when the related backend service is missing or offline
 
 ### Not Started Yet
 
-- Retailer module
+- Dedicated retailer app module and screens
 - Wholesaler module
 - Company module
 - Real notifications
@@ -101,6 +105,7 @@ If the backend is unavailable, the customer app will still open in local prototy
 - View order history
 - View tracking timeline
 - View invoice summary
+- Manage multiple saved delivery addresses in account settings
 
 ## Next To-Do List
 
@@ -109,10 +114,7 @@ Priority order for the next implementation steps:
 1. Replace  demo  payment  confirmation  with  a  real payment  integration  path
 2. Add  real  prescription  file  storage  and  order-linked  prescription  review  flow
 3. Upgrade invoice export to generated PDF storage and signed-access links
-4. Add  session  token  handling  to  the  API  client  instead  of  relying  on  lightweight  demo  session  behavior
-5. Expand customer profile management with editable addresses
-6. Build the retailer workflow needed to make the customer flow operational in real business terms
-7. Add notifications and richer tracking updates
+4. Add notifications and richer tracking updates
 
 ## Important Notes
 
