@@ -12,6 +12,7 @@ type SearchScreenProps = {
   mode: ThemeMode;
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
+  isCompactLayout: boolean;
   recentSearches: string[];
   filteredMedicines: Medicine[];
   isLoading: boolean;
@@ -26,6 +27,7 @@ export function SearchScreen({
   mode,
   theme,
   contentContainerStyle,
+  isCompactLayout,
   recentSearches,
   filteredMedicines,
   isLoading,
@@ -90,6 +92,7 @@ export function SearchScreen({
           onPress={() => onGoToMedicine(medicine.id)}
           style={[
             customerStyles.searchCard,
+            isCompactLayout && customerStyles.searchCardCompact,
             {
               backgroundColor: theme.surface,
               borderColor: theme.border,
@@ -98,7 +101,13 @@ export function SearchScreen({
           hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
           pressedStyle={{ backgroundColor: theme.elevated }}
         >
-          <View style={[customerStyles.searchCardThumb, { backgroundColor: medicine.imageColor }]}>
+          <View
+            style={[
+              customerStyles.searchCardThumb,
+              isCompactLayout && customerStyles.searchCardThumbCompact,
+              { backgroundColor: medicine.imageColor },
+            ]}
+          >
             <Text style={customerStyles.searchCardThumbText}>{medicine.genericName.slice(0, 2).toUpperCase()}</Text>
           </View>
           <View style={customerStyles.searchCardBody}>
@@ -113,9 +122,22 @@ export function SearchScreen({
             <Text style={[customerStyles.searchCardMeta, { color: theme.primary }]}>
               {medicine.couponPrice ? `Buy for ${formatCurrency(medicine.couponPrice)} with coupon` : 'Trusted nearby pricing'}
             </Text>
-            <View style={customerStyles.inlineRow}>
-              <ActionButton mode={mode} label="Details" icon="info" variant="secondary" onPress={() => onGoToMedicine(medicine.id)} />
-              <ActionButton mode={mode} label="Compare pharmacies" icon="map-pin" onPress={() => onOpenPharmacies(medicine.id)} />
+            <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
+              <ActionButton
+                mode={mode}
+                label="Details"
+                icon="info"
+                variant="secondary"
+                onPress={() => onGoToMedicine(medicine.id)}
+                fullWidth={isCompactLayout}
+              />
+              <ActionButton
+                mode={mode}
+                label="Compare pharmacies"
+                icon="map-pin"
+                onPress={() => onOpenPharmacies(medicine.id)}
+                fullWidth={isCompactLayout}
+              />
             </View>
           </View>
         </InteractivePressable>

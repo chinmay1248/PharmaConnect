@@ -67,7 +67,7 @@ export function CustomerHeader({
             >
               <View style={customerStyles.locationCopy}>
                 <Feather name="map-pin" size={15} color={theme.primary} />
-                <Text style={[customerStyles.locationText, { color: theme.text }]}>
+                <Text numberOfLines={1} style={[customerStyles.locationText, { color: theme.text }]}>
                   Deliver to {address || 'your saved address'}
                 </Text>
               </View>
@@ -115,7 +115,7 @@ export function CustomerHeader({
           >
             <View style={customerStyles.locationCopy}>
               <Feather name="map-pin" size={15} color={theme.primary} />
-              <Text style={[customerStyles.locationText, { color: theme.text }]}>
+              <Text numberOfLines={1} style={[customerStyles.locationText, { color: theme.text }]}>
                 Deliver to {address || 'your saved address'}
               </Text>
             </View>

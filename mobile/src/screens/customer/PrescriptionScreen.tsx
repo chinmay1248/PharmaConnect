@@ -9,6 +9,7 @@ type PrescriptionScreenProps = {
   mode: ThemeMode;
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
+  isCompactLayout: boolean;
   prescriptionUploaded: boolean;
   upload?: PrescriptionUpload | null;
   helperText?: string | null;
@@ -22,6 +23,7 @@ export function PrescriptionScreen({
   mode,
   theme,
   contentContainerStyle,
+  isCompactLayout,
   prescriptionUploaded,
   upload,
   helperText,
@@ -50,12 +52,13 @@ export function PrescriptionScreen({
             </Text>
           </View>
         ) : null}
-        <View style={customerStyles.inlineRow}>
+        <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
           <ActionButton
             mode={mode}
             label={isUploading ? 'Uploading from camera...' : prescriptionUploaded ? 'Upload from camera again' : 'Upload from camera'}
             icon="camera"
             onPress={() => onSubmitPrescription('camera')}
+            fullWidth={isCompactLayout}
           />
           <ActionButton
             mode={mode}
@@ -63,8 +66,16 @@ export function PrescriptionScreen({
             icon="image"
             variant="secondary"
             onPress={() => onSubmitPrescription('gallery')}
+            fullWidth={isCompactLayout}
           />
-          <ActionButton mode={mode} label="Back to cart" icon="arrow-left" variant="secondary" onPress={onBackToCart} />
+          <ActionButton
+            mode={mode}
+            label="Back to cart"
+            icon="arrow-left"
+            variant="secondary"
+            onPress={onBackToCart}
+            fullWidth={isCompactLayout}
+          />
         </View>
       </View>
     </ScrollView>

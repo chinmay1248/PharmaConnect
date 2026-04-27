@@ -66,16 +66,16 @@ export const customerStyles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 12,
   },
   homeHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
   },
   homeLogoWrap: {
-    width: 86,
+    minWidth: 82,
     alignItems: 'flex-start',
   },
   headerSearchFlex: {
@@ -83,12 +83,17 @@ export const customerStyles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexShrink: 0,
     gap: 10,
   },
   homeUtilityRow: {
     marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 10,
     gap: 10,
   },
   iconButton: {
@@ -121,7 +126,7 @@ export const customerStyles = StyleSheet.create({
   locationBar: {
     marginTop: 10,
     borderRadius: 14,
-    paddingHorizontal: 4,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
@@ -130,15 +135,19 @@ export const customerStyles = StyleSheet.create({
   },
   locationBarInline: {
     marginTop: 0,
+    minWidth: 220,
+    flexGrow: 1,
     flex: 1,
   },
   locationCopy: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
+    minWidth: 0,
     flex: 1,
   },
   locationText: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -154,6 +163,7 @@ export const customerStyles = StyleSheet.create({
   utilityChip: {
     borderWidth: 1,
     borderRadius: 14,
+    minHeight: 42,
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -168,7 +178,8 @@ export const customerStyles = StyleSheet.create({
     marginTop: 2,
   },
   shortcutChip: {
-    minWidth: 116,
+    minWidth: 104,
+    flexGrow: 1,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 16,
@@ -181,10 +192,10 @@ export const customerStyles = StyleSheet.create({
   },
   horizontalRow: {
     gap: 12,
+    paddingRight: 4,
     paddingVertical: 4,
   },
   bannerCard: {
-    width: 300,
     borderWidth: 1,
     borderRadius: 20,
     overflow: 'hidden',
@@ -320,7 +331,11 @@ export const customerStyles = StyleSheet.create({
     borderRadius: 18,
     padding: 12,
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 12,
+  },
+  searchCardCompact: {
+    flexDirection: 'column',
   },
   searchCardThumb: {
     width: 112,
@@ -333,6 +348,10 @@ export const customerStyles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     color: '#0a1624',
+  },
+  searchCardThumbCompact: {
+    width: '100%',
+    height: 132,
   },
   searchCardBody: {
     flex: 1,
@@ -447,12 +466,20 @@ export const customerStyles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
+  addressCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+  },
   infoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
   },
   infoTitle: {
+    flexShrink: 1,
     fontSize: 17,
     fontWeight: '800',
   },
@@ -462,6 +489,16 @@ export const customerStyles = StyleSheet.create({
   },
   orderStatus: {
     fontSize: 13,
+    fontWeight: '800',
+  },
+  statusPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusPillText: {
+    fontSize: 11,
     fontWeight: '800',
   },
   quantityRow: {
@@ -499,6 +536,10 @@ export const customerStyles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+  },
+  halfInput: {
+    flexGrow: 1,
+    minWidth: 140,
   },
   optionCard: {
     borderWidth: 1,
@@ -551,11 +592,16 @@ export const customerStyles = StyleSheet.create({
   inlineRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
     marginTop: 12,
   },
+  inlineRowStack: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   actionButton: {
-    minHeight: 44,
+    minHeight: 46,
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderRadius: 999,

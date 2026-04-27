@@ -11,6 +11,7 @@ type MedicineDetailScreenProps = {
   mode: ThemeMode;
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
+  isCompactLayout: boolean;
   selectedMedicine: Medicine;
   isLoading: boolean;
   helperText: string | null;
@@ -24,6 +25,7 @@ export function MedicineDetailScreen({
   mode,
   theme,
   contentContainerStyle,
+  isCompactLayout,
   selectedMedicine,
   isLoading,
   helperText,
@@ -94,9 +96,22 @@ export function MedicineDetailScreen({
           </Text>
         )}
 
-        <View style={customerStyles.inlineRow}>
-          <ActionButton mode={mode} label="Compare pharmacies" icon="map-pin" onPress={() => onOpenPharmacies(selectedMedicine.id)} />
-          <ActionButton mode={mode} label="Back to search" icon="search" variant="secondary" onPress={onOpenSearch} />
+        <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
+          <ActionButton
+            mode={mode}
+            label="Compare pharmacies"
+            icon="map-pin"
+            onPress={() => onOpenPharmacies(selectedMedicine.id)}
+            fullWidth={isCompactLayout}
+          />
+          <ActionButton
+            mode={mode}
+            label="Back to search"
+            icon="search"
+            variant="secondary"
+            onPress={onOpenSearch}
+            fullWidth={isCompactLayout}
+          />
         </View>
       </View>
     </ScrollView>

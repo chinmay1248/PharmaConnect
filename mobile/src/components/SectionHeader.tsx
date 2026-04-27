@@ -50,8 +50,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    rowGap: 8,
+    columnGap: 12,
   },
   copy: {
     flex: 1,
@@ -66,6 +68,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   action: {
+    alignSelf: 'flex-start',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,

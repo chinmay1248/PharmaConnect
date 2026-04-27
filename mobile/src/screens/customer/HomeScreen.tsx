@@ -12,6 +12,8 @@ type HomeScreenProps = {
   mode: ThemeMode;
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
+  bannerCardWidth: number;
+  isCompactLayout: boolean;
   quickServices: QuickService[];
   shortcutChips: Shortcut[];
   categories: Category[];
@@ -44,6 +46,8 @@ export function HomeScreen({
   mode,
   theme,
   contentContainerStyle,
+  bannerCardWidth,
+  isCompactLayout,
   quickServices,
   shortcutChips,
   categories,
@@ -139,6 +143,7 @@ export function HomeScreen({
             onPress={() => onOpenSearchFor(banner.title.includes('Nearby') ? 'nearby' : 'daily')}
             style={[
               customerStyles.bannerCard,
+              { width: bannerCardWidth },
               {
                 backgroundColor: theme.surface,
                 borderColor: theme.border,
@@ -156,6 +161,7 @@ export function HomeScreen({
               icon="arrow-right"
               variant="secondary"
               onPress={() => onOpenSearchFor(banner.title)}
+              fullWidth={isCompactLayout}
             />
           </InteractivePressable>
         ))}

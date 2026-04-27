@@ -10,6 +10,7 @@ type TrackingScreenProps = {
   mode: ThemeMode;
   theme: ThemePalette;
   contentContainerStyle: StyleProp<ViewStyle>;
+  isCompactLayout: boolean;
   activeOrder: CustomerOrderTrackingState | null;
   helperText?: string | null;
   onOpenInvoice: () => void;
@@ -79,6 +80,7 @@ export function TrackingScreen({
   mode,
   theme,
   contentContainerStyle,
+  isCompactLayout,
   activeOrder,
   helperText,
   onOpenInvoice,
@@ -106,7 +108,7 @@ export function TrackingScreen({
                   <Text style={[customerStyles.trackTitle, { color: active ? theme.text : theme.subtext }]}>{step}</Text>
                   <Text style={[customerStyles.trackMeta, { color: theme.subtext }]}>
                     {timestamp
-                      ? `${timestamp}${stepMeta?.notes ? ` • ${stepMeta.notes}` : ''}`
+                      ? `${timestamp}${stepMeta?.notes ? ` - ${stepMeta.notes}` : ''}`
                       : active
                         ? 'Visible in the customer timeline'
                         : 'Waiting for the next update'}
@@ -122,7 +124,7 @@ export function TrackingScreen({
         )}
         {activeOrder ? (
           <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
-            Payment: {activeOrder.paymentStatus ?? 'Pending'} • Delivery:{' '}
+            Payment: {activeOrder.paymentStatus ?? 'Pending'} - Delivery:{' '}
             {activeOrder.deliveryMethod === 'home' ? 'Home delivery' : 'Pickup'}
           </Text>
         ) : null}
@@ -132,9 +134,16 @@ export function TrackingScreen({
           </Text>
         ) : null}
         {activeOrder ? (
-          <View style={customerStyles.inlineRow}>
-            <ActionButton mode={mode} label="View invoice" icon="file-text" onPress={onOpenInvoice} />
-            <ActionButton mode={mode} label="Go to orders" icon="package" variant="secondary" onPress={onOpenOrders} />
+          <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
+            <ActionButton mode={mode} label="View invoice" icon="file-text" onPress={onOpenInvoice} fullWidth={isCompactLayout} />
+            <ActionButton
+              mode={mode}
+              label="Go to orders"
+              icon="package"
+              variant="secondary"
+              onPress={onOpenOrders}
+              fullWidth={isCompactLayout}
+            />
           </View>
         ) : null}
       </View>
