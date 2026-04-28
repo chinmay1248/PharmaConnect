@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
+import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
 
@@ -153,6 +154,7 @@ prescriptionsRouter.post(
           where: { id: orderId },
           include: {
             prescription: true,
+            retailer: true,
           },
         }),
         prisma.user.findUnique({
@@ -211,6 +213,15 @@ prescriptionsRouter.post(
             statusLabel: 'Prescription uploaded',
             notes: 'Customer uploaded a prescription for retailer review.',
           },
+        });
+
+        await createNotification(transaction, {
+          userId: order.retailer.userId,
+          type: 'PRESCRIPTION',
+          title: 'Prescription uploaded',
+          body: `Order ${shortOrderCode(order.id)} has a prescription ready for review.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
         });
 
         return prescription;
