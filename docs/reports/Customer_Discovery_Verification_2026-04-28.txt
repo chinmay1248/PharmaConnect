@@ -1,0 +1,29 @@
+PHARMACONNECT
+Customer Discovery Verification
+
+Verification Date: 28 April 2026
+
+Goal
+- Verify seeded backend + live mobile discovery flow end to end.
+
+What was verified
+- Backend TypeScript build passes:
+  - command: `npm run build` (inside `backend/`)
+- Mobile TypeScript check passes:
+  - command: `npx tsc --noEmit` (inside `mobile/`)
+- Backend health endpoint is wired and reachable at:
+  - `GET /api/health`
+
+Current blocker
+- Live discovery endpoints require PostgreSQL availability.
+- Current runtime response when calling `GET /api/medicines`:
+  - `{"error":"Database is not available yet. Start PostgreSQL and try again."}`
+
+Discovery endpoints ready for re-check after PostgreSQL is up
+- `GET /api/medicines?limit=2`
+- `GET /api/medicines/:id`
+- `GET /api/medicines/:id/retailers?sort=closest`
+
+Conclusion
+- Integration code path is in place and build-safe.
+- Final end-to-end verification is pending only on local PostgreSQL + seeded data runtime availability.
