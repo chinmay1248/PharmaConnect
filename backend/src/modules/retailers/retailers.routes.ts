@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
+import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
 
@@ -499,6 +500,15 @@ retailersRouter.patch(
               },
             });
           }
+
+          await createNotification(transaction, {
+            userId: order.customerId,
+            type: 'ORDER',
+            title: 'Order rejected',
+            body: `Order ${shortOrderCode(order.id)} was rejected: ${payload.rejectionReason}`,
+            referenceKind: 'customer_order',
+            referenceId: order.id,
+          });
         } else {
           const nextStatus = decisionStatusFromPayment(order.payments[0]?.method);
 
@@ -531,6 +541,18 @@ retailersRouter.patch(
               },
             });
           }
+
+          await createNotification(transaction, {
+            userId: order.customerId,
+            type: order.prescription ? 'PRESCRIPTION' : 'ORDER',
+            title: order.prescription ? 'Prescription approved' : 'Order approved',
+            body:
+              nextStatus === 'PAYMENT_PENDING'
+                ? `Order ${shortOrderCode(order.id)} was approved. Payment is pending.`
+                : `Order ${shortOrderCode(order.id)} was approved and fulfilment has started.`,
+            referenceKind: 'customer_order',
+            referenceId: order.id,
+          });
         }
 
         const updatedOrder = await transaction.customerOrder.findUnique({
@@ -617,6 +639,15 @@ retailersRouter.patch(
         await transaction.customerOrder.update({
           where: { id: order.id },
           data: updateData,
+        });
+
+        await createNotification(transaction, {
+          userId: order.customerId,
+          type: payload.status === 'DELIVERED' ? 'DELIVERY' : 'ORDER',
+          title: statusLabelForRetailerUpdate(payload.status),
+          body: `Order ${shortOrderCode(order.id)} status changed to ${mapOrderStatusToTimeline(payload.status)}.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
         });
 
         if (payload.status === 'DELIVERED') {
