@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
+import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
 
@@ -73,6 +74,7 @@ paymentsRouter.post(
         const order = await transaction.customerOrder.findUnique({
           where: { id: orderId },
           include: {
+            retailer: true,
             payments: {
               orderBy: {
                 createdAt: 'desc',
@@ -128,6 +130,24 @@ paymentsRouter.post(
               status: 'GENERATED',
             },
           }));
+
+        await createNotification(transaction, {
+          userId: order.customerId,
+          type: 'PAYMENT',
+          title: 'Payment confirmed',
+          body: `Payment for order ${shortOrderCode(order.id)} was confirmed.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
+        });
+
+        await createNotification(transaction, {
+          userId: order.retailer.userId,
+          type: 'PAYMENT',
+          title: 'Customer payment received',
+          body: `Order ${shortOrderCode(order.id)} is paid and ready for fulfilment.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
+        });
 
         return {
           order: updatedOrder,
