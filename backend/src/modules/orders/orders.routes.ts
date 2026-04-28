@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
+import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
 
@@ -182,6 +183,24 @@ ordersRouter.post(
               ],
             },
           },
+        });
+
+        await createNotification(transaction, {
+          userId: payload.customerId,
+          type: 'ORDER',
+          title: 'Order placed',
+          body: `Order ${shortOrderCode(order.id)} was sent to the retailer for approval.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
+        });
+
+        await createNotification(transaction, {
+          userId: retailer.userId,
+          type: 'ORDER',
+          title: 'New customer order',
+          body: `Order ${shortOrderCode(order.id)} is waiting for retailer approval.`,
+          referenceKind: 'customer_order',
+          referenceId: order.id,
         });
 
         if (payload.paymentMethod) {
