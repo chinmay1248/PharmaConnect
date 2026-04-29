@@ -1,0 +1,28 @@
+PHARMACONNECT
+Backend Module Progress
+
+Update Date: 29 April 2026
+
+Completed in this update
+- Replaced the placeholder notifications module with working notification APIs.
+- Added stored in-app notifications for customer order creation, payment confirmation, prescription upload, retailer approval/rejection, and delivery status updates.
+- Added a shared backend notification helper for consistent event notification creation.
+- Added wholeseller backend routes for discovery, inventory, retailer purchase order listing, and scheme listing/creation.
+- Added company backend routes for supplier discovery, company medicine catalogue, wholeseller order listing, and offer listing/creation.
+- Added analytics summary routes for retailer, wholeseller, and company dashboards.
+
+New backend route groups
+- `/api/notifications`
+- `/api/wholesellers`
+- `/api/companies`
+- `/api/analytics`
+
+Verification
+- Backend TypeScript build passes with `npm run build`.
+- Mobile TypeScript check passes with `npx tsc --noEmit`.
+
+Remaining blocker
+- Runtime end-to-end API testing still needs PostgreSQL to be running with seeded PharmaConnect data.
+
+Recommended next development step
+- Start PostgreSQL, run migration and seed, then verify the new route groups against seeded users, retailer inventory, wholeseller inventory, companies, offers, schemes, and analytics summaries.

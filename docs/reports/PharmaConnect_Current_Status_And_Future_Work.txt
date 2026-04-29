@@ -204,3 +204,19 @@ In the next daily update, the expected focus should be one of these:
 Current truthful project status:
 
 PharmaConnect is now a multi-part prototype with a working customer mobile frontend, a backend foundation, a defined database schema, seed data, and partial real API integration for medicine discovery. The current priority is to complete the rest of the customer flow against the backend before starting the larger retailer, wholeseller, and company modules.
+
+
+13. Implementation Update - 29 April 2026
+
+Additional backend progress completed after the 8 April status:
+
+- notifications module now has working inbox, unread, mark-read, mark-all-read, and device registration APIs
+- order, payment, prescription, and retailer status events now create stored in-app notifications
+- wholeseller backend routes now exist for discovery, inventory, retailer order listing, and scheme listing/creation
+- company backend routes now exist for supplier discovery, medicine catalogue, wholeseller order listing, and offer listing/creation
+- analytics backend routes now exist for retailer, wholeseller, and company dashboard summaries
+
+Updated limitation:
+
+- retailer, wholeseller, and company frontend modules are still not built
+- PostgreSQL must be running with seeded data before the new backend modules can be verified end to end at runtime
