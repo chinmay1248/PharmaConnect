@@ -67,6 +67,10 @@ Backend and integration work now added:
 - medicine detail API
 - retailer comparison API
 - mobile discovery flow connected to live backend data with mock fallback
+- mobile signup/login/profile/address flow connected to backend auth routes
+- customer order creation connected to backend order APIs with local fallback
+- prescription upload metadata, payment confirmation, tracking, invoice, and order history connected to backend APIs
+- customer notification inbox connected to backend notification APIs
 
 
 5. Main Files Created
@@ -80,6 +84,13 @@ Backend and integration work now added:
 - mobile/src/components/ScreenContainer.tsx
 - mobile/src/components/SectionHeader.tsx
 - mobile/assets/pharmaconnect-logo.png
+- mobile/src/services/customerAuth.ts
+- mobile/src/services/customerOrders.ts
+- mobile/src/services/medicineDiscovery.ts
+- mobile/src/services/notifications.ts
+- mobile/src/services/orderFlow.ts
+- mobile/src/services/prescriptions.ts
+- mobile/src/screens/customer/NotificationsScreen.tsx
 
 
 6. What Is Working Right Now
@@ -95,6 +106,10 @@ Backend and integration work now added:
 - Order tracking UI
 - Orders and profile tabs
 - Backend build and mobile TypeScript verification
+- Backend-linked customer signup/login/session restore
+- Backend-linked address management
+- Backend-linked checkout order creation with prescription, payment, invoice, tracking, and order history support
+- Backend-linked notification inbox with unread count and mark-all-read support
 
 
 7. What Is Still Pending
@@ -102,14 +117,11 @@ Backend and integration work now added:
 - Firebase OTP login
 - Google sign-in
 - Expo Router navigation
-- cart and order API integration
 - barcode scan
 - live location
-- prescription upload integration
-- payment integration
-- notifications
-- address management
-- real order history and tracking updates
+- production file storage for prescription images
+- production payment gateway integration
+- push notification delivery beyond stored in-app notifications
 
 
 8. Verification Done
@@ -120,13 +132,13 @@ TypeScript check completed successfully:
 
 9. Current Status
 
-The customer module has moved beyond a pure mock frontend.
-The project now has a real mobile app base, a backend foundation, and partial live API integration for customer medicine discovery.
+The customer module is now complete for the current prototype scope.
+The project has a real mobile app base, a backend foundation, and live API integration across customer discovery, auth, address management, checkout, prescription metadata upload, payment confirmation, invoices, tracking, order history, and notifications.
 
 
 10. Next Best Step
 
 Best next step:
-- verify the seeded backend with the mobile discovery flow end to end
-- then connect cart, orders, auth, prescription, payment, invoice, and tracking to backend APIs
+- start PostgreSQL, run migration and seed, then verify the full customer flow end to end with seeded data
+- move to the retailer frontend module so retailer approval, prescription review, packing, dispatch, and delivery updates can operate from a real UI
 
