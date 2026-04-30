@@ -61,20 +61,19 @@ What is implemented in code right now:
 - database seed script
 - customer signup/login/profile API structure
 - medicine discovery APIs
-- partial real API integration for customer search, medicine detail, and pharmacy comparison
-- mock order flow
-- mock invoice and tracking flow
+- real API integration for customer search, medicine detail, and pharmacy comparison
+- customer signup/login/session restore and address management connected to backend auth APIs
+- customer order creation, prescription metadata upload, payment confirmation, invoice, tracking, and order history connected to backend APIs with local fallback
+- customer notification inbox connected to backend notification APIs
 
 What is not implemented in code right now:
 
-- full auth flow inside the mobile app
-- full customer cart/order/prescription/payment backend integration
 - retailer module
 - wholeseller module
 - company module
-- real payment integration
-- real prescription upload and approval workflow end to end
-- real notifications
+- production payment gateway integration
+- production prescription file storage
+- push notification delivery beyond stored in-app notifications
 
 
 4. Current Strengths
@@ -100,12 +99,10 @@ The project is still prototype-oriented.
 
 Main limitations at present:
 
-- only part of the customer flow is connected to real APIs
-- customer cart, order, invoice, and tracking are still simulated
-- prescription, payment, tracking, and invoice are frontend-only flows
-- mobile auth is not yet connected to backend auth routes
 - no real role-based protected flow exists yet
-- retailer, wholeseller, and company modules are still only planned in documents
+- retailer, wholeseller, and company frontend modules are still not built
+- PostgreSQL must be running with seeded data for full runtime verification
+- production payment gateway, prescription file storage, live location, barcode scan, OTP/social sign-in, and push delivery are still future hardening items
 
 
 6. Current Customer Module Status
@@ -128,13 +125,21 @@ Customer flow already available in prototype form:
 - orders history
 - account view
 
-Customer flow now partially uses backend data for:
+Customer flow now uses backend data for:
 
 - medicine search and discovery
 - medicine detail retrieval
 - pharmacy stock comparison
+- signup/login/profile/session restore
+- saved address management
+- order placement
+- prescription upload metadata
+- payment confirmation simulation
+- invoice retrieval and text export
+- order history and tracking
+- in-app notifications
 
-This makes the customer module stronger than a pure mock demo, but it is still not yet a production-ready app.
+This completes the customer module for the current prototype scope.
 
 
 7. Current Engineering Status
@@ -144,8 +149,8 @@ Technical status at the moment:
 - mobile app builds locally
 - mobile TypeScript compilation is passing
 - backend TypeScript build is passing
-- seeded backend APIs exist for medicine discovery
-- mobile app can use live discovery APIs with mock fallback
+- seeded backend APIs exist for medicine discovery, customer auth, addresses, orders, prescriptions, payments, invoices, tracking, and notifications
+- mobile app can use live customer APIs with local fallback where useful
 
 However, the codebase still needs further structural improvement before major feature expansion.
 
@@ -155,21 +160,20 @@ However, the codebase still needs further structural improvement before major fe
 Important project risks right now:
 
 - mobile and backend contracts can drift if they are not documented and reused carefully
-- mixed mock/live flows can become confusing if not finished in the next few iterations
+- mixed mock/live fallback flows should be verified carefully when PostgreSQL is available
 - retailer workflow is still missing, which means customer flow is not operational in real business terms
-- documents are currently more advanced than the actual implementation
+- production integrations still need to replace prototype simulation for payments, prescription file storage, and push delivery
 
 
 9. Recommended Immediate Next Step
 
-The best next step is to continue finishing the customer module integration before starting large new modules.
+The best next step is to verify the completed customer prototype with PostgreSQL and seeded data, then start the retailer frontend module.
 
 Immediate recommended work:
 
-- run the seeded backend and verify the live discovery flow end to end
-- connect cart and order placement screens to backend order APIs
-- connect prescription upload, payment, invoice, and tracking flows
-- connect mobile signup/login to backend auth routes
+- start PostgreSQL and run migration/seed
+- verify the full customer flow end to end
+- build the retailer frontend workflow for customer order approval/rejection, prescription review, packing, dispatch, pickup-ready, and delivery updates
 - then improve navigation structure if needed
 
 
@@ -177,33 +181,29 @@ Immediate recommended work:
 
 A practical execution order from here is:
 
-1. Verify seeded backend plus live mobile discovery integration
-2. Connect customer cart and order flow to backend
-3. Implement authentication in the mobile app using existing backend routes
-4. Connect prescription, payment, invoice, and tracking services
-5. Add real routing/navigation if the current screen-state approach becomes limiting
-6. Build retailer workflow
-7. Add real prescription, payment, invoice, and notification services
-8. Build wholeseller module
-9. Build company module
-10. Prepare the platform for production deployment
+1. Verify seeded backend plus the full customer flow end to end
+2. Build retailer workflow
+3. Add real routing/navigation if the current screen-state approach becomes limiting
+4. Add production prescription file storage, payment gateway, live location, barcode scan, OTP/social sign-in, and push notification delivery
+5. Build wholeseller module
+6. Build company module
+7. Prepare the platform for production deployment
 
 
 11. Next Update Focus
 
 In the next daily update, the expected focus should be one of these:
 
-- discovery flow end-to-end testing
-- order API integration
-- auth integration in mobile app
-- prescription and payment workflow integration
+- full customer flow runtime verification with PostgreSQL and seeded data
+- retailer frontend workflow kickoff
+- retailer/customer order handoff testing
 
 
 12. Closing Status
 
 Current truthful project status:
 
-PharmaConnect is now a multi-part prototype with a working customer mobile frontend, a backend foundation, a defined database schema, seed data, and partial real API integration for medicine discovery. The current priority is to complete the rest of the customer flow against the backend before starting the larger retailer, wholeseller, and company modules.
+PharmaConnect is now a multi-part prototype with a completed customer module for the current scope, a backend foundation, a defined database schema, seed data, and live customer API integration across discovery, auth, addresses, orders, prescriptions, payments, invoices, tracking, and notifications. The current priority is to verify the full customer flow against seeded PostgreSQL data, then build the retailer module.
 
 
 13. Implementation Update - 29 April 2026
@@ -215,8 +215,12 @@ Additional backend progress completed after the 8 April status:
 - wholeseller backend routes now exist for discovery, inventory, retailer order listing, and scheme listing/creation
 - company backend routes now exist for supplier discovery, medicine catalogue, wholeseller order listing, and offer listing/creation
 - analytics backend routes now exist for retailer, wholeseller, and company dashboard summaries
+- retailer mobile module now exists with dashboard, customer orders, inventory, buy/restock, and analytics screens
+- retailer mobile module is connected to existing retailer, wholeseller, analytics, auth, and customer-order action APIs with local fallback data
+- retailer backend now supports inventory add/update, batch add/update, retailer purchase-order creation/history, wholeseller stock reservation, and retailer receipt confirmation with inventory auto-add
 
 Updated limitation:
 
-- retailer, wholeseller, and company frontend modules are still not built
+- retailer inventory and purchase-order UI still needs richer forms and the wholesaler-side approval/dispatch screen
+- wholeseller and company frontend modules are still not built
 - PostgreSQL must be running with seeded data before the new backend modules can be verified end to end at runtime
