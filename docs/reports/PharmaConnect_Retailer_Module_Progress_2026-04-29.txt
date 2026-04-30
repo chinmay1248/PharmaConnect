@@ -1,0 +1,57 @@
+PHARMACONNECT
+Retailer Module Progress
+
+Update Date: 29 April 2026
+
+Completed in this update
+- Read the retailer, wholesaler, and company planning checklist before implementation.
+- Added a retailer mobile module mounted from `mobile/App.tsx`.
+- Added demo retailer backend login using the seeded retailer account.
+- Added live retailer service calls for:
+  - retailer profile and inventory
+  - retailer dashboard analytics summary
+  - customer order list
+  - approve/reject customer order decisions
+  - packed, dispatched/pickup-ready, and delivered status updates
+  - wholesaler discovery
+  - wholesaler inventory discovery for restocking
+- Added local fallback data so the module remains usable when PostgreSQL is not running.
+- Added backend retailer inventory mutation APIs:
+  - add/update retailer inventory rows
+  - add retailer inventory batches
+  - update retailer inventory batches
+- Added backend retailer purchase-order APIs:
+  - list retailer purchase orders
+  - create retailer-to-wholeseller purchase orders
+  - reserve wholeseller stock when purchase orders are placed
+  - create payment and invoice records for purchase orders
+  - confirm purchase receipt and auto-add stock to retailer inventory
+- Connected the mobile Buy screen to live purchase-order creation.
+- Connected the mobile Inventory screen to live stock update and batch creation actions.
+
+Screens now available in the retailer mobile module
+- Dashboard with KPI cards, recent orders, and low-stock alerts
+- Orders screen with status filters, search, order cards, order detail, prescription metadata, price summary, approve/deny actions, and next-status action
+- Inventory screen with search, all/low/out filters, stock quantities, reorder thresholds, and stock status bar
+- Buy screen with low-stock suggestions, wholesaler selection, wholesaler inventory, live purchase-order creation, and purchase-order history
+- Analytics screen with revenue/order/active/low-stock summary and top medicine list
+
+Files added
+- `mobile/src/screens/RetailerModuleApp.tsx`
+- `mobile/src/screens/retailer/retailerTypes.ts`
+- `mobile/src/services/retailer.ts`
+
+Files updated
+- `mobile/App.tsx`
+- `backend/src/modules/retailers/retailers.routes.ts`
+
+Verification
+- Mobile TypeScript check passes with `npx tsc --noEmit`.
+- Backend TypeScript build passes with `npm run build`.
+
+Remaining work for retailer module
+- Add richer retailer inventory forms instead of the current quick demo actions.
+- Add wholesaler-side approval/dispatch UI so retailer purchase orders can move through the full B2B lifecycle from a real screen.
+- Add retailer purchase invoice download endpoint and mobile download action.
+- Verify live customer order approval/status updates with PostgreSQL running and seeded data.
+- Verify retailer purchase-order creation and receipt confirmation with PostgreSQL running and seeded data.
