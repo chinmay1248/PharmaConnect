@@ -16,6 +16,7 @@ export type Screen =
   | 'tracking'
   | 'invoice'
   | 'orders'
+  | 'notifications'
   | 'account';
 
 // Sorting options used on the nearby pharmacy comparison screen.
@@ -125,6 +126,17 @@ export type CustomerOrderTrackingState = CustomerOrderSummary & {
   deliveryMethod: Exclude<DeliveryMethod, null>;
   trackingEvents: OrderTimelineStep[];
   rejectionReason?: string | null;
+};
+
+export type CustomerNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  referenceKind?: string | null;
+  referenceId?: string | null;
+  isRead: boolean;
+  createdAt: string;
 };
 
 // Sorted pharmacy row used by the pharmacy comparison screen.
