@@ -55,6 +55,135 @@ const retailerStatusUpdateSchema = z.object({
   notes: z.string().max(240).optional(),
 });
 
+const retailerInventoryUpsertSchema = z.object({
+  medicineId: z.string().min(1),
+  salePrice: z.coerce.number().positive(),
+  stockQuantity: z.coerce.number().int().nonnegative(),
+  reorderLevel: z.coerce.number().int().nonnegative().optional(),
+  batch: z
+    .object({
+      batchNumber: z.string().min(1).max(80),
+      quantity: z.coerce.number().int().positive(),
+      purchasePrice: z.coerce.number().positive().optional(),
+      expiryDate: z.coerce.date(),
+    })
+    .optional(),
+});
+
+const retailerInventoryUpdateSchema = z
+  .object({
+    salePrice: z.coerce.number().positive().optional(),
+    stockQuantity: z.coerce.number().int().nonnegative().optional(),
+    reorderLevel: z.coerce.number().int().nonnegative().nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one inventory field is required',
+  });
+
+const retailerBatchCreateSchema = z.object({
+  batchNumber: z.string().min(1).max(80),
+  quantity: z.coerce.number().int().positive(),
+  purchasePrice: z.coerce.number().positive().optional(),
+  expiryDate: z.coerce.date(),
+});
+
+const retailerBatchUpdateSchema = z
+  .object({
+    quantity: z.coerce.number().int().nonnegative().optional(),
+    purchasePrice: z.coerce.number().positive().nullable().optional(),
+    expiryDate: z.coerce.date().optional(),
+  })
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one batch field is required',
+  });
+
+const retailerPurchaseOrderCreateSchema = z.object({
+  wholesellerId: z.string().min(1),
+  paymentMethod: z.enum(['UPI', 'CARD', 'BANK_TRANSFER', 'CASH_ON_DELIVERY']).optional(),
+  items: z
+    .array(
+      z.object({
+        medicineId: z.string().min(1),
+        quantity: z.coerce.number().int().positive(),
+      }),
+    )
+    .min(1),
+});
+
+function buildPurchaseInvoiceNumber(orderId: string) {
+  return `RPO-INV-${orderId.slice(-10).toUpperCase()}`;
+}
+
+function mapRetailerInventoryItem(item: any) {
+  return {
+    inventoryId: item.id,
+    medicineId: item.medicine.id,
+    brandName: item.medicine.brandName,
+    genericName: item.medicine.genericName,
+    dosage: item.medicine.dosage,
+    packSize: item.medicine.packSize,
+    salePrice: Number(item.salePrice),
+    stockQuantity: item.stockQuantity,
+    reservedQuantity: item.reservedQuantity,
+    availableQuantity: item.stockQuantity - item.reservedQuantity,
+    reorderLevel: item.reorderLevel,
+    batches: item.batches?.map((batch: any) => ({
+      id: batch.id,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      quantity: batch.quantity,
+      purchasePrice: batch.purchasePrice ? Number(batch.purchasePrice) : null,
+    })),
+  };
+}
+
+function mapRetailerPurchaseOrder(order: any) {
+  return {
+    id: order.id,
+    status: order.status,
+    placedAt: order.placedAt,
+    deliveredAt: order.deliveredAt,
+    subtotalAmount: Number(order.subtotalAmount),
+    schemeDiscountAmount: Number(order.schemeDiscountAmount),
+    totalAmount: Number(order.totalAmount),
+    rejectionReason: order.rejectionReason,
+    wholeseller: {
+      id: order.wholeseller.id,
+      businessName: order.wholeseller.businessName,
+      serviceArea: order.wholeseller.serviceArea,
+    },
+    items: order.items.map((item: any) => ({
+      id: item.id,
+      medicineId: item.medicineId,
+      brandName: item.medicine.brandName,
+      genericName: item.medicine.genericName,
+      dosage: item.medicine.dosage,
+      packSize: item.medicine.packSize,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      lineTotal: Number(item.lineTotal),
+    })),
+    latestPayment: order.payments[0]
+      ? {
+          id: order.payments[0].id,
+          method: order.payments[0].method,
+          status: order.payments[0].status,
+          amount: Number(order.payments[0].amount),
+          paidAt: order.payments[0].paidAt,
+        }
+      : null,
+    latestInvoice: order.invoices[0]
+      ? {
+          id: order.invoices[0].id,
+          invoiceNumber: order.invoices[0].invoiceNumber,
+          status: order.invoices[0].status,
+        }
+      : null,
+    trackingEvents: order.trackingEvents ?? [],
+  };
+}
+
 function mapOrderStatusToTimeline(status: string) {
   if (status === 'APPROVED_BY_RETAILER' || status === 'PAYMENT_PENDING' || status === 'PAID') {
     return 'Confirmed';
@@ -301,7 +430,9 @@ retailersRouter.get(
             packSize: item.medicine.packSize,
             salePrice: Number(item.salePrice),
             stockQuantity: item.stockQuantity,
+            reservedQuantity: item.reservedQuantity,
             availableQuantity: item.stockQuantity - item.reservedQuantity,
+            reorderLevel: item.reorderLevel,
           })),
         },
       });
@@ -339,11 +470,227 @@ retailersRouter.get(
           medicineId: item.medicine.id,
           brandName: item.medicine.brandName,
           genericName: item.medicine.genericName,
+          dosage: item.medicine.dosage,
+          packSize: item.medicine.packSize,
           salePrice: Number(item.salePrice),
           stockQuantity: item.stockQuantity,
           reservedQuantity: item.reservedQuantity,
           availableQuantity: item.stockQuantity - item.reservedQuantity,
+          reorderLevel: item.reorderLevel,
         })),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Adds or updates one retailer inventory row, optionally creating an opening batch.
+retailersRouter.post(
+  '/:retailerId/inventory',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const payload = retailerInventoryUpsertSchema.parse(request.body ?? {});
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const [retailer, medicine] = await Promise.all([
+          transaction.retailer.findUnique({ where: { id: retailerId } }),
+          transaction.medicine.findUnique({ where: { id: payload.medicineId } }),
+        ]);
+
+        if (!retailer) {
+          throw new HttpError(404, 'Retailer not found');
+        }
+
+        if (!medicine) {
+          throw new HttpError(404, 'Medicine not found');
+        }
+
+        const inventory = await transaction.retailerInventory.upsert({
+          where: {
+            retailerId_medicineId: {
+              retailerId,
+              medicineId: payload.medicineId,
+            },
+          },
+          update: {
+            salePrice: payload.salePrice.toFixed(2),
+            stockQuantity: payload.stockQuantity,
+            reorderLevel: payload.reorderLevel,
+            isActive: true,
+          },
+          create: {
+            retailerId,
+            medicineId: payload.medicineId,
+            salePrice: payload.salePrice.toFixed(2),
+            stockQuantity: payload.stockQuantity,
+            reorderLevel: payload.reorderLevel,
+            isActive: true,
+          },
+        });
+
+        if (payload.batch) {
+          await transaction.retailerInventoryBatch.create({
+            data: {
+              retailerInventoryId: inventory.id,
+              batchNumber: payload.batch.batchNumber,
+              quantity: payload.batch.quantity,
+              purchasePrice: payload.batch.purchasePrice?.toFixed(2),
+              expiryDate: payload.batch.expiryDate,
+            },
+          });
+        }
+
+        return transaction.retailerInventory.findUnique({
+          where: { id: inventory.id },
+          include: {
+            medicine: true,
+            batches: {
+              orderBy: { expiryDate: 'asc' },
+            },
+          },
+        });
+      });
+
+      response.status(201).json({ inventory: mapRetailerInventoryItem(result) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Updates price, available stock, reorder level, or active flag for one retailer inventory item.
+retailersRouter.patch(
+  '/:retailerId/inventory/:inventoryId',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const inventoryId = String(request.params.inventoryId);
+    const payload = retailerInventoryUpdateSchema.parse(request.body ?? {});
+
+    try {
+      const existing = await prisma.retailerInventory.findFirst({
+        where: {
+          id: inventoryId,
+          retailerId,
+        },
+      });
+
+      if (!existing) {
+        throw new HttpError(404, 'Inventory item not found for this retailer');
+      }
+
+      const updated = await prisma.retailerInventory.update({
+        where: { id: inventoryId },
+        data: {
+          ...(payload.salePrice !== undefined ? { salePrice: payload.salePrice.toFixed(2) } : {}),
+          ...(payload.stockQuantity !== undefined ? { stockQuantity: payload.stockQuantity } : {}),
+          ...(payload.reorderLevel !== undefined ? { reorderLevel: payload.reorderLevel } : {}),
+          ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+        },
+        include: {
+          medicine: true,
+          batches: {
+            orderBy: { expiryDate: 'asc' },
+          },
+        },
+      });
+
+      response.json({ inventory: mapRetailerInventoryItem(updated) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Adds a new batch for an existing retailer inventory item.
+retailersRouter.post(
+  '/:retailerId/inventory/:inventoryId/batches',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const inventoryId = String(request.params.inventoryId);
+    const payload = retailerBatchCreateSchema.parse(request.body ?? {});
+
+    try {
+      const inventory = await prisma.retailerInventory.findFirst({
+        where: {
+          id: inventoryId,
+          retailerId,
+        },
+      });
+
+      if (!inventory) {
+        throw new HttpError(404, 'Inventory item not found for this retailer');
+      }
+
+      const batch = await prisma.retailerInventoryBatch.create({
+        data: {
+          retailerInventoryId: inventoryId,
+          batchNumber: payload.batchNumber,
+          quantity: payload.quantity,
+          purchasePrice: payload.purchasePrice?.toFixed(2),
+          expiryDate: payload.expiryDate,
+        },
+      });
+
+      response.status(201).json({
+        batch: {
+          id: batch.id,
+          batchNumber: batch.batchNumber,
+          expiryDate: batch.expiryDate,
+          quantity: batch.quantity,
+          purchasePrice: batch.purchasePrice ? Number(batch.purchasePrice) : null,
+        },
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Updates an existing inventory batch owned by this retailer.
+retailersRouter.patch(
+  '/:retailerId/inventory/:inventoryId/batches/:batchId',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const inventoryId = String(request.params.inventoryId);
+    const batchId = String(request.params.batchId);
+    const payload = retailerBatchUpdateSchema.parse(request.body ?? {});
+
+    try {
+      const batch = await prisma.retailerInventoryBatch.findFirst({
+        where: {
+          id: batchId,
+          retailerInventoryId: inventoryId,
+          retailerInventory: {
+            retailerId,
+          },
+        },
+      });
+
+      if (!batch) {
+        throw new HttpError(404, 'Batch not found for this retailer inventory item');
+      }
+
+      const updated = await prisma.retailerInventoryBatch.update({
+        where: { id: batchId },
+        data: {
+          ...(payload.quantity !== undefined ? { quantity: payload.quantity } : {}),
+          ...(payload.purchasePrice !== undefined
+            ? { purchasePrice: payload.purchasePrice === null ? null : payload.purchasePrice.toFixed(2) }
+            : {}),
+          ...(payload.expiryDate !== undefined ? { expiryDate: payload.expiryDate } : {}),
+        },
+      });
+
+      response.json({
+        batch: {
+          id: updated.id,
+          batchNumber: updated.batchNumber,
+          expiryDate: updated.expiryDate,
+          quantity: updated.quantity,
+          purchasePrice: updated.purchasePrice ? Number(updated.purchasePrice) : null,
+        },
       });
     } catch (error) {
       mapPrismaError(error);
@@ -718,6 +1065,359 @@ retailersRouter.patch(
 
       response.json({
         order: mapRetailerOrderResponse(result),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Lists purchase orders this retailer placed with wholesalers.
+retailersRouter.get(
+  '/:retailerId/purchase-orders',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+
+    try {
+      const retailer = await prisma.retailer.findUnique({
+        where: { id: retailerId },
+        select: { id: true },
+      });
+
+      if (!retailer) {
+        throw new HttpError(404, 'Retailer not found');
+      }
+
+      const orders = await prisma.retailerPurchaseOrder.findMany({
+        where: { retailerId },
+        include: {
+          wholeseller: true,
+          items: {
+            include: {
+              medicine: true,
+            },
+          },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+          },
+          invoices: {
+            orderBy: { generatedAt: 'desc' },
+          },
+          trackingEvents: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+        orderBy: { placedAt: 'desc' },
+      });
+
+      response.json({
+        retailerId,
+        orders: orders.map(mapRetailerPurchaseOrder),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Creates a retailer purchase order against wholesaler inventory and reserves wholesaler stock.
+retailersRouter.post(
+  '/:retailerId/purchase-orders',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const payload = retailerPurchaseOrderCreateSchema.parse(request.body ?? {});
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const [retailer, wholeseller, inventoryRows] = await Promise.all([
+          transaction.retailer.findUnique({ where: { id: retailerId } }),
+          transaction.wholeseller.findUnique({ where: { id: payload.wholesellerId } }),
+          transaction.wholesellerInventory.findMany({
+            where: {
+              wholesellerId: payload.wholesellerId,
+              medicineId: { in: payload.items.map((item) => item.medicineId) },
+              isActive: true,
+            },
+            include: {
+              medicine: true,
+            },
+          }),
+        ]);
+
+        if (!retailer) {
+          throw new HttpError(404, 'Retailer not found');
+        }
+
+        if (!wholeseller) {
+          throw new HttpError(404, 'Wholeseller not found');
+        }
+
+        const inventoryByMedicineId = new Map<string, any>(
+          inventoryRows.map((row: any) => [row.medicineId, row]),
+        );
+
+        for (const item of payload.items) {
+          const inventory = inventoryByMedicineId.get(item.medicineId);
+
+          if (!inventory) {
+            throw new HttpError(400, 'One or more medicines are not available from this wholeseller');
+          }
+
+          const availableQuantity = inventory.stockQuantity - inventory.reservedQuantity;
+
+          if (availableQuantity < item.quantity) {
+            throw new HttpError(
+              400,
+              `Not enough wholeseller stock for ${inventory.medicine.brandName}. Available quantity: ${availableQuantity}.`,
+            );
+          }
+        }
+
+        const subtotalAmount = payload.items.reduce((sum, item) => {
+          const inventory = inventoryByMedicineId.get(item.medicineId);
+          return sum + Number(inventory?.salePrice ?? 0) * item.quantity;
+        }, 0);
+        const totalAmount = subtotalAmount;
+
+        const order = await transaction.retailerPurchaseOrder.create({
+          data: {
+            retailerId,
+            wholesellerId: payload.wholesellerId,
+            subtotalAmount: subtotalAmount.toFixed(2),
+            totalAmount: totalAmount.toFixed(2),
+            items: {
+              create: payload.items.map((item) => {
+                const inventory = inventoryByMedicineId.get(item.medicineId)!;
+                const unitPrice = Number(inventory.salePrice);
+
+                return {
+                  medicineId: item.medicineId,
+                  quantity: item.quantity,
+                  unitPrice: unitPrice.toFixed(2),
+                  lineTotal: (unitPrice * item.quantity).toFixed(2),
+                };
+              }),
+            },
+            trackingEvents: {
+              create: {
+                statusLabel: 'Purchase order placed',
+                notes: 'Retailer sent a restock request to the wholeseller.',
+              },
+            },
+          },
+        });
+
+        if (payload.paymentMethod) {
+          await transaction.paymentRecord.create({
+            data: {
+              retailerPurchaseOrderId: order.id,
+              method: payload.paymentMethod,
+              status: payload.paymentMethod === 'CASH_ON_DELIVERY' ? 'PENDING' : 'SUCCESS',
+              amount: totalAmount.toFixed(2),
+              gatewayReference:
+                payload.paymentMethod === 'CASH_ON_DELIVERY'
+                  ? undefined
+                  : `demo-rpo-${payload.paymentMethod.toLowerCase()}-${Date.now()}`,
+              paidAt: payload.paymentMethod === 'CASH_ON_DELIVERY' ? undefined : new Date(),
+            },
+          });
+        }
+
+        await transaction.invoiceRecord.create({
+          data: {
+            retailerPurchaseOrderId: order.id,
+            invoiceNumber: buildPurchaseInvoiceNumber(order.id),
+            status: 'GENERATED',
+          },
+        });
+
+        for (const item of payload.items) {
+          const inventory = inventoryByMedicineId.get(item.medicineId)!;
+
+          await transaction.wholesellerInventory.update({
+            where: { id: inventory.id },
+            data: {
+              reservedQuantity: inventory.reservedQuantity + item.quantity,
+            },
+          });
+        }
+
+        await createNotification(transaction, {
+          userId: wholeseller.userId,
+          type: 'ORDER',
+          title: 'New retailer purchase order',
+          body: `${retailer.businessName} placed a restock order for ${payload.items.length} item${payload.items.length === 1 ? '' : 's'}.`,
+          referenceKind: 'retailer_purchase_order',
+          referenceId: order.id,
+        });
+
+        return transaction.retailerPurchaseOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            wholeseller: true,
+            items: {
+              include: {
+                medicine: true,
+              },
+            },
+            payments: {
+              orderBy: { createdAt: 'desc' },
+            },
+            invoices: {
+              orderBy: { generatedAt: 'desc' },
+            },
+            trackingEvents: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+      });
+
+      response.status(201).json({
+        order: mapRetailerPurchaseOrder(result),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Confirms receipt of a dispatched retailer purchase order and adds received quantities to retailer inventory.
+retailersRouter.patch(
+  '/:retailerId/purchase-orders/:orderId/confirm-receipt',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const orderId = String(request.params.orderId);
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const order = await transaction.retailerPurchaseOrder.findFirst({
+          where: {
+            id: orderId,
+            retailerId,
+          },
+          include: {
+            retailer: true,
+            wholeseller: true,
+            items: {
+              include: {
+                medicine: true,
+              },
+            },
+            payments: {
+              orderBy: { createdAt: 'desc' },
+            },
+            invoices: {
+              orderBy: { generatedAt: 'desc' },
+            },
+          },
+        });
+
+        if (!order) {
+          throw new HttpError(404, 'Purchase order not found for this retailer');
+        }
+
+        if (!['DISPATCHED', 'PAID', 'APPROVED'].includes(order.status)) {
+          throw new HttpError(409, `Cannot confirm receipt while purchase order is ${order.status}`);
+        }
+
+        await transaction.retailerPurchaseOrder.update({
+          where: { id: order.id },
+          data: {
+            status: 'DELIVERED',
+            deliveredAt: new Date(),
+            trackingEvents: {
+              create: {
+                statusLabel: 'Stock received',
+                notes: 'Retailer confirmed receipt and inventory was updated.',
+              },
+            },
+          },
+        });
+
+        for (const item of order.items as any[]) {
+          const salePrice = Number(item.unitPrice) * 1.12;
+          const inventory = await transaction.retailerInventory.upsert({
+            where: {
+              retailerId_medicineId: {
+                retailerId,
+                medicineId: item.medicineId,
+              },
+            },
+            update: {
+              stockQuantity: {
+                increment: item.quantity,
+              },
+              salePrice: salePrice.toFixed(2),
+              isActive: true,
+            },
+            create: {
+              retailerId,
+              medicineId: item.medicineId,
+              stockQuantity: item.quantity,
+              salePrice: salePrice.toFixed(2),
+              reorderLevel: Math.max(5, Math.floor(item.quantity * 0.2)),
+              isActive: true,
+            },
+          });
+
+          await transaction.retailerInventoryBatch.create({
+            data: {
+              retailerInventoryId: inventory.id,
+              batchNumber: `RPO-${order.id.slice(-6).toUpperCase()}-${item.medicineId.slice(-4).toUpperCase()}`,
+              quantity: item.quantity,
+              purchasePrice: Number(item.unitPrice).toFixed(2),
+              expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+            },
+          });
+        }
+
+        const latestPayment = order.payments[0];
+
+        if (latestPayment && latestPayment.method === 'CASH_ON_DELIVERY' && latestPayment.status !== 'SUCCESS') {
+          await transaction.paymentRecord.update({
+            where: { id: latestPayment.id },
+            data: {
+              status: 'SUCCESS',
+              paidAt: new Date(),
+              gatewayReference: latestPayment.gatewayReference ?? `rpo-cod-${order.id}-${Date.now()}`,
+            },
+          });
+        }
+
+        await createNotification(transaction, {
+          userId: order.wholeseller.userId,
+          type: 'ORDER',
+          title: 'Retailer stock received',
+          body: `${order.retailer.businessName} confirmed receipt of purchase order ${order.id.slice(-8).toUpperCase()}.`,
+          referenceKind: 'retailer_purchase_order',
+          referenceId: order.id,
+        });
+
+        return transaction.retailerPurchaseOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            wholeseller: true,
+            items: {
+              include: {
+                medicine: true,
+              },
+            },
+            payments: {
+              orderBy: { createdAt: 'desc' },
+            },
+            invoices: {
+              orderBy: { generatedAt: 'desc' },
+            },
+            trackingEvents: {
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+      });
+
+      response.json({
+        order: mapRetailerPurchaseOrder(result),
       });
     } catch (error) {
       mapPrismaError(error);
