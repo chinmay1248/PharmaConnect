@@ -102,6 +102,22 @@ export const customerStyles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  iconBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  iconBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
   },
   searchWrap: {
     flexDirection: 'row',
@@ -471,6 +487,21 @@ export const customerStyles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     gap: 10,
+  },
+  notificationCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    gap: 8,
+  },
+  notificationUnread: {
+    borderLeftWidth: 4,
+  },
+  notificationMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
   },
   infoHeader: {
     flexDirection: 'row',
