@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { BrandLogo } from '../../components/BrandLogo';
 import { InteractivePressable } from '../../components/InteractivePressable';
 import { ThemeMode, ThemePalette } from '../../theme/theme';
@@ -16,7 +16,9 @@ type CustomerHeaderProps = {
   onSubmitSearch: () => void;
   onPressAccount: () => void;
   onToggleTheme: () => void;
+  onPressNotifications: () => void;
   onPressCart: () => void;
+  unreadNotificationCount?: number;
 };
 
 // Renders the shared customer app header, adapting layout for home versus inner screens.
@@ -30,7 +32,9 @@ export function CustomerHeader({
   onSubmitSearch,
   onPressAccount,
   onToggleTheme,
+  onPressNotifications,
   onPressCart,
+  unreadNotificationCount = 0,
 }: CustomerHeaderProps) {
   return (
     <View
@@ -79,7 +83,8 @@ export function CustomerHeader({
               <HeaderIcon
                 mode={mode}
                 icon="bell"
-                onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')}
+                onPress={onPressNotifications}
+                badgeCount={unreadNotificationCount}
               />
               <HeaderIcon mode={mode} icon="shopping-cart" onPress={onPressCart} />
             </View>
@@ -94,7 +99,8 @@ export function CustomerHeader({
               <HeaderIcon
                 mode={mode}
                 icon="bell"
-                onPress={() => Alert.alert('Notifications', 'Notifications panel can be added next.')}
+                onPress={onPressNotifications}
+                badgeCount={unreadNotificationCount}
               />
               <HeaderIcon mode={mode} icon="shopping-cart" onPress={onPressCart} />
             </View>
