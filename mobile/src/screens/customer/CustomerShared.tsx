@@ -8,6 +8,7 @@ type HeaderIconProps = {
   mode: ThemeMode;
   icon: keyof typeof Feather.glyphMap;
   onPress: () => void;
+  badgeCount?: number;
 };
 
 type ActionButtonProps = {
@@ -48,8 +49,9 @@ export const categoryIcons: Record<string, keyof typeof Feather.glyphMap> = {
 };
 
 // Renders one compact action icon in the app header.
-export function HeaderIcon({ mode, icon, onPress }: HeaderIconProps) {
+export function HeaderIcon({ mode, icon, onPress, badgeCount = 0 }: HeaderIconProps) {
   const theme = themes[mode];
+  const visibleBadgeCount = Math.min(Math.max(badgeCount, 0), 99);
 
   return (
     <InteractivePressable
@@ -61,6 +63,13 @@ export function HeaderIcon({ mode, icon, onPress }: HeaderIconProps) {
       scalePress={0.94}
     >
       <Feather name={icon} size={18} color={theme.primary} />
+      {visibleBadgeCount > 0 ? (
+        <View style={[customerStyles.iconBadge, { backgroundColor: theme.primary }]}>
+          <Text style={[customerStyles.iconBadgeText, { color: theme.buttonText }]}>
+            {visibleBadgeCount > 9 ? '9+' : visibleBadgeCount}
+          </Text>
+        </View>
+      ) : null}
     </InteractivePressable>
   );
 }
