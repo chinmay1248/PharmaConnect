@@ -27,6 +27,7 @@ import {
 } from '../services/customerAuth';
 import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
+import { fetchCustomerNotifications, markCustomerNotificationsRead } from '../services/notifications';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
 import { uploadCustomerPrescription } from '../services/prescriptions';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
@@ -37,6 +38,7 @@ import { DeliveryScreen } from './customer/DeliveryScreen';
 import { HomeScreen } from './customer/HomeScreen';
 import { InvoiceScreen } from './customer/InvoiceScreen';
 import { MedicineDetailScreen } from './customer/MedicineDetailScreen';
+import { NotificationsScreen } from './customer/NotificationsScreen';
 import { OrdersScreen } from './customer/OrdersScreen';
 import { PaymentScreen } from './customer/PaymentScreen';
 import { PharmacyListScreen } from './customer/PharmacyListScreen';
@@ -55,6 +57,7 @@ import {
   SortedPharmacy,
   Screen,
   CustomerSession,
+  CustomerNotification,
   CustomerOrderSummary,
   CustomerOrderTrackingState,
   PrescriptionUpload,
@@ -161,6 +164,8 @@ export function CustomerModuleApp() {
     initialOrders[0] ? mapSummaryToTracking(mapMockOrderToSummary(initialOrders[0])) : null,
   );
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
+  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [catalogueMedicines, setCatalogueMedicines] = useState(medicines);
   const [searchResults, setSearchResults] = useState(medicines);
   const [detailMedicinesById, setDetailMedicinesById] = useState<Record<string, (typeof medicines)[number]>>({});
@@ -172,6 +177,7 @@ export function CustomerModuleApp() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [prescriptionSubmitting, setPrescriptionSubmitting] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [authSubmitting, setAuthSubmitting] = useState(false);
@@ -181,6 +187,7 @@ export function CustomerModuleApp() {
   const [ordersHelperText, setOrdersHelperText] = useState<string | null>(null);
   const [trackingHelperText, setTrackingHelperText] = useState<string | null>(null);
   const [invoiceHelperText, setInvoiceHelperText] = useState<string | null>(null);
+  const [notificationsHelperText, setNotificationsHelperText] = useState<string | null>(null);
   const [prescriptionHelperText, setPrescriptionHelperText] = useState<string | null>(null);
   const [accountHelperText, setAccountHelperText] = useState<string | null>(null);
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
@@ -596,6 +603,56 @@ export function CustomerModuleApp() {
     };
   }, [activeOrderId, customerSession, screen, stage]);
 
+  async function loadNotifications(options?: { silent?: boolean }) {
+    if (!customerSession) {
+      setNotifications([]);
+      setUnreadNotificationCount(0);
+      setNotificationsHelperText('Sign in with a backend-linked customer account to see live notifications.');
+      return;
+    }
+
+    if (!options?.silent) {
+      setNotificationsLoading(true);
+    }
+
+    setNotificationsHelperText(null);
+
+    try {
+      const payload = await fetchCustomerNotifications(customerSession.user.id);
+
+      setNotifications(payload.notifications);
+      setUnreadNotificationCount(payload.unreadCount);
+    } catch (error) {
+      setNotificationsHelperText(
+        error instanceof Error
+          ? `Notifications could not be loaded right now: ${error.message}`
+          : 'Notifications could not be loaded right now.',
+      );
+    } finally {
+      if (!options?.silent) {
+        setNotificationsLoading(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (stage !== 'app' || !customerSession) {
+      setNotifications([]);
+      setUnreadNotificationCount(0);
+      return;
+    }
+
+    void loadNotifications({ silent: true });
+  }, [customerSession, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app' || screen !== 'notifications') {
+      return;
+    }
+
+    void loadNotifications();
+  }, [screen, stage]);
+
   const allKnownMedicines = useMemo(() => {
     const entries = [...medicines, ...catalogueMedicines, ...searchResults, ...Object.values(detailMedicinesById)];
     const byId = new Map(entries.map((medicine) => [medicine.id, medicine]));
@@ -654,6 +711,11 @@ export function CustomerModuleApp() {
     setScreen('tracking');
   }
 
+  function openNotifications() {
+    setScreen('notifications');
+    void loadNotifications();
+  }
+
   function resetPrescriptionState() {
     setPrescriptionUploaded(false);
     setPrescriptionUpload(null);
@@ -670,6 +732,9 @@ export function CustomerModuleApp() {
     setOrdersHelperText(null);
     setTrackingHelperText(null);
     setInvoiceHelperText(null);
+    setNotifications([]);
+    setUnreadNotificationCount(0);
+    setNotificationsHelperText(null);
   }
 
   // Opens the selected medicine's detail page.
@@ -898,6 +963,7 @@ export function CustomerModuleApp() {
           : null,
       );
       setInvoice(createdOrder.invoice);
+      void loadNotifications({ silent: true });
       setScreen('tracking');
       Alert.alert('Order placed', 'The order was created in the backend and is now waiting for retailer approval.');
     } catch (error) {
@@ -965,7 +1031,43 @@ export function CustomerModuleApp() {
     setCart(null);
     resetPrescriptionState();
     resetOrderState();
+    setNotifications([]);
+    setUnreadNotificationCount(0);
     setSignup(emptySignupState);
+  }
+
+  async function markAllNotificationsRead() {
+    if (!customerSession) {
+      setNotificationsHelperText('Sign in with a backend-linked customer account to mark notifications read.');
+      return;
+    }
+
+    if (unreadNotificationCount === 0) {
+      setNotificationsHelperText('All customer notifications are already marked as read.');
+      return;
+    }
+
+    setNotificationsLoading(true);
+    setNotificationsHelperText(null);
+
+    try {
+      await markCustomerNotificationsRead(customerSession.user.id);
+      setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+      setUnreadNotificationCount(0);
+      setNotificationsHelperText('All notifications marked as read.');
+    } catch (error) {
+      setNotificationsHelperText(
+        error instanceof Error
+          ? `Notifications could not be marked read right now: ${error.message}`
+          : 'Notifications could not be marked read right now.',
+      );
+      Alert.alert(
+        'Notification update failed',
+        error instanceof Error ? error.message : 'Notifications could not be marked read right now.',
+      );
+    } finally {
+      setNotificationsLoading(false);
+    }
   }
 
   async function saveAddress(draft: CustomerAddressDraft, addressId?: string) {
@@ -1115,7 +1217,7 @@ export function CustomerModuleApp() {
     if (screen === 'orders') {
       return 'orders';
     }
-    if (screen === 'account') {
+    if (screen === 'account' || screen === 'notifications') {
       return 'account';
     }
     return 'home';
@@ -1326,6 +1428,28 @@ export function CustomerModuleApp() {
       );
     }
 
+    if (screen === 'notifications') {
+      return (
+        <NotificationsScreen
+          mode={themeMode}
+          theme={theme}
+          contentContainerStyle={contentContainerStyle}
+          notifications={notifications}
+          unreadCount={unreadNotificationCount}
+          helperText={
+            notificationsLoading ? 'Refreshing customer notifications from the backend.' : notificationsHelperText
+          }
+          isLoading={notificationsLoading}
+          onRefresh={() => {
+            void loadNotifications();
+          }}
+          onMarkAllRead={() => {
+            void markAllNotificationsRead();
+          }}
+        />
+      );
+    }
+
     if (screen === 'account') {
       return (
         <AccountScreen
@@ -1386,6 +1510,8 @@ export function CustomerModuleApp() {
         onSubmitSearch={() => setScreen('search')}
         onPressAccount={() => setScreen('account')}
         onToggleTheme={toggleTheme}
+        onPressNotifications={openNotifications}
+        unreadNotificationCount={unreadNotificationCount}
         onPressCart={() => setScreen('cart')}
       />
 
