@@ -1,6 +1,6 @@
-import { CustomerModuleApp } from './src/screens/CustomerModuleApp';
+import { RetailerModuleApp } from './src/screens/RetailerModuleApp';
 
-// App entry point that mounts the customer module prototype.
+// App entry point currently mounts the retailer module prototype.
 export default function App() {
-  return <CustomerModuleApp />;
+  return <RetailerModuleApp />;
 }
