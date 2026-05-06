@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { createHmac } from 'node:crypto';
+import { env } from '../../config/env.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { prisma } from '../../lib/prisma.js';
@@ -47,7 +49,8 @@ function mapInvoiceResponse(invoice: any) {
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       status: invoice.status,
-      pdfUrl: invoice.pdfUrl,
+      pdfUrl: invoice.pdfUrl ?? buildSignedInvoiceDownloadPath(invoice.id),
+      downloadUrl: buildSignedInvoiceDownloadPath(invoice.id),
       generatedAt: invoice.generatedAt,
       order: {
         id: order.id,
@@ -106,31 +109,68 @@ function formatDateTime(value: unknown) {
   return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString();
 }
 
-function buildInvoiceExportText(invoice: any) {
+function getInvoiceLinkSecret() {
+  return env.INVOICE_LINK_SECRET || env.DATABASE_URL;
+}
+
+function signInvoiceDownload(invoiceId: string, expiresAt: number) {
+  return createHmac('sha256', getInvoiceLinkSecret()).update(`${invoiceId}.${expiresAt}`).digest('hex');
+}
+
+function buildSignedInvoiceDownloadPath(invoiceId: string) {
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+  const signature = signInvoiceDownload(invoiceId, expiresAt);
+
+  return `/api/invoices/${encodeURIComponent(invoiceId)}/download?expires=${expiresAt}&signature=${signature}`;
+}
+
+function validateInvoiceDownloadSignature(invoiceId: string, expires: unknown, signature: unknown) {
+  if (expires === undefined && signature === undefined) {
+    return;
+  }
+
+  const expiresAt = Number(Array.isArray(expires) ? expires[0] : expires);
+  const providedSignature = String(Array.isArray(signature) ? signature[0] : signature ?? '');
+
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
+    throw new HttpError(403, 'Invoice download link has expired');
+  }
+
+  const expectedSignature = signInvoiceDownload(invoiceId, expiresAt);
+
+  if (providedSignature !== expectedSignature) {
+    throw new HttpError(403, 'Invoice download link is invalid');
+  }
+}
+
+function escapePdfText(value: unknown) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/[^\x20-\x7E]/g, '');
+}
+
+function buildInvoiceLines(invoice: any) {
   const lines = [
     'PharmaConnect Invoice',
-    '====================',
     `Invoice Number: ${invoice.invoiceNumber}`,
     `Invoice Status: ${invoice.status}`,
     `Generated At: ${formatDateTime(invoice.generatedAt)}`,
-    '',
     `Order ID: ${invoice.order.id}`,
     `Order Status: ${invoice.order.status}`,
     `Delivery Method: ${invoice.order.deliveryMethod === 'HOME_DELIVERY' ? 'Home delivery' : 'Pickup'}`,
     '',
     'Customer',
-    '--------',
     `Name: ${invoice.customer.fullName}`,
     `Phone: ${invoice.customer.phone}`,
     `Email: ${invoice.customer.email}`,
     '',
     'Retailer',
-    '--------',
     `Name: ${invoice.retailer.businessName}`,
     `Location: ${invoice.retailer.area}, ${invoice.retailer.city}, ${invoice.retailer.state} ${invoice.retailer.postalCode}`,
     '',
     'Items',
-    '-----',
   ];
 
   for (const [index, item] of invoice.items.entries()) {
@@ -141,7 +181,6 @@ function buildInvoiceExportText(invoice: any) {
 
   lines.push('');
   lines.push('Bill Summary');
-  lines.push('------------');
   lines.push(`Subtotal: ${formatCurrency(invoice.order.subtotalAmount)}`);
   lines.push(`Delivery Fee: ${formatCurrency(invoice.order.deliveryFee)}`);
   lines.push(`Total: ${formatCurrency(invoice.order.totalAmount)}`);
@@ -154,7 +193,49 @@ function buildInvoiceExportText(invoice: any) {
     lines.push('Payment: Not available');
   }
 
-  return `${lines.join('\n')}\n`;
+  return lines;
+}
+
+function buildInvoicePdf(invoice: any) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const contentLines = buildInvoiceLines(invoice).slice(0, 42);
+  const textCommands = [
+    'BT',
+    '/F1 18 Tf',
+    '50 790 Td',
+    '(PharmaConnect Invoice) Tj',
+    '/F1 10 Tf',
+    '0 -24 Td',
+    ...contentLines.slice(1).flatMap((line) => ['0 -15 Td', `(${escapePdfText(line)}) Tj`]),
+    'ET',
+  ].join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(textCommands, 'utf8')} >>\nstream\n${textCommands}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf, 'utf8'));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  }
+
+  const xrefOffset = Buffer.byteLength(pdf, 'utf8');
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+
+  for (const offset of offsets.slice(1)) {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  }
+
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+
+  return Buffer.from(pdf, 'utf8');
 }
 
 // Returns the invoice for one customer order so the mobile bill view can use backend data.
@@ -177,13 +258,15 @@ invoicesRouter.get(
   }),
 );
 
-// Exports one invoice as a downloadable text file for the current prototype download flow.
+// Exports one invoice as a generated PDF. Signed links are returned by invoice detail endpoints.
 invoicesRouter.get(
   '/:invoiceId/download',
   asyncHandler(async (request, response) => {
     const invoiceId = String(pickParamValue(request.params.invoiceId));
 
     try {
+      validateInvoiceDownloadSignature(invoiceId, request.query.expires, request.query.signature);
+
       const invoice = await loadInvoiceByWhere({ id: invoiceId });
 
       if (!invoice) {
@@ -191,11 +274,11 @@ invoicesRouter.get(
       }
 
       const mapped = mapInvoiceResponse(invoice).invoice;
-      const safeFileName = `${mapped.invoiceNumber}.txt`.replace(/[^a-zA-Z0-9_.-]+/g, '_');
+      const safeFileName = `${mapped.invoiceNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]+/g, '_');
 
-      response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      response.setHeader('Content-Type', 'application/pdf');
       response.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-      response.send(buildInvoiceExportText(mapped));
+      response.send(buildInvoicePdf(mapped));
     } catch (error) {
       mapPrismaError(error);
     }
