@@ -6,6 +6,7 @@ import type {
   PrescriptionUpload,
 } from '../screens/customer/customerTypes';
 import { postJson } from './api';
+import { openRazorpayCheckout } from './razorpayCheckout';
 
 type CreateOrderResponse = {
   order: {
@@ -47,6 +48,25 @@ type ConfirmPaymentResponse = {
   };
 };
 
+type PaymentInitiationResponse = {
+  mode: 'cash' | 'demo' | 'razorpay';
+  keyId?: string;
+  payment: {
+    id: string;
+    method: string;
+    status: string;
+    amount: number;
+    gatewayReference?: string | null;
+  };
+  gatewayOrder: {
+    id: string;
+    currency: string;
+    amount: number;
+    receipt: string;
+    status?: string;
+  } | null;
+};
+
 type BackendCreateOrderPayload = {
   customerId: string;
   retailerId: string;
@@ -76,11 +96,15 @@ type CreateDemoOrderInput = {
 type DemoCustomerContext = {
   customerId: string;
   deliveryAddressId?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
 };
 
 export type CreatedOrderResult = {
   orderId: string;
   displayStatus: 'Order Placed' | 'Confirmed' | 'Packed' | 'Out for Delivery' | 'Delivered';
+  paymentFlow: 'cash' | 'demo_confirmed' | 'gateway_pending' | 'pending';
   subtotal: number;
   deliveryFee: number;
   total: number;
@@ -153,6 +177,9 @@ async function ensureDemoCustomerContext() {
       return {
         customerId: payload.user.id,
         deliveryAddressId: defaultAddress?.id,
+        fullName: payload.user.fullName,
+        email: payload.user.email,
+        phone: payload.user.phone,
       };
     });
   }
@@ -166,6 +193,9 @@ export function buildCustomerOrderContext(session: CustomerSession): DemoCustome
   return {
     customerId: session.user.id,
     deliveryAddressId: defaultAddress?.id,
+    fullName: session.user.fullName,
+    email: session.user.email,
+    phone: session.user.phone,
   };
 }
 
@@ -200,15 +230,46 @@ export async function createCustomerOrder(
 
   const response = await postJson<CreateOrderResponse, BackendCreateOrderPayload>('/orders', payload);
   let confirmedPayment: ConfirmPaymentResponse | null = null;
+  let paymentInitiation: PaymentInitiationResponse | null = null;
 
   if (paymentMethod !== 'CASH_ON_DELIVERY') {
     try {
-      confirmedPayment = await postJson<ConfirmPaymentResponse, { gatewayReference: string }>(
-        `/payments/customer-orders/${response.order.id}/confirm`,
-        {
-          gatewayReference: `demo-${paymentMethod.toLowerCase()}-${Date.now()}`,
-        },
+      paymentInitiation = await postJson<PaymentInitiationResponse, Record<string, never>>(
+        `/payments/customer-orders/${response.order.id}/initiate`,
+        {},
       );
+
+      if (paymentInitiation.mode === 'demo') {
+        confirmedPayment = await postJson<ConfirmPaymentResponse, { gatewayReference: string }>(
+          `/payments/customer-orders/${response.order.id}/confirm`,
+          {
+            gatewayReference: paymentInitiation.gatewayOrder?.id ?? `demo-${paymentMethod.toLowerCase()}-${Date.now()}`,
+          },
+        );
+      } else if (paymentInitiation.mode === 'razorpay' && paymentInitiation.keyId && paymentInitiation.gatewayOrder) {
+        const checkoutResponse = await openRazorpayCheckout({
+          keyId: paymentInitiation.keyId,
+          orderId: paymentInitiation.gatewayOrder.id,
+          amount: paymentInitiation.gatewayOrder.amount,
+          currency: paymentInitiation.gatewayOrder.currency,
+          customerName: customer.fullName,
+          customerEmail: customer.email,
+          customerPhone: customer.phone,
+        });
+
+        confirmedPayment = await postJson<
+          ConfirmPaymentResponse,
+          {
+            razorpayOrderId: string;
+            razorpayPaymentId: string;
+            razorpaySignature: string;
+          }
+        >(`/payments/customer-orders/${response.order.id}/confirm`, {
+          razorpayOrderId: checkoutResponse.razorpay_order_id,
+          razorpayPaymentId: checkoutResponse.razorpay_payment_id,
+          razorpaySignature: checkoutResponse.razorpay_signature,
+        });
+      }
     } catch {
       confirmedPayment = null;
     }
@@ -219,6 +280,14 @@ export async function createCustomerOrder(
   return {
     orderId: response.order.id,
     displayStatus: toDisplayStatus(confirmedPayment?.order.status ?? response.order.timelineStatus ?? response.order.status),
+    paymentFlow:
+      paymentMethod === 'CASH_ON_DELIVERY'
+        ? 'cash'
+        : confirmedPayment
+          ? 'demo_confirmed'
+          : paymentInitiation?.mode === 'razorpay'
+            ? 'gateway_pending'
+            : 'pending',
     subtotal: response.order.subtotalAmount,
     deliveryFee: response.order.deliveryFee,
     total: response.order.totalAmount,
@@ -238,6 +307,7 @@ export async function createCustomerOrder(
       total: response.order.totalAmount,
       paymentMethod: input.paymentMethod,
       paymentStatus: confirmedPayment?.payment.status ?? response.order.paymentStatus ?? 'PENDING',
+      paymentGatewayOrderId: paymentInitiation?.gatewayOrder?.id ?? null,
       deliveryMethod: input.deliveryMethod,
       status: confirmedPayment?.invoice.status ?? null,
     },
