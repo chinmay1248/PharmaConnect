@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { access, mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
@@ -8,17 +10,22 @@ import { mapPrismaError } from '../../lib/responses.js';
 
 export const prescriptionsRouter = Router();
 
+const maxPrescriptionUploadBytes = 5 * 1024 * 1024;
+const allowedPrescriptionMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain']);
+
 const uploadDraftSchema = z.object({
   customerId: z.string().min(1),
   medicineId: z.string().min(1).optional(),
   source: z.enum(['camera', 'gallery']).default('gallery'),
   originalFileName: z.string().min(1).optional(),
+  contentBase64: z.string().min(1).optional(),
+  mimeType: z.string().min(3).optional(),
 });
 
 const attachPrescriptionSchema = z.object({
   customerId: z.string().min(1),
   medicineId: z.string().min(1).optional(),
-  fileUrl: z.string().url(),
+  fileUrl: z.string().min(1),
   originalFileName: z.string().min(1).optional(),
 });
 
@@ -43,10 +50,40 @@ function buildUploadedFileName(customerId: string, source: 'camera' | 'gallery',
 }
 
 function buildPrescriptionFileUrl(customerId: string, fileName: string) {
-  return `https://uploads.pharmaconnect.app/prescriptions/${customerId}/${fileName}`;
+  return `/api/prescriptions/uploads/${encodeURIComponent(customerId)}/${encodeURIComponent(fileName)}`;
 }
 
-// Simulates a validated prescription upload so the mobile app can stop depending on a hardcoded file URL.
+function getPrescriptionStorageRoot() {
+  return path.join(process.cwd(), 'storage', 'prescriptions');
+}
+
+async function savePrescriptionFile(customerId: string, fileName: string, contentBase64?: string, mimeType?: string) {
+  if (!contentBase64) {
+    return;
+  }
+
+  if (mimeType && !allowedPrescriptionMimeTypes.has(mimeType)) {
+    throw new HttpError(400, 'Prescription file must be a JPG, PNG, WEBP, PDF, or text file');
+  }
+
+  const fileBuffer = Buffer.from(contentBase64, 'base64');
+
+  if (fileBuffer.length > maxPrescriptionUploadBytes) {
+    throw new HttpError(400, 'Prescription file must be 5 MB or smaller');
+  }
+
+  const customerDirectory = path.join(getPrescriptionStorageRoot(), customerId);
+  const filePath = path.join(customerDirectory, fileName);
+
+  if (!filePath.startsWith(customerDirectory)) {
+    throw new HttpError(400, 'Invalid prescription file path');
+  }
+
+  await mkdir(customerDirectory, { recursive: true });
+  await writeFile(filePath, fileBuffer);
+}
+
+// Stores a prescription upload draft under backend-controlled local storage for development.
 prescriptionsRouter.post(
   '/uploads',
   asyncHandler(async (request, response) => {
@@ -74,6 +111,7 @@ prescriptionsRouter.post(
 
       const fileName = buildUploadedFileName(customer.id, payload.source, payload.originalFileName);
       const fileUrl = buildPrescriptionFileUrl(customer.id, fileName);
+      await savePrescriptionFile(customer.id, fileName, payload.contentBase64, payload.mimeType);
 
       response.status(201).json({
         upload: {
@@ -82,11 +120,33 @@ prescriptionsRouter.post(
           source: payload.source,
           uploadedAt: new Date().toISOString(),
           medicineId: payload.medicineId ?? null,
+          mimeType: payload.mimeType ?? null,
         },
       });
     } catch (error) {
       mapPrismaError(error);
     }
+  }),
+);
+
+// Serves locally stored prescription files back to customer and retailer screens during development.
+prescriptionsRouter.get(
+  '/uploads/:customerId/:fileName',
+  asyncHandler(async (request, response) => {
+    const customerId = sanitizeFileName(String(pickParamValue(request.params.customerId)));
+    const fileName = sanitizeFileName(String(pickParamValue(request.params.fileName)));
+    const customerDirectory = path.join(getPrescriptionStorageRoot(), customerId);
+    const filePath = path.join(customerDirectory, fileName);
+
+    if (!filePath.startsWith(customerDirectory)) {
+      throw new HttpError(400, 'Invalid prescription file path');
+    }
+
+    await access(filePath).catch(() => {
+      throw new HttpError(404, 'Prescription file not found');
+    });
+
+    response.sendFile(filePath);
   }),
 );
 

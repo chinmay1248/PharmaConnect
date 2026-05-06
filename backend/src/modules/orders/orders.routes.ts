@@ -16,7 +16,7 @@ const createOrderSchema = z.object({
   paymentMethod: z.enum(['UPI', 'CARD', 'BANK_TRANSFER', 'CASH_ON_DELIVERY']).optional(),
   prescription: z
     .object({
-      fileUrl: z.string().url(),
+      fileUrl: z.string().min(1),
       originalFileName: z.string().min(1).optional(),
     })
     .optional(),

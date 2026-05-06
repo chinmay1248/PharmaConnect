@@ -47,6 +47,9 @@ export function PrescriptionScreen({
           <View style={customerStyles.billBox}>
             <Text style={[customerStyles.billText, { color: theme.text }]}>File: {upload.originalFileName}</Text>
             <Text style={[customerStyles.billText, { color: theme.subtext }]}>Source: {upload.source}</Text>
+            {upload.mimeType ? (
+              <Text style={[customerStyles.billText, { color: theme.subtext }]}>Type: {upload.mimeType}</Text>
+            ) : null}
             <Text style={[customerStyles.billText, { color: theme.subtext }]}>
               Uploaded: {new Date(upload.uploadedAt).toLocaleString()}
             </Text>
