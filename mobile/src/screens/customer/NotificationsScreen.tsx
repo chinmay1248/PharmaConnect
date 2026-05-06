@@ -1,5 +1,6 @@
 import { ScrollView, StyleProp, Text, View, ViewStyle } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
+import { InteractivePressable } from '../../components/InteractivePressable';
 import { SectionHeader } from '../../components/SectionHeader';
 import { ThemeMode, ThemePalette } from '../../theme/theme';
 import { ActionButton } from './CustomerShared';
@@ -16,6 +17,7 @@ type NotificationsScreenProps = {
   isLoading: boolean;
   onRefresh: () => void;
   onMarkAllRead: () => void;
+  onOpenNotification: (notification: CustomerNotification) => void;
 };
 
 function formatNotificationDate(value: string) {
@@ -60,6 +62,7 @@ export function NotificationsScreen({
   isLoading,
   onRefresh,
   onMarkAllRead,
+  onOpenNotification,
 }: NotificationsScreenProps) {
   return (
     <ScrollView style={customerStyles.scroll} contentContainerStyle={contentContainerStyle}>
@@ -98,8 +101,9 @@ export function NotificationsScreen({
       ) : null}
 
       {notifications.map((notification) => (
-        <View
+        <InteractivePressable
           key={notification.id}
+          onPress={() => onOpenNotification(notification)}
           style={[
             customerStyles.notificationCard,
             notification.isRead ? null : customerStyles.notificationUnread,
@@ -109,6 +113,8 @@ export function NotificationsScreen({
               borderLeftColor: theme.primary,
             },
           ]}
+          hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+          pressedStyle={{ backgroundColor: theme.elevated }}
         >
           <View style={customerStyles.infoHeader}>
             <View style={customerStyles.notificationMeta}>
@@ -125,7 +131,7 @@ export function NotificationsScreen({
           <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
             {formatNotificationDate(notification.createdAt)}
           </Text>
-        </View>
+        </InteractivePressable>
       ))}
     </ScrollView>
   );

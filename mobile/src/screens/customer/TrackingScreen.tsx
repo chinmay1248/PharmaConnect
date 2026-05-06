@@ -13,6 +13,8 @@ type TrackingScreenProps = {
   isCompactLayout: boolean;
   activeOrder: CustomerOrderTrackingState | null;
   helperText?: string | null;
+  isLoading?: boolean;
+  onRefresh: () => void;
   onOpenInvoice: () => void;
   onOpenOrders: () => void;
 };
@@ -83,6 +85,8 @@ export function TrackingScreen({
   isCompactLayout,
   activeOrder,
   helperText,
+  isLoading = false,
+  onRefresh,
   onOpenInvoice,
   onOpenOrders,
 }: TrackingScreenProps) {
@@ -135,6 +139,14 @@ export function TrackingScreen({
         ) : null}
         {activeOrder ? (
           <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
+            <ActionButton
+              mode={mode}
+              label={isLoading ? 'Refreshing' : 'Refresh'}
+              icon="refresh-cw"
+              variant="soft"
+              onPress={onRefresh}
+              fullWidth={isCompactLayout}
+            />
             <ActionButton mode={mode} label="View invoice" icon="file-text" onPress={onOpenInvoice} fullWidth={isCompactLayout} />
             <ActionButton
               mode={mode}

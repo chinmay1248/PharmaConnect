@@ -1,5 +1,5 @@
 import type { CustomerNotification } from '../screens/customer/customerTypes';
-import { getJson, patchJson } from './api';
+import { getJson, patchJson, postJson } from './api';
 
 type BackendNotificationsResponse = {
   userId: string;
@@ -10,6 +10,20 @@ type BackendNotificationsResponse = {
 type MarkAllReadResponse = {
   userId: string;
   updatedCount: number;
+};
+
+type MarkOneReadResponse = {
+  notification: CustomerNotification;
+};
+
+type RegisterDeviceResponse = {
+  device: {
+    id: string;
+    userId: string;
+    platform: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 };
 
 function normalizeNotification(notification: CustomerNotification): CustomerNotification {
@@ -41,4 +55,28 @@ export async function markCustomerNotificationsRead(customerId: string) {
     `/notifications/users/${customerId}/read-all`,
     {},
   );
+}
+
+export async function markCustomerNotificationRead(notificationId: string) {
+  const payload = await patchJson<MarkOneReadResponse, Record<string, never>>(
+    `/notifications/${notificationId}/read`,
+    {},
+  );
+
+  return normalizeNotification(payload.notification);
+}
+
+export async function registerCustomerNotificationDevice(customerId: string) {
+  return postJson<
+    RegisterDeviceResponse,
+    {
+      userId: string;
+      deviceToken: string;
+      platform: 'web';
+    }
+  >('/notifications/devices', {
+    userId: customerId,
+    deviceToken: `web-local-${customerId}`,
+    platform: 'web',
+  });
 }

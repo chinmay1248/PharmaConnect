@@ -27,7 +27,12 @@ import {
 } from '../services/customerAuth';
 import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
-import { fetchCustomerNotifications, markCustomerNotificationsRead } from '../services/notifications';
+import {
+  fetchCustomerNotifications,
+  markCustomerNotificationRead,
+  markCustomerNotificationsRead,
+  registerCustomerNotificationDevice,
+} from '../services/notifications';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
 import { uploadCustomerPrescription } from '../services/prescriptions';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
@@ -642,6 +647,9 @@ export function CustomerModuleApp() {
       return;
     }
 
+    void registerCustomerNotificationDevice(customerSession.user.id).catch(() => {
+      setNotificationsHelperText('Notifications are available, but this browser device could not be registered for future push delivery.');
+    });
     void loadNotifications({ silent: true });
   }, [customerSession, stage]);
 
@@ -651,7 +659,36 @@ export function CustomerModuleApp() {
     }
 
     void loadNotifications();
+
+    const notificationRefreshInterval = setInterval(() => {
+      void loadNotifications({ silent: true });
+    }, 30000);
+
+    return () => {
+      clearInterval(notificationRefreshInterval);
+    };
   }, [screen, stage]);
+
+  useEffect(() => {
+    if (stage !== 'app' || screen !== 'tracking' || !activeOrderId || !customerSession) {
+      return;
+    }
+
+    const trackingRefreshInterval = setInterval(() => {
+      void fetchCustomerOrderDetail(activeOrderId)
+        .then((detail) => {
+          setActiveOrder(detail);
+          setTrackingHelperText(null);
+        })
+        .catch(() => {
+          setTrackingHelperText('Tracking auto-refresh could not reach the backend. Manual refresh is still available.');
+        });
+    }, 30000);
+
+    return () => {
+      clearInterval(trackingRefreshInterval);
+    };
+  }, [activeOrderId, customerSession, screen, stage]);
 
   const allKnownMedicines = useMemo(() => {
     const entries = [...medicines, ...catalogueMedicines, ...searchResults, ...Object.values(detailMedicinesById)];
@@ -714,6 +751,61 @@ export function CustomerModuleApp() {
   function openNotifications() {
     setScreen('notifications');
     void loadNotifications();
+  }
+
+  async function refreshActiveTracking() {
+    if (!activeOrderId) {
+      setTrackingHelperText('Choose an order first to refresh its tracking timeline.');
+      return;
+    }
+
+    const fallbackSummary = orders.find((order) => order.id === activeOrderId);
+
+    if (!customerSession) {
+      setActiveOrder(fallbackSummary ? mapSummaryToTracking(fallbackSummary) : null);
+      setTrackingHelperText('Showing local tracking because this is not a backend-linked customer session.');
+      return;
+    }
+
+    setTrackingLoading(true);
+    setTrackingHelperText(null);
+
+    try {
+      const detail = await fetchCustomerOrderDetail(activeOrderId);
+      setActiveOrder(detail);
+      setTrackingHelperText('Tracking timeline refreshed from the backend.');
+    } catch (error) {
+      setActiveOrder(fallbackSummary ? mapSummaryToTracking(fallbackSummary) : null);
+      setTrackingHelperText(
+        error instanceof Error
+          ? `Tracking could not be refreshed right now: ${error.message}`
+          : 'Tracking could not be refreshed right now.',
+      );
+    } finally {
+      setTrackingLoading(false);
+    }
+  }
+
+  async function openNotification(notification: CustomerNotification) {
+    if (!notification.isRead) {
+      setNotifications((current) =>
+        current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
+      );
+      setUnreadNotificationCount((current) => Math.max(current - 1, 0));
+
+      try {
+        await markCustomerNotificationRead(notification.id);
+      } catch {
+        void loadNotifications({ silent: true });
+      }
+    }
+
+    if (notification.referenceKind === 'customer_order' && notification.referenceId) {
+      openOrderTracking(notification.referenceId);
+      return;
+    }
+
+    setNotificationsHelperText('This notification is marked read. No linked customer order is attached.');
   }
 
   function resetPrescriptionState() {
@@ -965,7 +1057,12 @@ export function CustomerModuleApp() {
       setInvoice(createdOrder.invoice);
       void loadNotifications({ silent: true });
       setScreen('tracking');
-      Alert.alert('Order placed', 'The order was created in the backend and is now waiting for retailer approval.');
+      Alert.alert(
+        'Order placed',
+        createdOrder.paymentFlow === 'gateway_pending'
+          ? 'The order was created and a Razorpay payment order is ready. Client checkout is the next step before payment can be marked successful.'
+          : 'The order was created in the backend and is now waiting for retailer approval.',
+      );
     } catch (error) {
       createLocalOrder();
       Alert.alert(
@@ -1390,6 +1487,10 @@ export function CustomerModuleApp() {
               ? 'Loading the latest tracking timeline from the backend.'
               : trackingHelperText
           }
+          isLoading={trackingLoading}
+          onRefresh={() => {
+            void refreshActiveTracking();
+          }}
           onOpenInvoice={() => setScreen('invoice')}
           onOpenOrders={() => setScreen('orders')}
         />
@@ -1445,6 +1546,9 @@ export function CustomerModuleApp() {
           }}
           onMarkAllRead={() => {
             void markAllNotificationsRead();
+          }}
+          onOpenNotification={(notification) => {
+            void openNotification(notification);
           }}
         />
       );
