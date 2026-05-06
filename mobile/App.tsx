@@ -1,6 +1,12 @@
+import { CustomerModuleApp } from './src/screens/CustomerModuleApp';
 import { RetailerModuleApp } from './src/screens/RetailerModuleApp';
 
-// App entry point currently mounts the retailer module prototype.
+const appModule = process.env.EXPO_PUBLIC_APP_MODULE?.trim().toLowerCase();
+
 export default function App() {
-  return <RetailerModuleApp />;
+  if (appModule === 'retailer') {
+    return <RetailerModuleApp />;
+  }
+
+  return <CustomerModuleApp />;
 }
