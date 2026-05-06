@@ -9,6 +9,7 @@
 
 node_modules/
 dist/
+backend/storage/
 web-build/
 .expo/
 .git_backup_local/
