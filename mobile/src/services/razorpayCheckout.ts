@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 type RazorpayCheckoutResponse = {
   razorpay_order_id: string;
   razorpay_payment_id: string;
@@ -81,8 +83,66 @@ function ensureRazorpayScript() {
   });
 }
 
-// Opens Razorpay Standard Checkout on Expo web and returns the signed success payload.
-export async function openRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
+function buildCheckoutOptions(input: OpenRazorpayCheckoutInput) {
+  return {
+    key: input.keyId,
+    amount: input.amount,
+    currency: input.currency,
+    name: 'PharmaConnect',
+    description: 'Medicine order payment',
+    order_id: input.orderId,
+    prefill: {
+      name: input.customerName,
+      email: input.customerEmail,
+      contact: input.customerPhone,
+    },
+    theme: {
+      color: '#0f9f8f',
+    },
+  };
+}
+
+function normalizeCheckoutResponse(response: Partial<RazorpayCheckoutResponse>) {
+  if (!response.razorpay_order_id || !response.razorpay_payment_id || !response.razorpay_signature) {
+    throw new Error('Razorpay checkout completed without a verifiable payment signature.');
+  }
+
+  return {
+    razorpay_order_id: response.razorpay_order_id,
+    razorpay_payment_id: response.razorpay_payment_id,
+    razorpay_signature: response.razorpay_signature,
+  };
+}
+
+function formatNativeCheckoutError(error: unknown) {
+  if (error && typeof error === 'object' && 'description' in error && typeof error.description === 'string') {
+    return error.description;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Razorpay payment failed.';
+}
+
+async function openNativeRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
+  let nativeModule: typeof import('react-native-razorpay');
+
+  try {
+    nativeModule = await import('react-native-razorpay');
+  } catch {
+    throw new Error('Native Razorpay checkout requires a development build with react-native-razorpay linked.');
+  }
+
+  try {
+    return normalizeCheckoutResponse(await nativeModule.default.open(buildCheckoutOptions(input)));
+  } catch (error) {
+    throw new Error(formatNativeCheckoutError(error));
+  }
+}
+
+async function openWebRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
   await ensureRazorpayScript();
 
   const browserWindow = getBrowserWindow();
@@ -95,20 +155,7 @@ export async function openRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
 
   return new Promise<RazorpayCheckoutResponse>((resolve, reject) => {
     const checkout = new Razorpay({
-      key: input.keyId,
-      amount: input.amount,
-      currency: input.currency,
-      name: 'PharmaConnect',
-      description: 'Medicine order payment',
-      order_id: input.orderId,
-      prefill: {
-        name: input.customerName,
-        email: input.customerEmail,
-        contact: input.customerPhone,
-      },
-      theme: {
-        color: '#0f9f8f',
-      },
+      ...buildCheckoutOptions(input),
       handler: (response: RazorpayCheckoutResponse) => resolve(response),
       modal: {
         ondismiss: () => reject(new Error('Payment checkout was closed before completion.')),
@@ -121,4 +168,13 @@ export async function openRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
 
     checkout.open();
   });
+}
+
+// Opens Razorpay Standard Checkout on web and native builds, returning the signed success payload.
+export async function openRazorpayCheckout(input: OpenRazorpayCheckoutInput) {
+  if (Platform.OS === 'web') {
+    return openWebRazorpayCheckout(input);
+  }
+
+  return openNativeRazorpayCheckout(input);
 }
