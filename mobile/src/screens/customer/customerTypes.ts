@@ -74,6 +74,7 @@ export type PrescriptionUpload = {
   source: 'camera' | 'gallery';
   uploadedAt: string;
   medicineId?: string | null;
+  mimeType?: string | null;
 };
 
 // Invoice summary built after a successful mock order placement.
@@ -91,6 +92,7 @@ export type InvoiceState = {
   total: number;
   paymentMethod: Exclude<PaymentMethod, null>;
   paymentStatus?: string | null;
+  paymentGatewayOrderId?: string | null;
   deliveryMethod: Exclude<DeliveryMethod, null>;
   generatedAt?: string | null;
   status?: string | null;
