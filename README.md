@@ -23,6 +23,8 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 - Prescription upload draft flow wired to backend prescription endpoints
 - Order history, order tracking, and invoice fetch wired to backend endpoints
 - Invoice download/export wired to backend invoice links and fallback export endpoint
+- Customer notification inbox actions and tracking refresh/polling wired to backend updates
+- Customer web sessions register a backend notification device token for future push delivery work
 - Graceful fallback to local prototype data when backend services are unavailable
 - Verified builds:
   - `mobile`: `npx tsc --noEmit`
@@ -30,19 +32,17 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 
 ### Partially Complete
 
-- Payment is still a demo confirmation flow, not a real gateway integration
-- Prescription upload currently stores metadata and mock file URLs, not real cloud storage
-- Invoice export is currently text-file based; generated PDF storage is still pending
-- Retailer workflow is backend-first right now; dedicated retailer app UI is still pending
+- Payment now has a Razorpay-shaped backend initiation and signature verification path, with demo fallback when gateway credentials are not configured
+- Prescription upload now uses the Expo web file picker when available and stores development files under backend local storage; production cloud storage is still pending
+- Invoice export now generates PDF downloads with short-lived signed links; durable PDF object storage is still pending
+- Retailer app UI exists for dashboard, customer order approval/rejection, prescription review, fulfilment status, inventory, and B2B buying; production navigation/auth polish is still pending
+- Production push delivery and live courier/location tracking are still pending
 - Some customer screens still rely on fallback mock data when the related backend service is missing or offline
 
 ### Not Started Yet
 
-- Dedicated retailer app module and screens
 - Wholesaler module
 - Company module
-- Real notifications
-- Real-time/live tracking
 - Production deployment
 
 ## Repository Structure
@@ -69,6 +69,9 @@ PharmaConnect/
 DATABASE_URL=your_database_url
 PORT=4000
 CLIENT_ORIGIN=http://localhost:8087
+RAZORPAY_KEY_ID=optional_razorpay_key_id
+RAZORPAY_KEY_SECRET=optional_razorpay_key_secret
+INVOICE_LINK_SECRET=replace_with_a_long_random_invoice_link_secret
 ```
 
 4. Generate Prisma client: `npm run prisma:generate`
@@ -90,6 +93,13 @@ $env:EXPO_PUBLIC_API_BASE_URL="http://localhost:4000/api"
 
 4. Start the app with `npm run web` or `npm run start`
 
+Customer is the default mobile module. To run the retailer module intentionally:
+
+```powershell
+$env:EXPO_PUBLIC_APP_MODULE="retailer"
+npm run web
+```
+
 If the backend is unavailable, the customer app will still open in local prototype mode.
 
 ## What The Customer Flow Can Do Right Now
@@ -100,21 +110,23 @@ If the backend is unavailable, the customer app will still open in local prototy
 - Open medicine details
 - Compare retailer stock and pricing
 - Select a retailer and place an order
-- Attach prescription metadata for prescription medicines
-- Simulate payment confirmation for non-COD orders
+- Attach prescription upload files for prescription medicines, using browser-selected camera/gallery files on Expo web and backend local storage in development
+- Initiate non-COD payments through backend gateway endpoints, falling back to demo confirmation when gateway credentials are absent
 - View order history
-- View tracking timeline
-- View invoice summary
+- View tracking timeline with manual refresh and lightweight backend polling
+- View invoice summary and download a generated PDF invoice from signed backend links
+- Open order-related notifications directly into the tracking screen and mark notifications read
+- Register the current web session as a notification device for future push delivery
 - Manage multiple saved delivery addresses in account settings
 
 ## Next To-Do List
 
 Priority order for the next implementation steps:
 
-1. Replace  demo  payment  confirmation  with  a  real payment  integration  path
-2. Add  real  prescription  file  storage  and  order-linked  prescription  review  flow
-3. Upgrade invoice export to generated PDF storage and signed-access links
-4. Add notifications and richer tracking updates
+1. Add native mobile Razorpay SDK support alongside the implemented Expo web checkout path
+2. Add production cloud storage and richer retailer prescription review controls
+3. Add durable object storage for generated invoice PDFs
+4. Add production push notification delivery and live courier/location tracking
 
 ## Important Notes
 

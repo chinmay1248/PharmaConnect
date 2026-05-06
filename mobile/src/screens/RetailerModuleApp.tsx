@@ -1,10 +1,11 @@
 import Feather from '@expo/vector-icons/Feather';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BrandLogo } from '../components/BrandLogo';
 import { InteractivePressable } from '../components/InteractivePressable';
 import { SectionHeader } from '../components/SectionHeader';
+import { resolveApiUrl } from '../services/api';
 import { formatCurrency } from '../utils/format';
 import {
   addRetailerInventoryBatch,
@@ -567,6 +568,32 @@ export function RetailerModuleApp() {
     }
   }
 
+  async function openPrescription(order: RetailerOrder) {
+    const fileUrl = order.prescription?.fileUrl?.trim();
+
+    if (!fileUrl) {
+      Alert.alert('Prescription unavailable', 'This order does not have a prescription file attached.');
+      return;
+    }
+
+    const resolvedUrl = resolveApiUrl(fileUrl);
+
+    try {
+      const supported = await Linking.canOpenURL(resolvedUrl);
+
+      if (!supported) {
+        throw new Error('This device cannot open the prescription link right now.');
+      }
+
+      await Linking.openURL(resolvedUrl);
+    } catch (error) {
+      Alert.alert(
+        'Could not open prescription',
+        error instanceof Error ? error.message : 'The prescription link could not be opened right now.',
+      );
+    }
+  }
+
   async function addDemoBatch(item: RetailerInventoryItem) {
     setLoading(true);
 
@@ -825,6 +852,15 @@ export function RetailerModuleApp() {
               {order.prescription.originalFileName ?? 'Uploaded prescription'} - {order.prescription.status}
             </Text>
             <Text style={[styles.cardMeta, { color: theme.primary }]}>{order.prescription.fileUrl}</Text>
+            <ActionButton
+              mode={mode}
+              label="Open prescription"
+              icon="external-link"
+              variant="secondary"
+              onPress={() => {
+                void openPrescription(order);
+              }}
+            />
           </View>
         ) : null}
 
