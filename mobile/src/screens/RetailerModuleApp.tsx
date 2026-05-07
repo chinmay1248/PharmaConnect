@@ -186,6 +186,12 @@ const orderFilters: Array<{ id: OrderFilter; label: string }> = [
   { id: 'REJECTED_BY_RETAILER', label: 'Denied' },
 ];
 
+const prescriptionDenialReasons = [
+  'Prescription image is unclear or cropped.',
+  'Medicine or dosage does not match the order.',
+  'Prescription date or patient details could not be verified.',
+];
+
 function statusColor(status: string) {
   if (status === 'PENDING_RETAILER_APPROVAL') {
     return '#f59e0b';
@@ -345,6 +351,7 @@ export function RetailerModuleApp() {
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
   const [searchText, setSearchText] = useState('');
   const [buySearchText, setBuySearchText] = useState('');
+  const [prescriptionApprovalNote, setPrescriptionApprovalNote] = useState('Prescription verified and order approved.');
   const [rejectionReason, setRejectionReason] = useState('Prescription or stock could not be verified.');
   const [loading, setLoading] = useState(false);
   const [helperText, setHelperText] = useState<string | null>('Signing in as the seeded demo retailer.');
@@ -510,7 +517,10 @@ export function RetailerModuleApp() {
     setLoading(true);
 
     try {
-      const payload = await decideRetailerOrder(retailer.id, order.id, 'APPROVE', 'Retailer approved the order.');
+      const approvalNote = order.prescription
+        ? prescriptionApprovalNote.trim() || 'Prescription verified and order approved.'
+        : 'Retailer approved the order.';
+      const payload = await decideRetailerOrder(retailer.id, order.id, 'APPROVE', approvalNote);
       upsertOrder(payload.order);
       Alert.alert('Order approved', 'The customer has been notified.');
     } catch (error) {
@@ -851,6 +861,16 @@ export function RetailerModuleApp() {
             <Text style={[styles.cardMeta, { color: theme.subtext }]}>
               {order.prescription.originalFileName ?? 'Uploaded prescription'} - {order.prescription.status}
             </Text>
+            {order.prescription.reviewedAt ? (
+              <Text style={[styles.cardMeta, { color: theme.subtext }]}>
+                Reviewed {formatShortDate(order.prescription.reviewedAt)}
+              </Text>
+            ) : null}
+            {order.prescription.retailerNotes ? (
+              <Text style={[styles.reviewNote, { color: theme.text, backgroundColor: theme.surfaceAlt }]}>
+                {order.prescription.retailerNotes}
+              </Text>
+            ) : null}
             <Text style={[styles.cardMeta, { color: theme.primary }]}>{order.prescription.fileUrl}</Text>
             <ActionButton
               mode={mode}
@@ -866,16 +886,63 @@ export function RetailerModuleApp() {
 
         {canDecide ? (
           <>
+            {order.prescription ? (
+              <TextInput
+                value={prescriptionApprovalNote}
+                onChangeText={setPrescriptionApprovalNote}
+                placeholder="Approval note"
+                placeholderTextColor={theme.subtext}
+                multiline
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt },
+                ]}
+              />
+            ) : null}
+            {order.prescription ? (
+              <View style={styles.chipRow}>
+                {prescriptionDenialReasons.map((reason) => (
+                  <Chip
+                    key={reason}
+                    mode={mode}
+                    label={reason}
+                    active={rejectionReason === reason}
+                    onPress={() => setRejectionReason(reason)}
+                  />
+                ))}
+              </View>
+            ) : null}
             <TextInput
               value={rejectionReason}
               onChangeText={setRejectionReason}
               placeholder="Denial reason"
               placeholderTextColor={theme.subtext}
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+              multiline
+              style={[
+                styles.input,
+                styles.textArea,
+                { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt },
+              ]}
             />
             <View style={styles.actionRow}>
-              <ActionButton mode={mode} label="Approve" icon="check" onPress={() => { void approveOrder(order); }} />
-              <ActionButton mode={mode} label="Deny" icon="x" variant="danger" onPress={() => { void rejectOrder(order); }} />
+              <ActionButton
+                mode={mode}
+                label={order.prescription ? 'Approve Rx' : 'Approve'}
+                icon="check"
+                onPress={() => {
+                  void approveOrder(order);
+                }}
+              />
+              <ActionButton
+                mode={mode}
+                label={order.prescription ? 'Reject Rx' : 'Deny'}
+                icon="x"
+                variant="danger"
+                onPress={() => {
+                  void rejectOrder(order);
+                }}
+              />
             </View>
           </>
         ) : null}
@@ -1353,6 +1420,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 14,
   },
+  textArea: {
+    minHeight: 82,
+    paddingTop: 10,
+    paddingBottom: 10,
+    textAlignVertical: 'top',
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1411,6 +1484,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     gap: 5,
+  },
+  reviewNote: {
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 12,
+    lineHeight: 18,
   },
   actionRow: {
     flexDirection: 'row',
