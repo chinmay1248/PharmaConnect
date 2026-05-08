@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { createHmac } from 'node:crypto';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { env } from '../../config/env.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
@@ -124,6 +126,28 @@ function buildSignedInvoiceDownloadPath(invoiceId: string) {
   return `/api/invoices/${encodeURIComponent(invoiceId)}/download?expires=${expiresAt}&signature=${signature}`;
 }
 
+function getInvoiceStorageRoot() {
+  return path.join(process.cwd(), 'storage', 'invoices');
+}
+
+function buildInvoiceStorageFileName(invoiceId: string) {
+  return `${invoiceId}.pdf`;
+}
+
+function buildInvoiceDownloadPath(invoiceId: string) {
+  return `/api/invoices/${encodeURIComponent(invoiceId)}/download`;
+}
+
+function getInvoiceStoragePath(invoiceId: string) {
+  const filePath = path.join(getInvoiceStorageRoot(), buildInvoiceStorageFileName(invoiceId));
+
+  if (!filePath.startsWith(getInvoiceStorageRoot())) {
+    throw new HttpError(400, 'Invalid invoice file path');
+  }
+
+  return filePath;
+}
+
 function validateInvoiceDownloadSignature(invoiceId: string, expires: unknown, signature: unknown) {
   if (expires === undefined && signature === undefined) {
     return;
@@ -238,6 +262,28 @@ function buildInvoicePdf(invoice: any) {
   return Buffer.from(pdf, 'utf8');
 }
 
+async function loadOrCreateInvoicePdf(invoiceRecord: any, mappedInvoice: any) {
+  const filePath = getInvoiceStoragePath(invoiceRecord.id);
+
+  try {
+    await access(filePath);
+    return readFile(filePath);
+  } catch {
+    const pdf = buildInvoicePdf(mappedInvoice);
+    await mkdir(getInvoiceStorageRoot(), { recursive: true });
+    await writeFile(filePath, pdf);
+
+    if (!invoiceRecord.pdfUrl) {
+      await prisma.invoiceRecord.update({
+        where: { id: invoiceRecord.id },
+        data: { pdfUrl: buildInvoiceDownloadPath(invoiceRecord.id) },
+      });
+    }
+
+    return pdf;
+  }
+}
+
 // Returns the invoice for one customer order so the mobile bill view can use backend data.
 invoicesRouter.get(
   '/order/:orderId',
@@ -278,7 +324,7 @@ invoicesRouter.get(
 
       response.setHeader('Content-Type', 'application/pdf');
       response.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
-      response.send(buildInvoicePdf(mapped));
+      response.send(await loadOrCreateInvoicePdf(invoice, mapped));
     } catch (error) {
       mapPrismaError(error);
     }
