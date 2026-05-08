@@ -11,6 +11,7 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   INVOICE_LINK_SECRET: z.string().optional(),
+  STORAGE_PUBLIC_BASE_URL: z.string().url().optional(),
 });
 
 // Validates backend environment variables once and exports the typed result.

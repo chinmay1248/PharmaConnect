@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { env } from '../../config/env.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { createNotification, shortOrderCode } from '../../lib/notifications.js';
@@ -50,7 +51,8 @@ function buildUploadedFileName(customerId: string, source: 'camera' | 'gallery',
 }
 
 function buildPrescriptionFileUrl(customerId: string, fileName: string) {
-  return `/api/prescriptions/uploads/${encodeURIComponent(customerId)}/${encodeURIComponent(fileName)}`;
+  const apiPath = `/api/prescriptions/uploads/${encodeURIComponent(customerId)}/${encodeURIComponent(fileName)}`;
+  return env.STORAGE_PUBLIC_BASE_URL ? `${env.STORAGE_PUBLIC_BASE_URL.replace(/\/+$/, '')}${apiPath}` : apiPath;
 }
 
 function getPrescriptionStorageRoot() {
