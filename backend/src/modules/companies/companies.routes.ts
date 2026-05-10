@@ -24,6 +24,22 @@ const offerSchema = z.object({
   endsAt: z.coerce.date(),
 });
 
+const wholesellerOrderDecisionSchema = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('APPROVE'),
+    notes: z.string().max(240).optional(),
+  }),
+  z.object({
+    decision: z.literal('REJECT'),
+    rejectionReason: z.string().min(5).max(240),
+  }),
+]);
+
+const wholesellerOrderStatusSchema = z.object({
+  status: z.enum(['DISPATCHED', 'DELIVERED']),
+  notes: z.string().max(240).optional(),
+});
+
 function pickQueryValue(value: unknown) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -87,6 +103,12 @@ function mapWholesellerPurchaseOrder(order: any) {
           status: order.invoices[0].status,
         }
       : null,
+    trackingEvents: order.trackingEvents?.map((event: any) => ({
+      id: event.id,
+      statusLabel: event.statusLabel,
+      notes: event.notes,
+      createdAt: event.createdAt,
+    })) ?? [],
   };
 }
 
@@ -207,6 +229,9 @@ companiesRouter.get(
           invoices: {
             orderBy: { generatedAt: 'desc' },
           },
+          trackingEvents: {
+            orderBy: { createdAt: 'asc' },
+          },
         },
         orderBy: {
           placedAt: 'desc',
@@ -217,6 +242,209 @@ companiesRouter.get(
         companyId,
         orders: orders.map(mapWholesellerPurchaseOrder),
       });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Lets a company approve or reject wholesaler bulk purchase orders.
+companiesRouter.patch(
+  '/:companyId/wholeseller-orders/:orderId/decision',
+  asyncHandler(async (request, response) => {
+    const companyId = String(pickParamValue(request.params.companyId));
+    const orderId = String(pickParamValue(request.params.orderId));
+    const payload = wholesellerOrderDecisionSchema.parse(request.body ?? {});
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const order = await transaction.wholesellerPurchaseOrder.findFirst({
+          where: { id: orderId, companyId },
+          include: {
+            wholeseller: true,
+            company: true,
+            items: { include: { medicine: true } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            invoices: { orderBy: { generatedAt: 'desc' } },
+            trackingEvents: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+
+        if (!order) {
+          throw new HttpError(404, 'Wholeseller purchase order not found for this company');
+        }
+
+        if (order.status !== 'PENDING_APPROVAL') {
+          throw new HttpError(409, `Cannot decide a purchase order while it is ${order.status}`);
+        }
+
+        if (payload.decision === 'REJECT') {
+          await transaction.wholesellerPurchaseOrder.update({
+            where: { id: order.id },
+            data: {
+              status: 'REJECTED',
+              rejectionReason: payload.rejectionReason,
+              trackingEvents: {
+                create: {
+                  statusLabel: 'Company purchase order rejected',
+                  notes: payload.rejectionReason,
+                },
+              },
+            },
+          });
+
+          await createNotification(transaction, {
+            userId: order.wholeseller.userId,
+            type: 'ORDER',
+            title: 'Company purchase order rejected',
+            body: `${order.company.legalName} rejected your purchase order: ${payload.rejectionReason}`,
+            referenceKind: 'wholeseller_purchase_order',
+            referenceId: order.id,
+          });
+        } else {
+          const latestPayment = order.payments[0];
+          const nextStatus = latestPayment?.status === 'SUCCESS' ? 'PAID' : latestPayment ? 'PAYMENT_PENDING' : 'APPROVED';
+
+          await transaction.wholesellerPurchaseOrder.update({
+            where: { id: order.id },
+            data: {
+              status: nextStatus,
+              rejectionReason: null,
+              trackingEvents: {
+                create: {
+                  statusLabel: 'Company purchase order approved',
+                  notes: payload.notes ?? 'Company approved the wholesaler purchase request.',
+                },
+              },
+            },
+          });
+
+          await createNotification(transaction, {
+            userId: order.wholeseller.userId,
+            type: 'ORDER',
+            title: 'Company purchase order approved',
+            body: `${order.company.legalName} approved your purchase order.`,
+            referenceKind: 'wholeseller_purchase_order',
+            referenceId: order.id,
+          });
+        }
+
+        return transaction.wholesellerPurchaseOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            wholeseller: true,
+            items: { include: { medicine: true } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            invoices: { orderBy: { generatedAt: 'desc' } },
+            trackingEvents: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+      });
+
+      response.json({ order: mapWholesellerPurchaseOrder(result) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Advances company fulfilment for a wholesaler bulk order.
+companiesRouter.patch(
+  '/:companyId/wholeseller-orders/:orderId/status',
+  asyncHandler(async (request, response) => {
+    const companyId = String(pickParamValue(request.params.companyId));
+    const orderId = String(pickParamValue(request.params.orderId));
+    const payload = wholesellerOrderStatusSchema.parse(request.body ?? {});
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const order = await transaction.wholesellerPurchaseOrder.findFirst({
+          where: { id: orderId, companyId },
+          include: {
+            wholeseller: true,
+            items: { include: { medicine: true } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            invoices: { orderBy: { generatedAt: 'desc' } },
+            trackingEvents: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+
+        if (!order) {
+          throw new HttpError(404, 'Wholeseller purchase order not found for this company');
+        }
+
+        if (payload.status === 'DISPATCHED' && !['APPROVED', 'PAID'].includes(order.status)) {
+          throw new HttpError(409, `Cannot dispatch a purchase order while it is ${order.status}`);
+        }
+
+        if (payload.status === 'DELIVERED' && order.status !== 'DISPATCHED') {
+          throw new HttpError(409, `Cannot mark delivered while purchase order is ${order.status}`);
+        }
+
+        await transaction.wholesellerPurchaseOrder.update({
+          where: { id: order.id },
+          data: {
+            status: payload.status,
+            deliveredAt: payload.status === 'DELIVERED' ? new Date() : undefined,
+            trackingEvents: {
+              create: {
+                statusLabel: payload.status === 'DISPATCHED' ? 'Company shipment dispatched' : 'Company shipment delivered',
+                notes: payload.notes ?? (payload.status === 'DISPATCHED'
+                  ? 'Company dispatched the bulk shipment.'
+                  : 'Company marked the bulk shipment delivered.'),
+              },
+            },
+          },
+        });
+
+        if (payload.status === 'DELIVERED') {
+          for (const item of order.items as any[]) {
+            await transaction.wholesellerInventory.upsert({
+              where: {
+                wholesellerId_medicineId: {
+                  wholesellerId: order.wholesellerId,
+                  medicineId: item.medicineId,
+                },
+              },
+              update: {
+                stockQuantity: { increment: item.quantity },
+                salePrice: (Number(item.unitPrice) * 1.18).toFixed(2),
+                isActive: true,
+              },
+              create: {
+                wholesellerId: order.wholesellerId,
+                medicineId: item.medicineId,
+                stockQuantity: item.quantity,
+                salePrice: (Number(item.unitPrice) * 1.18).toFixed(2),
+                reorderLevel: Math.max(20, Math.floor(item.quantity * 0.2)),
+                isActive: true,
+              },
+            });
+          }
+        }
+
+        await createNotification(transaction, {
+          userId: order.wholeseller.userId,
+          type: 'DELIVERY',
+          title: payload.status === 'DISPATCHED' ? 'Company shipment dispatched' : 'Company shipment delivered',
+          body: `Company purchase order ${order.id.slice(-8).toUpperCase()} is ${payload.status.toLowerCase().replace(/_/g, ' ')}.`,
+          referenceKind: 'wholeseller_purchase_order',
+          referenceId: order.id,
+        });
+
+        return transaction.wholesellerPurchaseOrder.findUnique({
+          where: { id: order.id },
+          include: {
+            wholeseller: true,
+            items: { include: { medicine: true } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            invoices: { orderBy: { generatedAt: 'desc' } },
+            trackingEvents: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+      });
+
+      response.json({ order: mapWholesellerPurchaseOrder(result) });
     } catch (error) {
       mapPrismaError(error);
     }
