@@ -20,11 +20,16 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 - Editable customer addresses with add, update, delete, and default-address controls
 - Customer order creation wired to backend order APIs
 - Retailer order operations APIs for queue, approve/reject, fulfilment status, and delivery stock settlement
+- Retailer prescription review controls now support approval notes, denial presets, and visible review history
 - Prescription upload draft flow wired to backend prescription endpoints
 - Order history, order tracking, and invoice fetch wired to backend endpoints
 - Invoice download/export wired to backend invoice links and fallback export endpoint
+- Razorpay checkout can now use native Android/iOS SDK builds and the existing Expo web checkout path
 - Customer notification inbox actions and tracking refresh/polling wired to backend updates
 - Customer web sessions register a backend notification device token for future push delivery work
+- Wholeseller module now has mobile dashboard, retailer-order fulfilment, and company-buying screens backed by live APIs
+- Company module now has mobile dashboard, wholeseller-order fulfilment, and offer-management screens backed by live APIs
+- Invoice downloads now persist generated PDF files under backend storage and reuse them on later downloads
 - Graceful fallback to local prototype data when backend services are unavailable
 - Verified builds:
   - `mobile`: `npx tsc --noEmit`
@@ -34,15 +39,14 @@ The repository is no longer just a UI prototype. It now has a working backend fo
 
 - Payment now has a Razorpay-shaped backend initiation and signature verification path, with demo fallback when gateway credentials are not configured
 - Prescription upload now uses the Expo web file picker when available and stores development files under backend local storage; production cloud storage is still pending
-- Invoice export now generates PDF downloads with short-lived signed links; durable PDF object storage is still pending
+- Invoice export now generates PDF downloads with short-lived signed links and durable local PDF storage; production object storage is still pending
 - Retailer app UI exists for dashboard, customer order approval/rejection, prescription review, fulfilment status, inventory, and B2B buying; production navigation/auth polish is still pending
+- Wholeseller and company app UIs exist for core B2B workflows; production navigation/auth polish is still pending
 - Production push delivery and live courier/location tracking are still pending
 - Some customer screens still rely on fallback mock data when the related backend service is missing or offline
 
 ### Not Started Yet
 
-- Wholesaler module
-- Company module
 - Production deployment
 
 ## Repository Structure
@@ -72,6 +76,7 @@ CLIENT_ORIGIN=http://localhost:8087
 RAZORPAY_KEY_ID=optional_razorpay_key_id
 RAZORPAY_KEY_SECRET=optional_razorpay_key_secret
 INVOICE_LINK_SECRET=replace_with_a_long_random_invoice_link_secret
+STORAGE_PUBLIC_BASE_URL=optional_public_origin_for_backend_storage_links
 ```
 
 4. Generate Prisma client: `npm run prisma:generate`
@@ -100,7 +105,26 @@ $env:EXPO_PUBLIC_APP_MODULE="retailer"
 npm run web
 ```
 
+To run the B2B modules:
+
+```powershell
+$env:EXPO_PUBLIC_APP_MODULE="wholeseller"
+npm run web
+
+$env:EXPO_PUBLIC_APP_MODULE="company"
+npm run web
+```
+
 If the backend is unavailable, the customer app will still open in local prototype mode.
+
+Native Razorpay checkout requires an Expo development build or prebuilt Android/iOS project so the native module can link:
+
+```powershell
+npx expo prebuild
+npx expo run:android
+```
+
+Use `npx expo run:ios` on macOS for iOS device or simulator testing.
 
 ## What The Customer Flow Can Do Right Now
 
@@ -123,13 +147,12 @@ If the backend is unavailable, the customer app will still open in local prototy
 
 Priority order for the next implementation steps:
 
-1. Add native mobile Razorpay SDK support alongside the implemented Expo web checkout path
-2. Add production cloud storage and richer retailer prescription review controls
-3. Add durable object storage for generated invoice PDFs
-4. Add production push notification delivery and live courier/location tracking
+1. Add production cloud/object storage for prescription uploads and invoice PDFs
+2. Add production push notification delivery and live courier/location tracking
+3. Add production auth/navigation polish across retailer, wholeseller, and company modules
 
 ## Important Notes
 
 - This is still an active prototype, not a production-ready medicine ordering system
-- The customer module is the only implemented product area today
+- The customer, retailer, wholeseller, and company modules now have implemented prototype paths
 - The repository contains both live integrations and local fallback/demo behavior by design
