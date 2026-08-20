@@ -10,6 +10,10 @@
 node_modules/
 dist/
 backend/storage/
+
+# Local SQLite development database, recreated by prisma migrate and the seeds.
+backend/prisma/*.db
+backend/prisma/*.db-journal
 web-build/
 .expo/
 .git_backup_local/
@@ -20,3 +24,6 @@ mobile/.expo/
 mobile/web-build/
 mobile/.expo-web*.log
 mobile/.git_backup_local/
+
+# Large source catalogue, seeded via "npm run seed:csv" (see README).
+indian_medicine_data.csv
