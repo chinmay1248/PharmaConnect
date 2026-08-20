@@ -8,11 +8,15 @@
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "seed": "tsx prisma/seed.ts",
+    "seed:csv": "tsx prisma/seed_csv.ts",
+    "smoke": "node scripts/smoke-test.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1105.0",
+    "@aws-sdk/s3-request-presigner": "^3.1105.0",
     "@prisma/client": "^6.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
