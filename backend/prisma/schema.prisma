@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -296,7 +296,7 @@ model Medicine {
   packSize                  String
   description               String?
   medicineType              MedicineType                 @default(OTC)
-  mrp                       Decimal                      @db.Decimal(10, 2)
+  mrp                       Decimal
   isGeneric                 Boolean                      @default(false)
   createdAt                 DateTime                     @default(now())
   updatedAt                 DateTime                     @updatedAt
@@ -372,7 +372,7 @@ model RetailerInventory {
   id               String                 @id @default(cuid())
   retailerId       String
   medicineId       String
-  salePrice        Decimal                @db.Decimal(10, 2)
+  salePrice        Decimal               
   stockQuantity    Int
   reservedQuantity Int                    @default(0)
   reorderLevel     Int?
@@ -393,7 +393,7 @@ model RetailerInventoryBatch {
   batchNumber        String
   expiryDate         DateTime
   quantity           Int
-  purchasePrice      Decimal?          @db.Decimal(10, 2)
+  purchasePrice      Decimal?         
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   retailerInventory  RetailerInventory @relation(fields: [retailerInventoryId], references: [id], onDelete: Cascade)
@@ -406,7 +406,7 @@ model WholesellerInventory {
   id                 String                    @id @default(cuid())
   wholesellerId      String
   medicineId         String
-  salePrice          Decimal                   @db.Decimal(10, 2)
+  salePrice          Decimal                  
   stockQuantity      Int
   reservedQuantity   Int                       @default(0)
   reorderLevel       Int?
@@ -427,7 +427,7 @@ model WholesellerInventoryBatch {
   batchNumber           String
   expiryDate            DateTime
   quantity              Int
-  purchasePrice         Decimal?             @db.Decimal(10, 2)
+  purchasePrice         Decimal?            
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   wholesellerInventory  WholesellerInventory @relation(fields: [wholesellerInventoryId], references: [id], onDelete: Cascade)
@@ -443,9 +443,9 @@ model CustomerOrder {
   deliveryAddressId String?
   status            CustomerOrderStatus @default(PENDING_RETAILER_APPROVAL)
   deliveryMethod    DeliveryMethod
-  subtotalAmount    Decimal             @db.Decimal(10, 2)
-  deliveryFee       Decimal             @db.Decimal(10, 2)
-  totalAmount       Decimal             @db.Decimal(10, 2)
+  subtotalAmount    Decimal            
+  deliveryFee       Decimal            
+  totalAmount       Decimal            
   rejectionReason   String?
   placedAt          DateTime            @default(now())
   approvedAt        DateTime?
@@ -459,10 +459,30 @@ model CustomerOrder {
   payments          PaymentRecord[]
   invoices          InvoiceRecord[]
   trackingEvents    DeliveryTrackingEvent[]
+  delivery          DeliveryAssignment?
   feedbacks         Feedback[]
 
   @@index([customerId, placedAt])
   @@index([retailerId, placedAt])
+}
+
+// Live courier state for one order out for delivery. Separate from the tracking event log because
+// the event log is an append-only history while this row is the current position and ETA.
+model DeliveryAssignment {
+  id                String        @id @default(cuid())
+  customerOrderId   String        @unique
+  courierName       String
+  courierPhone      String?
+  vehicleNumber     String?
+  latitude          Float?
+  longitude         Float?
+  etaMinutes        Int?
+  lastLocationAt    DateTime?
+  dispatchedAt      DateTime      @default(now())
+  deliveredAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  customerOrder     CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
 }
 
 // Line items within a customer order.
@@ -471,8 +491,8 @@ model CustomerOrderItem {
   customerOrderId String
   medicineId      String
   quantity        Int
-  unitPrice       Decimal       @db.Decimal(10, 2)
-  lineTotal       Decimal       @db.Decimal(10, 2)
+  unitPrice       Decimal      
+  lineTotal       Decimal      
   createdAt       DateTime      @default(now())
   customerOrder   CustomerOrder @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
   medicine        Medicine      @relation(fields: [medicineId], references: [id], onDelete: Restrict)
@@ -504,7 +524,7 @@ model PaymentRecord {
   wholesellerPurchaseOrderId String?
   method                    PaymentMethod
   status                    PaymentStatus             @default(PENDING)
-  amount                    Decimal                   @db.Decimal(10, 2)
+  amount                    Decimal                  
   gatewayReference          String?
   paidAt                    DateTime?
   createdAt                 DateTime                  @default(now())
@@ -554,9 +574,9 @@ model RetailerPurchaseOrder {
   retailerId           String
   wholesellerId        String
   status               PurchaseOrderStatus     @default(PENDING_APPROVAL)
-  subtotalAmount       Decimal                 @db.Decimal(10, 2)
-  schemeDiscountAmount Decimal                 @default(0) @db.Decimal(10, 2)
-  totalAmount          Decimal                 @db.Decimal(10, 2)
+  subtotalAmount       Decimal                
+  schemeDiscountAmount Decimal                 @default(0)
+  totalAmount          Decimal                
   rejectionReason      String?
   placedAt             DateTime                @default(now())
   deliveredAt          DateTime?
@@ -579,8 +599,8 @@ model RetailerPurchaseOrderItem {
   retailerPurchaseOrderId String
   medicineId              String
   quantity                Int
-  unitPrice               Decimal               @db.Decimal(10, 2)
-  lineTotal               Decimal               @db.Decimal(10, 2)
+  unitPrice               Decimal              
+  lineTotal               Decimal              
   retailerPurchaseOrder   RetailerPurchaseOrder @relation(fields: [retailerPurchaseOrderId], references: [id], onDelete: Cascade)
   medicine                Medicine              @relation(fields: [medicineId], references: [id], onDelete: Restrict)
 }
@@ -591,9 +611,9 @@ model WholesellerPurchaseOrder {
   wholesellerId         String
   companyId             String
   status                PurchaseOrderStatus        @default(PENDING_APPROVAL)
-  subtotalAmount        Decimal                    @db.Decimal(10, 2)
-  offerDiscountAmount   Decimal                    @default(0) @db.Decimal(10, 2)
-  totalAmount           Decimal                    @db.Decimal(10, 2)
+  subtotalAmount        Decimal                   
+  offerDiscountAmount   Decimal                    @default(0)
+  totalAmount           Decimal                   
   rejectionReason       String?
   placedAt              DateTime                   @default(now())
   deliveredAt           DateTime?
@@ -616,8 +636,8 @@ model WholesellerPurchaseOrderItem {
   wholesellerPurchaseOrderId String
   medicineId                 String
   quantity                   Int
-  unitPrice                  Decimal                  @db.Decimal(10, 2)
-  lineTotal                  Decimal                  @db.Decimal(10, 2)
+  unitPrice                  Decimal                 
+  lineTotal                  Decimal                 
   wholesellerPurchaseOrder   WholesellerPurchaseOrder @relation(fields: [wholesellerPurchaseOrderId], references: [id], onDelete: Cascade)
   medicine                   Medicine                 @relation(fields: [medicineId], references: [id], onDelete: Restrict)
 }
@@ -646,7 +666,7 @@ model Offer {
   description   String?
   status        OfferStatus @default(DRAFT)
   discountType  String?
-  discountValue Decimal?    @db.Decimal(10, 2)
+  discountValue Decimal?   
   startsAt      DateTime
   endsAt        DateTime
   acceptedAt    DateTime?
@@ -669,7 +689,7 @@ model Scheme {
   description   String?
   status        SchemeStatus @default(DRAFT)
   discountType  String?
-  discountValue Decimal?     @db.Decimal(10, 2)
+  discountValue Decimal?    
   startsAt      DateTime
   endsAt        DateTime
   createdAt     DateTime     @default(now())
@@ -742,7 +762,7 @@ model AnalyticsSnapshot {
   wholesellerId String?
   companyId     String?
   metricKey     String
-  metricValue   Decimal         @db.Decimal(14, 2)
+  metricValue   Decimal        
   periodStart   DateTime
   periodEnd     DateTime
   createdAt     DateTime        @default(now())
