@@ -48,12 +48,12 @@ medicinesRouter.get(
           medicineType: query.prescriptionOnly ? 'PRESCRIPTION' : undefined,
           OR: query.q
             ? [
-                { brandName: { contains: query.q, mode: 'insensitive' } },
-                { genericName: { contains: query.q, mode: 'insensitive' } },
+                { brandName: { contains: query.q } },
+                { genericName: { contains: query.q } },
                 {
                   searchAliases: {
                     some: {
-                      alias: { contains: query.q, mode: 'insensitive' },
+                      alias: { contains: query.q },
                     },
                   },
                 },
@@ -61,7 +61,7 @@ medicinesRouter.get(
                   compositions: {
                     some: {
                       saltComposition: {
-                        name: { contains: query.q, mode: 'insensitive' },
+                        name: { contains: query.q },
                       },
                     },
                   },
