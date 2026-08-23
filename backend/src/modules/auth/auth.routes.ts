@@ -5,6 +5,8 @@ import { HttpError } from '../../lib/http-error.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { signSessionToken } from '../../lib/tokens.js';
+import { assertSelf, getAuth, requireAuth } from '../../middleware/auth.js';
 
 export const authRouter = Router();
 
@@ -55,8 +57,8 @@ const updateCustomerAddressSchema = z
     message: 'At least one address field is required',
   });
 
-function buildSessionToken(userId: string) {
-  return Buffer.from(`${userId}:${Date.now()}`).toString('base64url');
+function buildSessionToken(user: { id: string; role: string }) {
+  return signSessionToken(user.id, user.role);
 }
 
 function mapUserProfile(user: any) {
@@ -125,7 +127,7 @@ authRouter.post(
       });
 
       response.status(201).json({
-        token: buildSessionToken(user.id),
+        token: buildSessionToken(user),
         user: mapUserProfile(user),
       });
     } catch (error) {
@@ -164,7 +166,7 @@ authRouter.post(
       }
 
       response.json({
-        token: buildSessionToken(user.id),
+        token: buildSessionToken(user),
         user: mapUserProfile(user),
       });
     } catch (error) {
@@ -173,11 +175,26 @@ authRouter.post(
   }),
 );
 
+// Rebuilds the signed-in profile straight from the bearer token so the app can restore a session
+// without trusting a user id kept in device storage.
+authRouter.get(
+  '/session',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const auth = getAuth(request);
+    const user = await loadUserProfile(auth.userId);
+
+    response.json({ user: mapUserProfile(user) });
+  }),
+);
+
 // Returns a lightweight user profile so the mobile app can restore a previous session.
 authRouter.get(
   '/users/:userId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const userId = String(request.params.userId);
+    assertSelf(request, userId);
 
     try {
       const user: any = await prisma.user.findUnique({
@@ -206,8 +223,10 @@ authRouter.get(
 // Adds a new saved customer address and can mark it as the default delivery address.
 authRouter.post(
   '/users/:userId/addresses',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const userId = String(request.params.userId);
+    assertSelf(request, userId);
     const payload = createCustomerAddressSchema.parse(request.body ?? {});
 
     try {
@@ -264,9 +283,11 @@ authRouter.post(
 // Updates one saved customer address.
 authRouter.patch(
   '/users/:userId/addresses/:addressId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const userId = String(request.params.userId);
     const addressId = String(request.params.addressId);
+    assertSelf(request, userId);
     const payload = updateCustomerAddressSchema.parse(request.body ?? {});
 
     try {
@@ -316,9 +337,11 @@ authRouter.patch(
 // Marks one saved address as the default delivery address.
 authRouter.patch(
   '/users/:userId/addresses/:addressId/default',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const userId = String(request.params.userId);
     const addressId = String(request.params.addressId);
+    assertSelf(request, userId);
 
     try {
       await prisma.$transaction(async (transaction: any) => {
@@ -369,9 +392,11 @@ authRouter.patch(
 // Removes one saved customer address and keeps another address as default when available.
 authRouter.delete(
   '/users/:userId/addresses/:addressId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const userId = String(request.params.userId);
     const addressId = String(request.params.addressId);
+    assertSelf(request, userId);
 
     try {
       await prisma.$transaction(async (transaction: any) => {
