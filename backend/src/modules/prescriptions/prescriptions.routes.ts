@@ -1,13 +1,27 @@
 import { Router } from 'express';
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
+import { StorageService, useS3 } from '../../lib/storage.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import {
+  buildPrescriptionFileUrl,
+  buildPrescriptionResourceId,
+  buildSignedPrescriptionUrl,
+} from '../../lib/prescription-links.js';
+import { assertValidSignedLink, hasSignedLinkParams } from '../../lib/signed-links.js';
+import {
+  assertCustomerOrderAccess,
+  assertSelf,
+  getAuth,
+  optionalAuth,
+  requireAuth,
+} from '../../middleware/auth.js';
 
 export const prescriptionsRouter = Router();
 
@@ -50,13 +64,26 @@ function buildUploadedFileName(customerId: string, source: 'camera' | 'gallery',
   return `${customerId.slice(-8)}-${normalized || fallbackName}`;
 }
 
-function buildPrescriptionFileUrl(customerId: string, fileName: string) {
-  const apiPath = `/api/prescriptions/uploads/${encodeURIComponent(customerId)}/${encodeURIComponent(fileName)}`;
-  return env.STORAGE_PUBLIC_BASE_URL ? `${env.STORAGE_PUBLIC_BASE_URL.replace(/\/+$/, '')}${apiPath}` : apiPath;
-}
+// A pharmacy may open the prescriptions of customers who ordered from it, and nobody else's.
+async function assertPrescriptionFileAccess(request: Parameters<typeof getAuth>[0], customerId: string) {
+  const auth = getAuth(request);
 
-function getPrescriptionStorageRoot() {
-  return path.join(process.cwd(), 'storage', 'prescriptions');
+  if (auth.userId === customerId) {
+    return;
+  }
+
+  if (auth.role === 'RETAILER' && auth.retailerId) {
+    const relatedOrder = await prisma.customerOrder.findFirst({
+      where: { customerId, retailerId: auth.retailerId },
+      select: { id: true },
+    });
+
+    if (relatedOrder) {
+      return;
+    }
+  }
+
+  throw new HttpError(403, 'You cannot access this prescription file.');
 }
 
 async function savePrescriptionFile(customerId: string, fileName: string, contentBase64?: string, mimeType?: string) {
@@ -74,22 +101,17 @@ async function savePrescriptionFile(customerId: string, fileName: string, conten
     throw new HttpError(400, 'Prescription file must be 5 MB or smaller');
   }
 
-  const customerDirectory = path.join(getPrescriptionStorageRoot(), customerId);
-  const filePath = path.join(customerDirectory, fileName);
-
-  if (!filePath.startsWith(customerDirectory)) {
-    throw new HttpError(400, 'Invalid prescription file path');
-  }
-
-  await mkdir(customerDirectory, { recursive: true });
-  await writeFile(filePath, fileBuffer);
+  const key = `prescriptions/${customerId}/${fileName}`;
+  await StorageService.saveFile(key, fileBuffer, mimeType);
 }
 
 // Stores a prescription upload draft under backend-controlled local storage for development.
 prescriptionsRouter.post(
   '/uploads',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const payload = uploadDraftSchema.parse(request.body);
+    assertSelf(request, payload.customerId);
 
     try {
       const [customer, medicine] = await Promise.all([
@@ -117,7 +139,10 @@ prescriptionsRouter.post(
 
       response.status(201).json({
         upload: {
+          // `fileUrl` is the durable reference the client sends back when attaching the
+          // prescription to an order; `previewUrl` is a short-lived link for showing it right away.
           fileUrl,
+          previewUrl: buildSignedPrescriptionUrl(fileUrl),
           originalFileName: payload.originalFileName ?? fileName,
           source: payload.source,
           uploadedAt: new Date().toISOString(),
@@ -134,29 +159,44 @@ prescriptionsRouter.post(
 // Serves locally stored prescription files back to customer and retailer screens during development.
 prescriptionsRouter.get(
   '/uploads/:customerId/:fileName',
+  optionalAuth,
   asyncHandler(async (request, response) => {
     const customerId = sanitizeFileName(String(pickParamValue(request.params.customerId)));
     const fileName = sanitizeFileName(String(pickParamValue(request.params.fileName)));
-    const customerDirectory = path.join(getPrescriptionStorageRoot(), customerId);
-    const filePath = path.join(customerDirectory, fileName);
+    const key = `prescriptions/${customerId}/${fileName}`;
 
-    if (!filePath.startsWith(customerDirectory)) {
-      throw new HttpError(400, 'Invalid prescription file path');
+    if (hasSignedLinkParams(request.query)) {
+      assertValidSignedLink(
+        buildPrescriptionResourceId(customerId, fileName),
+        request.query,
+        'prescription link',
+      );
+    } else {
+      await assertPrescriptionFileAccess(request, customerId);
     }
 
-    await access(filePath).catch(() => {
-      throw new HttpError(404, 'Prescription file not found');
-    });
+    if (useS3) {
+      response.redirect(await StorageService.getDownloadUrl(key, ''));
+      return;
+    }
 
-    response.sendFile(filePath);
+    try {
+      const filePath = await StorageService.getLocalFilePath(key);
+      await access(filePath);
+      response.sendFile(filePath);
+    } catch {
+      throw new HttpError(404, 'Prescription file not found');
+    }
   }),
 );
 
 // Returns one order-linked prescription so customer and retailer screens can read the stored metadata.
 prescriptionsRouter.get(
   '/customer-orders/:orderId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId);
 
     try {
       const order: any = await prisma.customerOrder.findUnique({
@@ -188,7 +228,7 @@ prescriptionsRouter.get(
           customerName: order.prescription.customer.fullName,
           medicineId: order.prescription.medicineId,
           medicineName: order.prescription.medicine?.brandName ?? null,
-          fileUrl: order.prescription.fileUrl,
+          fileUrl: buildSignedPrescriptionUrl(order.prescription.fileUrl),
           originalFileName: order.prescription.originalFileName,
           status: order.prescription.status,
           retailerNotes: order.prescription.retailerNotes,
@@ -206,9 +246,12 @@ prescriptionsRouter.get(
 // Attaches or replaces a prescription after order creation so the API can support both current and future checkout sequences.
 prescriptionsRouter.post(
   '/customer-orders/:orderId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
     const payload = attachPrescriptionSchema.parse(request.body);
+    assertSelf(request, payload.customerId);
+    await assertCustomerOrderAccess(request, orderId, { customerOnly: true });
 
     try {
       const [order, customer, medicine] = await Promise.all([
@@ -295,7 +338,7 @@ prescriptionsRouter.post(
           customerOrderId: order.id,
           customerId: savedPrescription.customerId,
           medicineId: savedPrescription.medicineId,
-          fileUrl: savedPrescription.fileUrl,
+          fileUrl: buildSignedPrescriptionUrl(savedPrescription.fileUrl),
           originalFileName: savedPrescription.originalFileName,
           status: savedPrescription.status,
           retailerNotes: savedPrescription.retailerNotes,
