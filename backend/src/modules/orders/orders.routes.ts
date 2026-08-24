@@ -1,10 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { mapDeliveryAssignment } from '../../lib/delivery.js';
 import { HttpError } from '../../lib/http-error.js';
 import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { buildSignedPrescriptionUrl } from '../../lib/prescription-links.js';
+import { assertCustomerOrderAccess, assertSelf, requireAuth } from '../../middleware/auth.js';
 
 export const ordersRouter = Router();
 
@@ -65,8 +68,10 @@ function mapOrderStatusToTimeline(status: string) {
 // Creates a customer order, reserves stock, and captures prescription metadata when required.
 ordersRouter.post(
   '/',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const payload = createOrderSchema.parse(request.body);
+    assertSelf(request, payload.customerId);
 
     try {
       const [customer, retailer, inventoryRows]: [any, any, any[]] = (await Promise.all([
@@ -297,8 +302,10 @@ ordersRouter.post(
 // Returns the customer order list so the frontend can power orders and reorder screens.
 ordersRouter.get(
   '/customer/:customerId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const customerId = String(pickParamValue(request.params.customerId));
+    assertSelf(request, customerId);
 
     try {
       const orders: any[] = await prisma.customerOrder.findMany({
@@ -357,11 +364,66 @@ ordersRouter.get(
   }),
 );
 
+// Returns just the tracking timeline and live courier position. The tracking screen polls this
+// every few seconds, so it deliberately avoids loading items, payments, and invoices.
+ordersRouter.get(
+  '/:orderId/tracking',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId);
+
+    try {
+      const order: any = await prisma.customerOrder.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          status: true,
+          deliveryMethod: true,
+          placedAt: true,
+          completedAt: true,
+          delivery: true,
+          retailer: {
+            select: {
+              businessName: true,
+              owner: { select: { phone: true } },
+            },
+          },
+          trackingEvents: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new HttpError(404, 'Order not found');
+      }
+
+      response.json({
+        orderId: order.id,
+        status: order.status,
+        timelineStatus: mapOrderStatusToTimeline(order.status),
+        deliveryMethod: order.deliveryMethod,
+        placedAt: order.placedAt,
+        completedAt: order.completedAt,
+        retailerName: order.retailer?.businessName ?? null,
+        retailerPhone: order.retailer?.owner?.phone ?? null,
+        trackingEvents: order.trackingEvents,
+        delivery: mapDeliveryAssignment(order.delivery),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
 // Returns a single order with all detail blocks needed for tracking, invoice, and support screens.
 ordersRouter.get(
   '/:orderId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId);
 
     try {
       const order: any = await prisma.customerOrder.findUnique({
@@ -378,6 +440,7 @@ ordersRouter.get(
           prescription: true,
           payments: true,
           invoices: true,
+          delivery: true,
           trackingEvents: {
             orderBy: {
               createdAt: 'asc',
@@ -422,7 +485,13 @@ ordersRouter.get(
             unitPrice: Number(item.unitPrice),
             lineTotal: Number(item.lineTotal),
           })),
-          prescription: order.prescription,
+          prescription: order.prescription
+            ? {
+                ...order.prescription,
+                // Stored as a stable path; signed fresh on each read so the link is openable now.
+                fileUrl: buildSignedPrescriptionUrl(order.prescription.fileUrl),
+              }
+            : null,
           payments: order.payments.map((payment: any) => ({
             id: payment.id,
             method: payment.method,
@@ -440,6 +509,7 @@ ordersRouter.get(
           })),
           timelineStatus: mapOrderStatusToTimeline(order.status),
           trackingEvents: order.trackingEvents,
+          delivery: mapDeliveryAssignment(order.delivery),
         },
       });
     } catch (error) {
