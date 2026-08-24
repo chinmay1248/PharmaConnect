@@ -7,8 +7,12 @@ import { HttpError } from '../../lib/http-error.js';
 import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { assertCustomerOrderAccess, requireAuth } from '../../middleware/auth.js';
 
 export const paymentsRouter = Router();
+
+// Only the buyer may start or confirm a payment; the fulfilling pharmacy may read its status.
+paymentsRouter.use('/customer-orders/:orderId', requireAuth);
 
 const confirmPaymentSchema = z.object({
   gatewayReference: z.string().min(3).optional(),
@@ -118,6 +122,7 @@ paymentsRouter.get(
   '/customer-orders/:orderId',
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId);
 
     try {
       const order: any = await prisma.customerOrder.findUnique({
@@ -160,6 +165,7 @@ paymentsRouter.post(
   '/customer-orders/:orderId/initiate',
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId, { customerOnly: true });
 
     try {
       const order: any = await prisma.customerOrder.findUnique({
@@ -255,6 +261,7 @@ paymentsRouter.post(
   '/customer-orders/:orderId/confirm',
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId, { customerOnly: true });
     const payload = confirmPaymentSchema.parse(request.body ?? {});
 
     try {
