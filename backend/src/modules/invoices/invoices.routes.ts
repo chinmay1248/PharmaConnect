@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { createHmac } from 'node:crypto';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { StorageService } from '../../lib/storage.js';
 import { env } from '../../config/env.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { hasSignedLinkParams } from '../../lib/signed-links.js';
+import { assertCustomerOrderAccess, optionalAuth, requireAuth } from '../../middleware/auth.js';
 
 export const invoicesRouter = Router();
 
@@ -126,33 +127,11 @@ function buildSignedInvoiceDownloadPath(invoiceId: string) {
   return `/api/invoices/${encodeURIComponent(invoiceId)}/download?expires=${expiresAt}&signature=${signature}`;
 }
 
-function getInvoiceStorageRoot() {
-  return path.join(process.cwd(), 'storage', 'invoices');
-}
-
-function buildInvoiceStorageFileName(invoiceId: string) {
-  return `${invoiceId}.pdf`;
-}
-
 function buildInvoiceDownloadPath(invoiceId: string) {
   return `/api/invoices/${encodeURIComponent(invoiceId)}/download`;
 }
 
-function getInvoiceStoragePath(invoiceId: string) {
-  const filePath = path.join(getInvoiceStorageRoot(), buildInvoiceStorageFileName(invoiceId));
-
-  if (!filePath.startsWith(getInvoiceStorageRoot())) {
-    throw new HttpError(400, 'Invalid invoice file path');
-  }
-
-  return filePath;
-}
-
 function validateInvoiceDownloadSignature(invoiceId: string, expires: unknown, signature: unknown) {
-  if (expires === undefined && signature === undefined) {
-    return;
-  }
-
   const expiresAt = Number(Array.isArray(expires) ? expires[0] : expires);
   const providedSignature = String(Array.isArray(signature) ? signature[0] : signature ?? '');
 
@@ -263,15 +242,13 @@ function buildInvoicePdf(invoice: any) {
 }
 
 async function loadOrCreateInvoicePdf(invoiceRecord: any, mappedInvoice: any) {
-  const filePath = getInvoiceStoragePath(invoiceRecord.id);
+  const key = `invoices/${invoiceRecord.id}.pdf`;
 
   try {
-    await access(filePath);
-    return readFile(filePath);
+    return await StorageService.getFileBuffer(key);
   } catch {
     const pdf = buildInvoicePdf(mappedInvoice);
-    await mkdir(getInvoiceStorageRoot(), { recursive: true });
-    await writeFile(filePath, pdf);
+    await StorageService.saveFile(key, pdf, 'application/pdf');
 
     if (!invoiceRecord.pdfUrl) {
       await prisma.invoiceRecord.update({
@@ -287,8 +264,10 @@ async function loadOrCreateInvoicePdf(invoiceRecord: any, mappedInvoice: any) {
 // Returns the invoice for one customer order so the mobile bill view can use backend data.
 invoicesRouter.get(
   '/order/:orderId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const orderId = String(pickParamValue(request.params.orderId));
+    await assertCustomerOrderAccess(request, orderId);
 
     try {
       const invoice = await loadInvoiceByWhere({ customerOrderId: orderId });
@@ -307,16 +286,25 @@ invoicesRouter.get(
 // Exports one invoice as a generated PDF. Signed links are returned by invoice detail endpoints.
 invoicesRouter.get(
   '/:invoiceId/download',
+  optionalAuth,
   asyncHandler(async (request, response) => {
     const invoiceId = String(pickParamValue(request.params.invoiceId));
 
     try {
-      validateInvoiceDownloadSignature(invoiceId, request.query.expires, request.query.signature);
+      // A signed link stands in for a bearer token, because the browser download and the mobile
+      // share sheet cannot send Authorization headers.
+      if (hasSignedLinkParams(request.query)) {
+        validateInvoiceDownloadSignature(invoiceId, request.query.expires, request.query.signature);
+      }
 
       const invoice = await loadInvoiceByWhere({ id: invoiceId });
 
       if (!invoice) {
         throw new HttpError(404, 'Invoice not found');
+      }
+
+      if (!hasSignedLinkParams(request.query)) {
+        await assertCustomerOrderAccess(request, invoice.customerOrderId as string);
       }
 
       const mapped = mapInvoiceResponse(invoice).invoice;
@@ -334,6 +322,7 @@ invoicesRouter.get(
 // Returns one invoice record with bill details for invoice screen and download actions.
 invoicesRouter.get(
   '/:invoiceId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const invoiceId = String(pickParamValue(request.params.invoiceId));
 
@@ -343,6 +332,8 @@ invoicesRouter.get(
       if (!invoice) {
         throw new HttpError(404, 'Invoice not found');
       }
+
+      await assertCustomerOrderAccess(request, invoice.customerOrderId as string);
 
       response.json(mapInvoiceResponse(invoice));
     } catch (error) {
