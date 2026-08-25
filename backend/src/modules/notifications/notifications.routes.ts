@@ -4,8 +4,12 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { assertSelf, getAuth, requireAuth } from '../../middleware/auth.js';
 
 export const notificationsRouter = Router();
+
+// A notification inbox is always private to its owner.
+notificationsRouter.use(requireAuth);
 
 const notificationQuerySchema = z.object({
   userId: z.string().min(1).optional(),
@@ -50,11 +54,16 @@ notificationsRouter.get(
       unreadOnly: pickQueryValue(request.query.unreadOnly),
       limit: pickQueryValue(request.query.limit),
     });
+    const auth = getAuth(request);
+
+    if (query.userId) {
+      assertSelf(request, query.userId);
+    }
 
     try {
       const notifications = await prisma.notification.findMany({
         where: {
-          userId: query.userId,
+          userId: auth.userId,
           isRead: query.unreadOnly ? false : undefined,
         },
         orderBy: {
@@ -77,6 +86,7 @@ notificationsRouter.get(
   '/users/:userId',
   asyncHandler(async (request, response) => {
     const userId = String(pickParamValue(request.params.userId));
+    assertSelf(request, userId);
     const query = notificationQuerySchema.parse({
       unreadOnly: pickQueryValue(request.query.unreadOnly),
       limit: pickQueryValue(request.query.limit),
@@ -126,6 +136,7 @@ notificationsRouter.post(
   '/devices',
   asyncHandler(async (request, response) => {
     const payload = registerDeviceSchema.parse(request.body ?? {});
+    assertSelf(request, payload.userId);
 
     try {
       const user = await prisma.user.findUnique({
@@ -163,15 +174,49 @@ notificationsRouter.post(
   }),
 );
 
+// Detaches a device on sign-out so the next account on that device does not inherit push messages.
+notificationsRouter.delete(
+  '/devices/:deviceToken',
+  asyncHandler(async (request, response) => {
+    const deviceToken = String(pickParamValue(request.params.deviceToken));
+    const auth = getAuth(request);
+
+    try {
+      const result = await prisma.notificationDevice.deleteMany({
+        where: {
+          deviceToken,
+          userId: auth.userId,
+        },
+      });
+
+      response.json({ removed: result.count > 0 });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
 // Marks a single notification as read.
 notificationsRouter.patch(
   '/:notificationId/read',
   asyncHandler(async (request, response) => {
     const notificationId = String(pickParamValue(request.params.notificationId));
+    const auth = getAuth(request);
 
     try {
-      const notification = await prisma.notification.update({
+      const existing = await prisma.notification.findUnique({
         where: { id: notificationId },
+        select: { userId: true },
+      });
+
+      if (!existing) {
+        throw new HttpError(404, 'Notification not found');
+      }
+
+      assertSelf(request, existing.userId);
+
+      const notification = await prisma.notification.update({
+        where: { id: notificationId, userId: auth.userId },
         data: { isRead: true },
       });
 
@@ -189,6 +234,7 @@ notificationsRouter.patch(
   '/users/:userId/read-all',
   asyncHandler(async (request, response) => {
     const userId = String(pickParamValue(request.params.userId));
+    assertSelf(request, userId);
 
     try {
       const result = await prisma.notification.updateMany({
