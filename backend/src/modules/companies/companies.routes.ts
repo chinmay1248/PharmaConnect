@@ -6,8 +6,24 @@ import { HttpError } from '../../lib/http-error.js';
 import { createNotification } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { assertCompanyScope, requireAuth } from '../../middleware/auth.js';
 
 export const companiesRouter = Router();
+
+// A company's order book and offer desk are private to that company. The catalogue routes stay
+// readable by any signed-in business account so wholesellers can browse and place bulk orders.
+const companyOwnedPrefixes = ['/:companyId/wholeseller-orders', '/:companyId/offers'];
+
+for (const prefix of companyOwnedPrefixes) {
+  companiesRouter.use(prefix, requireAuth, (request, _response, next) => {
+    try {
+      assertCompanyScope(request, String(request.params.companyId));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
 
 const companyQuerySchema = z.object({
   q: z.string().optional(),
@@ -115,6 +131,7 @@ function mapWholesellerPurchaseOrder(order: any) {
 // Lists companies so wholesalers can discover suppliers.
 companiesRouter.get(
   '/',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const query = companyQuerySchema.parse({
       q: pickQueryValue(request.query.q),
@@ -123,7 +140,7 @@ companiesRouter.get(
     try {
       const companies = await prisma.company.findMany({
         where: {
-          legalName: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
+          legalName: query.q ? { contains: query.q } : undefined,
         },
         include: {
           owner: true,
@@ -149,6 +166,7 @@ companiesRouter.get(
 // Returns one company's medicine catalogue for wholesaler buy screens.
 companiesRouter.get(
   '/:companyId/medicines',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const companyId = String(pickParamValue(request.params.companyId));
 
