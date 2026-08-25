@@ -3,6 +3,12 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import {
+  assertCompanyScope,
+  assertRetailerScope,
+  assertWholesellerScope,
+  requireAuth,
+} from '../../middleware/auth.js';
 
 export const analyticsRouter = Router();
 
@@ -17,8 +23,10 @@ function decimalToNumber(value: unknown) {
 // Retailer dashboard summary: customer order workload, revenue, and stock risk.
 analyticsRouter.get(
   '/retailers/:retailerId/summary',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const retailerId = String(pickParamValue(request.params.retailerId));
+    assertRetailerScope(request, retailerId);
 
     try {
       const retailer = await prisma.retailer.findUnique({
@@ -86,8 +94,10 @@ analyticsRouter.get(
 // Wholeseller dashboard summary: retailer order workload, schemes, and inventory risk.
 analyticsRouter.get(
   '/wholesellers/:wholesellerId/summary',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    assertWholesellerScope(request, wholesellerId);
 
     try {
       const wholeseller = await prisma.wholeseller.findUnique({
@@ -150,8 +160,10 @@ analyticsRouter.get(
 // Company dashboard summary: catalogue, supplier offers, and wholesaler order workload.
 analyticsRouter.get(
   '/companies/:companyId/summary',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const companyId = String(pickParamValue(request.params.companyId));
+    assertCompanyScope(request, companyId);
 
     try {
       const company = await prisma.company.findUnique({
