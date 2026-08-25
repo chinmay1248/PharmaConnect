@@ -6,8 +6,25 @@ import { HttpError } from '../../lib/http-error.js';
 import { createNotification } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { assertWholesellerScope, requireAuth } from '../../middleware/auth.js';
 
 export const wholesellersRouter = Router();
+
+// Order books and scheme creation belong to the wholeseller that owns them. The public catalogue
+// routes (`/`, `/:wholesellerId/inventory`, and reading schemes) stay open to any signed-in
+// business account so retailers can shop for stock.
+const wholesellerOwnedPrefixes = ['/:wholesellerId/company-orders', '/:wholesellerId/retailer-orders'];
+
+for (const prefix of wholesellerOwnedPrefixes) {
+  wholesellersRouter.use(prefix, requireAuth, (request, _response, next) => {
+    try {
+      assertWholesellerScope(request, String(request.params.wholesellerId));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
 
 const wholesellerQuerySchema = z.object({
   q: z.string().optional(),
@@ -181,6 +198,7 @@ function mapWholesellerPurchaseOrder(order: any) {
 // Lists wholesalers for retailer restock discovery.
 wholesellersRouter.get(
   '/',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const query = wholesellerQuerySchema.parse({
       q: pickQueryValue(request.query.q),
@@ -190,8 +208,8 @@ wholesellersRouter.get(
     try {
       const wholesellers = await prisma.wholeseller.findMany({
         where: {
-          businessName: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
-          serviceArea: query.serviceArea ? { contains: query.serviceArea, mode: 'insensitive' } : undefined,
+          businessName: query.q ? { contains: query.q } : undefined,
+          serviceArea: query.serviceArea ? { contains: query.serviceArea } : undefined,
         },
         include: {
           owner: true,
@@ -372,6 +390,7 @@ wholesellersRouter.post(
 // Returns one wholesaler's available inventory for retailer buy screens.
 wholesellersRouter.get(
   '/:wholesellerId/inventory',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const wholesellerId = String(pickParamValue(request.params.wholesellerId));
 
@@ -663,6 +682,7 @@ wholesellersRouter.patch(
 // Lists schemes created by a wholesaler for all retailers or one targeted retailer.
 wholesellersRouter.get(
   '/:wholesellerId/schemes',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const wholesellerId = String(pickParamValue(request.params.wholesellerId));
     const retailerId = z.string().optional().parse(pickQueryValue(request.query.retailerId));
@@ -705,8 +725,10 @@ wholesellersRouter.get(
 // Creates a wholesaler scheme and alerts a targeted retailer when present.
 wholesellersRouter.post(
   '/:wholesellerId/schemes',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    assertWholesellerScope(request, wholesellerId);
     const payload = schemeSchema.parse(request.body ?? {});
 
     if (payload.endsAt <= payload.startsAt) {
