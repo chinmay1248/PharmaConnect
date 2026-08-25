@@ -1,12 +1,30 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { mapDeliveryAssignment } from '../../lib/delivery.js';
 import { HttpError } from '../../lib/http-error.js';
 import { createNotification, shortOrderCode } from '../../lib/notifications.js';
 import { prisma } from '../../lib/prisma.js';
 import { mapPrismaError } from '../../lib/responses.js';
+import { buildSignedPrescriptionUrl } from '../../lib/prescription-links.js';
+import { assertRetailerScope, requireAuth } from '../../middleware/auth.js';
 
 export const retailersRouter = Router();
+
+// Every nested retailer resource is private to the pharmacy that owns it, so the ownership check
+// runs once here instead of being repeated inside each handler.
+const retailerOwnedPrefixes = ['/:retailerId/inventory', '/:retailerId/customer-orders', '/:retailerId/purchase-orders'];
+
+for (const prefix of retailerOwnedPrefixes) {
+  retailersRouter.use(prefix, requireAuth, (request, _response, next) => {
+    try {
+      assertRetailerScope(request, String(request.params.retailerId));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+}
 
 function pickQueryValue(value: unknown) {
   return Array.isArray(value) ? value[0] : value;
@@ -53,7 +71,31 @@ const retailerDecisionSchema = z.discriminatedUnion('decision', [
 const retailerStatusUpdateSchema = z.object({
   status: z.enum(['PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED']),
   notes: z.string().max(240).optional(),
+  // Optional courier details captured when a home delivery is dispatched.
+  courierName: z.string().min(2).max(80).optional(),
+  courierPhone: z.string().min(6).max(20).optional(),
+  vehicleNumber: z.string().min(2).max(20).optional(),
+  etaMinutes: z.coerce.number().int().min(1).max(600).optional(),
 });
+
+// Courier position updates sent while an order is on its way to the customer.
+const deliveryLocationSchema = z
+  .object({
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
+    etaMinutes: z.coerce.number().int().min(0).max(600).optional(),
+    courierName: z.string().min(2).max(80).optional(),
+    courierPhone: z.string().min(6).max(20).optional(),
+    vehicleNumber: z.string().min(2).max(20).optional(),
+  })
+  .refine(
+    (payload) =>
+      (payload.latitude === undefined) === (payload.longitude === undefined),
+    { message: 'Latitude and longitude must be provided together' },
+  )
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one delivery field is required',
+  });
 
 const retailerInventoryUpsertSchema = z.object({
   medicineId: z.string().min(1),
@@ -241,7 +283,9 @@ function mapRetailerOrderResponse(order: any) {
       ? {
           id: order.prescription.id,
           status: order.prescription.status,
-          fileUrl: order.prescription.fileUrl,
+          // Re-signed on every read so a pharmacy reviewing an order hours later still gets a
+          // link it can open without an Authorization header.
+          fileUrl: buildSignedPrescriptionUrl(order.prescription.fileUrl),
           originalFileName: order.prescription.originalFileName,
           retailerNotes: order.prescription.retailerNotes,
           reviewedAt: order.prescription.reviewedAt,
@@ -266,6 +310,7 @@ function mapRetailerOrderResponse(order: any) {
         }
       : null,
     latestTrackingEvent: order.trackingEvents[order.trackingEvents.length - 1] ?? null,
+    delivery: mapDeliveryAssignment(order.delivery),
   };
 }
 
@@ -320,6 +365,7 @@ function canMoveToStatus(currentStatus: string, nextStatus: 'PACKED' | 'OUT_FOR_
 // Returns nearby pharmacies with enough summary information for store comparison screens.
 retailersRouter.get(
   '/',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const query = retailerQuerySchema.parse({
       city: pickQueryValue(request.query.city),
@@ -330,9 +376,9 @@ retailersRouter.get(
     try {
       const retailers: any[] = await prisma.retailer.findMany({
         where: {
-          city: query.city ? { equals: query.city, mode: 'insensitive' } : undefined,
-          area: query.area ? { equals: query.area, mode: 'insensitive' } : undefined,
-          businessName: query.q ? { contains: query.q, mode: 'insensitive' } : undefined,
+          city: query.city ? { equals: query.city } : undefined,
+          area: query.area ? { equals: query.area } : undefined,
+          businessName: query.q ? { contains: query.q } : undefined,
         },
         include: {
           inventoryItems: {
@@ -376,8 +422,10 @@ retailersRouter.get(
 // Returns one retailer profile plus an inventory snapshot for product detail and store pages.
 retailersRouter.get(
   '/:retailerId',
+  requireAuth,
   asyncHandler(async (request, response) => {
     const retailerId = String(request.params.retailerId);
+    assertRetailerScope(request, retailerId);
 
     try {
       const retailer: any = await prisma.retailer.findUnique({
@@ -747,6 +795,7 @@ retailersRouter.get(
               createdAt: 'asc',
             },
           },
+          delivery: true,
         },
         orderBy: [{ placedAt: 'desc' }],
         take: query.limit ?? 40,
@@ -922,6 +971,7 @@ retailersRouter.patch(
             trackingEvents: {
               orderBy: { createdAt: 'asc' },
             },
+            delivery: true,
           },
         });
 
@@ -988,6 +1038,32 @@ retailersRouter.patch(
           data: updateData,
         });
 
+        // Dispatching a home delivery opens a courier record so the customer's tracking screen has
+        // something live to follow; delivering closes it.
+        if (payload.status === 'OUT_FOR_DELIVERY') {
+          await transaction.deliveryAssignment.upsert({
+            where: { customerOrderId: order.id },
+            update: {
+              deliveredAt: null,
+              dispatchedAt: new Date(),
+            },
+            create: {
+              customerOrderId: order.id,
+              courierName: payload.courierName ?? 'Pharmacy delivery partner',
+              courierPhone: payload.courierPhone ?? null,
+              vehicleNumber: payload.vehicleNumber ?? null,
+              etaMinutes: payload.etaMinutes ?? 45,
+            },
+          });
+        }
+
+        if (payload.status === 'DELIVERED') {
+          await transaction.deliveryAssignment.updateMany({
+            where: { customerOrderId: order.id, deliveredAt: null },
+            data: { deliveredAt: new Date(), etaMinutes: 0 },
+          });
+        }
+
         await createNotification(transaction, {
           userId: order.customerId,
           type: payload.status === 'DELIVERED' ? 'DELIVERY' : 'ORDER',
@@ -1053,6 +1129,7 @@ retailersRouter.patch(
             trackingEvents: {
               orderBy: { createdAt: 'asc' },
             },
+            delivery: true,
           },
         });
 
@@ -1066,6 +1143,61 @@ retailersRouter.patch(
       response.json({
         order: mapRetailerOrderResponse(result),
       });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Records a courier position or ETA update for an order that is out for delivery. A delivery app
+// or dispatcher calls this on a loop; the customer's tracking screen polls the matching read route.
+retailersRouter.patch(
+  '/:retailerId/customer-orders/:orderId/delivery',
+  asyncHandler(async (request, response) => {
+    const retailerId = String(request.params.retailerId);
+    const orderId = String(request.params.orderId);
+    const payload = deliveryLocationSchema.parse(request.body ?? {});
+
+    try {
+      const order = await prisma.customerOrder.findFirst({
+        where: { id: orderId, retailerId },
+        select: { id: true, status: true },
+      });
+
+      if (!order) {
+        throw new HttpError(404, 'Order not found for this retailer');
+      }
+
+      if (order.status !== 'OUT_FOR_DELIVERY') {
+        throw new HttpError(409, 'Delivery tracking is only available while an order is out for delivery.');
+      }
+
+      const hasLocation = payload.latitude !== undefined && payload.longitude !== undefined;
+
+      const delivery = await prisma.deliveryAssignment.upsert({
+        where: { customerOrderId: order.id },
+        update: {
+          ...(payload.courierName !== undefined ? { courierName: payload.courierName } : {}),
+          ...(payload.courierPhone !== undefined ? { courierPhone: payload.courierPhone } : {}),
+          ...(payload.vehicleNumber !== undefined ? { vehicleNumber: payload.vehicleNumber } : {}),
+          ...(payload.etaMinutes !== undefined ? { etaMinutes: payload.etaMinutes } : {}),
+          ...(hasLocation
+            ? { latitude: payload.latitude, longitude: payload.longitude, lastLocationAt: new Date() }
+            : {}),
+        },
+        create: {
+          customerOrderId: order.id,
+          courierName: payload.courierName ?? 'Pharmacy delivery partner',
+          courierPhone: payload.courierPhone ?? null,
+          vehicleNumber: payload.vehicleNumber ?? null,
+          etaMinutes: payload.etaMinutes ?? null,
+          latitude: payload.latitude ?? null,
+          longitude: payload.longitude ?? null,
+          lastLocationAt: hasLocation ? new Date() : null,
+        },
+      });
+
+      response.json({ delivery: mapDeliveryAssignment(delivery) });
     } catch (error) {
       mapPrismaError(error);
     }
