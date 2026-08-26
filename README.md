@@ -2,61 +2,77 @@
 
 PharmaConnect is a pharmaceutical supply-chain platform for India that connects `Company -> Wholesaler -> Retailer -> Customer`.
 
-The codebase currently focuses on the customer module first: a React Native + Expo app in `mobile/` and an Express + Prisma backend in `backend/`.
+It consists of a React Native + Expo app in `mobile/` that serves all four roles, and an Express + Prisma backend in `backend/`.
 
 ## Current Status
 
-The repository is no longer just a UI prototype. It now has a working backend foundation, seeded platform data, and a customer flow that mixes live backend integration with local fallback behavior.
+All four modules run against the live backend behind real authentication. A customer can register, order, pay, track a courier in real time, and download an invoice; a pharmacy can review prescriptions, fulfil orders, manage inventory, and restock from a wholesaler; wholesalers and manufacturers can work their own order books and offers.
 
 ### Completed Work
 
-- Customer mobile app shell with splash, signup, home, search, medicine detail, pharmacy comparison, cart, prescription, payment, delivery, tracking, invoice, orders, and account screens
-- Backend API foundation with modular Express routes and Prisma data model
-- Initial Prisma migration plus seed data for users, medicines, retailers, inventory, and related platform entities
-- Live medicine catalogue, search, medicine detail, and retailer comparison APIs
-- Backend-linked customer signup/login flow in the mobile app
-- Persisted customer session restore on app startup, plus sign-out from the account screen
-- Session token handling in the mobile API client for authenticated backend requests
-- Editable customer addresses with add, update, delete, and default-address controls
-- Customer order creation wired to backend order APIs
-- Retailer order operations APIs for queue, approve/reject, fulfilment status, and delivery stock settlement
-- Retailer prescription review controls now support approval notes, denial presets, and visible review history
-- Prescription upload draft flow wired to backend prescription endpoints
-- Order history, order tracking, and invoice fetch wired to backend endpoints
-- Invoice download/export wired to backend invoice links and fallback export endpoint
-- Razorpay checkout can now use native Android/iOS SDK builds and the existing Expo web checkout path
-- Customer notification inbox actions and tracking refresh/polling wired to backend updates
-- Customer web sessions register a backend notification device token for future push delivery work
-- Wholeseller module now has mobile dashboard, retailer-order fulfilment, and company-buying screens backed by live APIs
-- Company module now has mobile dashboard, wholeseller-order fulfilment, and offer-management screens backed by live APIs
-- Invoice downloads now persist generated PDF files under backend storage and reuse them on later downloads
-- Graceful fallback to local prototype data when backend services are unavailable
-- Verified builds:
-  - `mobile`: `npx tsc --noEmit`
-  - `backend`: `npm run build`
+**Authentication and access control**
 
-### Partially Complete
+- One sign-in screen for every role. The backend decides the role and the app opens the matching module; there is no role switcher.
+- Signed, expiring session tokens (HMAC-SHA256) issued on sign-in and verified by `requireAuth` middleware.
+- Sessions persist through AsyncStorage on device and in the browser, and are revalidated against the backend on launch. An expired or revoked token returns to the sign-in screen instead of a half-loaded dashboard.
+- Every private route is scoped to its owner: customers reach only their own orders, addresses, invoices, prescriptions, and notifications; a pharmacy reaches only its own queue, inventory, and analytics; the same holds for wholesalers and manufacturers.
+- Prescription images and invoice PDFs are private, served through short-lived signed links so an `<Image>` tag or browser download works without an Authorization header. Signed links are minted fresh on every read, so a pharmacy reviewing an order hours later still gets a working link.
 
-- Payment now has a Razorpay-shaped backend initiation and signature verification path, with demo fallback when gateway credentials are not configured
-- Prescription upload now uses the Expo web file picker when available and stores development files under backend local storage; production cloud storage is still pending
-- Invoice export now generates PDF downloads with short-lived signed links and durable local PDF storage; production object storage is still pending
-- Retailer app UI exists for dashboard, customer order approval/rejection, prescription review, fulfilment status, inventory, and B2B buying; production navigation/auth polish is still pending
-- Wholeseller and company app UIs exist for core B2B workflows; production navigation/auth polish is still pending
-- Production push delivery and live courier/location tracking are still pending
-- Some customer screens still rely on fallback mock data when the related backend service is missing or offline
+**Customer**
+
+- Splash, home, search, medicine detail, pharmacy comparison, cart, prescription upload, payment, delivery, tracking, invoice, orders, notifications, and account screens.
+- Live medicine catalogue, search, detail, and retailer comparison against 4,900+ real medicines seeded from `indian_medicine_data.csv`.
+- Order placement with stock reservation, prescription attachment, Razorpay or COD payment, and generated PDF invoices.
+- Multiple saved delivery addresses with add, edit, delete, and default selection.
+
+**Pharmacy, wholesaler, and manufacturer**
+
+- Pharmacy dashboard, order queue with approve/reject and prescription review, fulfilment status transitions, inventory with batches, and B2B restock ordering.
+- Wholesaler dashboard, retailer-order fulfilment, and company-buying screens.
+- Manufacturer dashboard, wholesaler-order fulfilment, and offer management.
+
+**Notifications and tracking**
+
+- Push notification delivery through the Expo push service, wired to every order lifecycle event. Pushes are scheduled only after the order transaction commits, so a rolled-back order never sends one.
+- Devices register per signed-in user and detach on sign-out, so a shared device never inherits the previous account's notifications.
+- Tapping a push opens the order it refers to; notifications arriving in the foreground refresh the inbox badge.
+- Live courier tracking: dispatching an order opens a courier record, the pharmacy shares position and ETA from the delivery device, and the customer's tracking screen polls a lightweight endpoint every 10 seconds.
+
+**Storage**
+
+- Prescription uploads and invoice PDFs write to S3 when `S3_BUCKET_NAME` is configured, and to `backend/storage` on disk otherwise. Both paths serve through the same link shape.
+
+### Verified
+
+- `backend`: `npm run build`
+- `mobile`: `npx tsc --noEmit` and `npx expo export --platform web`
+- `backend`: `npm run smoke` — 61 end-to-end checks covering authentication, authorization boundaries between all four roles, the full customer order lifecycle, live tracking, invoices, notifications, B2B restocking, and prescription privacy.
 
 ### Not Started Yet
 
-- Production deployment
+- Production deployment (Railway/Vercel/EAS build and store submission)
+- Firebase phone OTP sign-in; the platform currently uses email or phone plus password
+- Analytics charts and CSV/PDF report exports for the B2B dashboards
 
 ## Repository Structure
 
 ```text
 PharmaConnect/
-|-- assets/                 Reference branding and diagrams
-|-- backend/                Express + Prisma backend
-|-- docs/                   Planning notes and progress reports
-|-- mobile/                 Expo customer app
+|-- assets/                    Reference branding and diagrams
+|-- backend/                   Express + Prisma backend
+|   |-- prisma/                Schema, migrations, and seeds
+|   |-- scripts/smoke-test.mjs End-to-end API smoke test
+|   `-- src/
+|       |-- config/            Environment validation
+|       |-- lib/               Tokens, signed links, storage, push, notifications
+|       |-- middleware/        Authentication and ownership scoping
+|       `-- modules/           One router per domain
+|-- docs/                      Planning notes and progress reports
+|-- mobile/                    Expo app for all four roles
+|   `-- src/
+|       |-- screens/           AuthGate plus one module per role
+|       `-- services/          API client, session, push, tracking
+|-- indian_medicine_data.csv   Medicine catalogue used by the seed
 |-- LICENSE
 `-- README.md
 ```
@@ -67,30 +83,26 @@ PharmaConnect/
 
 1. Go to `backend/`
 2. Install dependencies with `npm install`
-3. Create `backend/.env` with at least:
-
-```env
-DATABASE_URL=your_database_url
-PORT=4000
-CLIENT_ORIGIN=http://localhost:8087
-RAZORPAY_KEY_ID=optional_razorpay_key_id
-RAZORPAY_KEY_SECRET=optional_razorpay_key_secret
-INVOICE_LINK_SECRET=replace_with_a_long_random_invoice_link_secret
-STORAGE_PUBLIC_BASE_URL=optional_public_origin_for_backend_storage_links
-```
-
-4. Generate Prisma client: `npm run prisma:generate`
-5. Run migrations if needed: `npm run prisma:migrate`
-6. Seed sample data: `npm run seed`
-7. Start the backend: `npm run dev`
+3. Copy `.env.example` to `.env`. The defaults run against a local SQLite file and need no further setup. For a hosted database, set `DATABASE_URL` and change the `provider` in `prisma/schema.prisma` to `postgresql`.
+4. Generate the Prisma client: `npm run prisma:generate`
+5. Apply migrations: `npm run prisma:migrate`
+6. Seed the demo accounts and platform data: `npm run seed`
+7. Seed the real medicine catalogue: `npm run seed:csv`. This reads `indian_medicine_data.csv` from the repository root; set `MEDICINE_CSV_PATH` if you keep it elsewhere. The file is 31 MB and is not committed, so pull it into place before seeding.
+8. Start the backend: `npm run dev`
 
 The API runs on `http://localhost:4000` by default.
+
+To verify the whole system end to end while the backend is running:
+
+```powershell
+npm run smoke
+```
 
 ### Mobile App
 
 1. Go to `mobile/`
 2. Install dependencies with `npm install`
-3. Set the backend URL for Expo:
+3. Point the app at the backend:
 
 ```powershell
 $env:EXPO_PUBLIC_API_BASE_URL="http://localhost:4000/api"
@@ -98,61 +110,47 @@ $env:EXPO_PUBLIC_API_BASE_URL="http://localhost:4000/api"
 
 4. Start the app with `npm run web` or `npm run start`
 
-Customer is the default mobile module. To run the retailer module intentionally:
+Sign in with any seeded account; the app opens the module for that account's role.
 
-```powershell
-$env:EXPO_PUBLIC_APP_MODULE="retailer"
-npm run web
-```
+| Role         | Email                            | Password     |
+| ------------ | -------------------------------- | ------------ |
+| Customer     | `customer@pharmaconnect.app`     | `Pharma@123` |
+| Pharmacy     | `retailer@pharmaconnect.app`     | `Pharma@123` |
+| Wholesaler   | `wholeseller@pharmaconnect.app`  | `Pharma@123` |
+| Manufacturer | `company@pharmaconnect.app`      | `Pharma@123` |
 
-To run the B2B modules:
+New customers can register from the Create Account tab. Pharmacy, wholesaler, and manufacturer accounts are onboarded by the platform team rather than self-registered.
 
-```powershell
-$env:EXPO_PUBLIC_APP_MODULE="wholeseller"
-npm run web
-
-$env:EXPO_PUBLIC_APP_MODULE="company"
-npm run web
-```
-
-If the backend is unavailable, the customer app will still open in local prototype mode.
-
-Native Razorpay checkout requires an Expo development build or prebuilt Android/iOS project so the native module can link:
+Push notifications and courier location need a real device, so they require a development build rather than Expo web:
 
 ```powershell
 npx expo prebuild
 npx expo run:android
 ```
 
-Use `npx expo run:ios` on macOS for iOS device or simulator testing.
+Use `npx expo run:ios` on macOS. Native Razorpay checkout needs the same development build; Expo web uses the existing web checkout path.
 
-## What The Customer Flow Can Do Right Now
+## Configuration
 
-- Create or restore a customer account against the backend
-- Persist that session across app reloads
-- Browse and search medicines
-- Open medicine details
-- Compare retailer stock and pricing
-- Select a retailer and place an order
-- Attach prescription upload files for prescription medicines, using browser-selected camera/gallery files on Expo web and backend local storage in development
-- Initiate non-COD payments through backend gateway endpoints, falling back to demo confirmation when gateway credentials are absent
-- View order history
-- View tracking timeline with manual refresh and lightweight backend polling
-- View invoice summary and download a generated PDF invoice from signed backend links
-- Open order-related notifications directly into the tracking screen and mark notifications read
-- Register the current web session as a notification device for future push delivery
-- Manage multiple saved delivery addresses in account settings
+Everything below is optional for local development. See `backend/.env.example` for the full list.
+
+| Variable                                  | Purpose                                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------------------- |
+| `SESSION_TOKEN_SECRET`                    | Signs session tokens. Required in production; development falls back to a shared secret with a warning. |
+| `SESSION_TOKEN_TTL_DAYS`                  | Session lifetime, 30 days by default.                                          |
+| `INVOICE_LINK_SECRET`                     | Signs invoice and prescription download links.                                 |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Enables live checkout. Without them, payment falls back to demo confirmation.   |
+| `S3_BUCKET_NAME` and AWS credentials      | Stores uploads in S3 instead of `backend/storage` on disk.                      |
+| `PUSH_DELIVERY_ENABLED`                   | Set to `false` to record notifications in the inbox without sending pushes.     |
+| `CLIENT_ORIGIN`                           | Comma-separated browser origins allowed by CORS. Any localhost origin is allowed outside production. |
 
 ## Next To-Do List
 
-Priority order for the next implementation steps:
-
-1. Add production cloud/object storage for prescription uploads and invoice PDFs
-2. Add production push notification delivery and live courier/location tracking
-3. Add production auth/navigation polish across retailer, wholeseller, and company modules
+1. Deploy the backend and database, and produce an EAS build for store submission
+2. Add Firebase phone OTP as an alternative sign-in method
+3. Add the analytics charts and report exports described in the planning documents
 
 ## Important Notes
 
-- This is still an active prototype, not a production-ready medicine ordering system
-- The customer, retailer, wholeseller, and company modules now have implemented prototype paths
-- The repository contains both live integrations and local fallback/demo behavior by design
+- This is a pilot-stage system, not a regulated production medicine service. Review the pharmacy licensing, data protection, and prescription handling requirements that apply before serving real patients.
+- Some customer screens still fall back to local prototype data when the related backend service is offline, which is deliberate for demos.
