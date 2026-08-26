@@ -1,0 +1,131 @@
+PHARMACONNECT - PLATFORM COMPLETION REPORT
+Date: 2026-08-11
+
+SUMMARY
+-------
+The remaining items on the project's next-to-do list are implemented, and the
+platform now runs end to end behind real authentication. All four role modules
+(customer, pharmacy, wholesaler, manufacturer) work against live backend data.
+Both projects build clean and a 61-check end-to-end smoke test passes.
+
+
+1. AUTHENTICATION
+-----------------
+Replaced the previous placeholder session token, which was a base64 encoding of
+"<userId>:<timestamp>" and could be forged by anyone who knew a user id.
+
+- backend/src/lib/tokens.ts issues HMAC-SHA256 signed tokens carrying the user
+  id, role, and an expiry. Verification is constant-time and rejects tampered or
+  expired tokens.
+- SESSION_TOKEN_SECRET is required when NODE_ENV is production. Local
+  development falls back to a shared secret and logs a warning.
+- GET /api/auth/session rebuilds the signed-in profile from the bearer token, so
+  session restore no longer trusts a user id kept in device storage.
+
+
+2. AUTHORIZATION
+----------------
+backend/src/middleware/auth.ts adds requireAuth, optionalAuth, requireRole, and
+ownership helpers (assertSelf, assertRetailerScope, assertWholesellerScope,
+assertCompanyScope, assertCustomerOrderAccess).
+
+Applied across every module:
+
+- Customer data (orders, addresses, invoices, prescriptions, notifications,
+  payments) is restricted to the account that owns it.
+- Retailer inventory, order queues, purchase orders, and analytics are
+  restricted to the pharmacy that owns them.
+- The same scoping is applied to wholesaler and company order books, offers, and
+  schemes. Catalogue browsing stays open to any signed-in business account so
+  retailers can shop for stock.
+- The medicine catalogue, search, and retailer comparison stay public so the
+  storefront works before sign-in.
+
+Verified negatively as well as positively: the smoke test asserts that each role
+is refused access to the other roles' resources.
+
+
+3. MOBILE AUTH AND NAVIGATION
+-----------------------------
+- The always-visible role switcher in App.tsx is gone. The app now restores a
+  session, and routes by the account's role to the matching module.
+- New AuthGateScreen provides one sign-in surface for all roles plus customer
+  self-registration.
+- The retailer, wholesaler, and company modules no longer sign in with hardcoded
+  demo credentials; they receive the authenticated session as a prop and each
+  gained a sign-out control.
+- New services/session.ts is the single source of truth for the token and user,
+  persisting through AsyncStorage so sessions survive on device as well as web.
+
+
+4. PUSH NOTIFICATION DELIVERY
+-----------------------------
+- backend/src/lib/push.ts delivers to the Expo push service, batching to the
+  100-message limit and pruning tokens the service reports as unregistered.
+- Notifications are written inside the same transaction as the order change that
+  causes them. The push therefore waits for the row to become visible through
+  the top-level client before sending, so a rolled-back order never sends a
+  push, and the transaction is never blocked on network I/O.
+- mobile/src/services/pushNotifications.ts registers the device per signed-in
+  user, detaches it on sign-out, handles foreground notifications, and opens the
+  referenced order when a notification is tapped.
+- Expo web has no push service, so browser sessions register a stable local
+  token that keeps the inbox consistent without being sent to Expo.
+
+
+5. LIVE COURIER TRACKING
+------------------------
+- New DeliveryAssignment model holds the current courier, position, and ETA for
+  one order, kept separate from the append-only tracking event log.
+- Dispatching a home delivery opens the courier record; confirming delivery
+  closes it.
+- PATCH /api/retailers/:retailerId/customer-orders/:orderId/delivery accepts
+  position and ETA updates from the delivery device, using expo-location.
+- GET /api/orders/:orderId/tracking returns just the timeline and courier state.
+  The customer tracking screen polls it every 10 seconds instead of refetching
+  the whole order every 30.
+
+
+6. DEFECTS FOUND AND FIXED
+--------------------------
+- mobile/src/screens/customer/SignupScreen.tsx referenced theme.primaryLight,
+  which does not exist on ThemePalette. The mobile typecheck was failing.
+- express.json() used its 100 kb default while prescription uploads accept 5 MB
+  of base64, so any real photo upload would have been rejected. Raised to 8 MB.
+- The CORS origin callback allowed every origin through both branches of its own
+  check. Replaced with a real allow-list that still accepts any localhost origin
+  outside production.
+- Zod validation errors reached the generic error handler and were returned as
+  500 Internal Server Error. They are now 400 responses naming the failing
+  fields; oversized bodies return 413.
+- An invoice download URL with no signature parameters skipped the signature
+  check entirely and served the PDF to anyone with the invoice id. Unsigned
+  downloads now require an authenticated participant.
+- Prescription upload persisted a signed URL that expires in 15 minutes, so a
+  pharmacy reviewing the order later would have hit an expired link. The stored
+  reference is now a stable unsigned path, and a fresh signed link is minted on
+  every read.
+
+
+7. DEVELOPER EXPERIENCE
+-----------------------
+- Added the seed:csv script; the CSV seeder now resolves its path relative to
+  the file rather than the working directory, with a MEDICINE_CSV_PATH override.
+- Rewrote .env.example to cover the full configuration surface.
+- Added backend/scripts/smoke-test.mjs and the smoke script.
+
+
+VERIFICATION
+------------
+backend  npm run build                        pass
+mobile   npx tsc --noEmit                     pass
+mobile   npx expo export --platform web       pass
+backend  npm run smoke                        61 passed, 0 failed
+
+
+REMAINING WORK
+--------------
+- Production deployment: Railway or equivalent for the backend, a hosted
+  Postgres database, and an EAS build for store submission.
+- Firebase phone OTP as an alternative to email/phone plus password.
+- Analytics charts and report exports for the B2B dashboards.
