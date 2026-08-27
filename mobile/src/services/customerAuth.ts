@@ -1,5 +1,6 @@
 import type { CustomerAddress, CustomerSession, SignupState } from '../screens/customer/customerTypes';
-import { clearApiSessionToken, deleteJson, getJson, patchJson, postJson, setApiSessionToken } from './api';
+import { deleteJson, patchJson, postJson } from './api';
+import { updateStoredUser, type AuthSession, type AuthUser } from './session';
 
 type CustomerSignupPayload = {
   fullName: string;
@@ -262,113 +263,15 @@ export function buildSignupStateFromSession(session: CustomerSession): SignupSta
   };
 }
 
-export function clearPersistedCustomerSession() {
-  clearApiSessionToken();
-  const storage = getBrowserStorage();
+// Address edits change the signed-in profile, so the shared session store is updated in place and
+// the caller receives the refreshed session to render.
+async function mergeSessionWithProfile(session: CustomerSession, profile: CustomerProfileResponse) {
+  await updateStoredUser(session as unknown as AuthSession, profile.user as unknown as AuthUser);
 
-  if (!storage) {
-    return;
-  }
-
-  try {
-    storage.removeItem(customerSessionStorageKey);
-  } catch {
-    // Ignore storage cleanup failures so logout can continue.
-  }
-}
-
-export async function restorePersistedCustomerSession() {
-  const storage = getBrowserStorage();
-
-  if (!storage) {
-    clearApiSessionToken();
-    return null;
-  }
-
-  let storedValue: string | null = null;
-
-  try {
-    storedValue = storage.getItem(customerSessionStorageKey);
-  } catch {
-    return null;
-  }
-
-  if (!storedValue) {
-    clearApiSessionToken();
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(storedValue) as unknown;
-
-    if (!isStoredSessionPayload(parsed)) {
-      clearPersistedCustomerSession();
-      return null;
-    }
-
-    const cachedSession = normalizeSession(parsed);
-    setApiSessionToken(cachedSession.token);
-
-    try {
-      const profile = await getJson<CustomerProfileResponse>(`/auth/users/${cachedSession.user.id}`);
-      const refreshedSession = normalizeSession({
-        token: cachedSession.token,
-        user: profile.user,
-      });
-
-      setApiSessionToken(refreshedSession.token);
-      writeStoredSession(refreshedSession);
-      return refreshedSession;
-    } catch (error) {
-      if (error instanceof Error && /not found/i.test(error.message)) {
-        clearPersistedCustomerSession();
-        return null;
-      }
-
-      setApiSessionToken(cachedSession.token);
-      return cachedSession;
-    }
-  } catch {
-    clearPersistedCustomerSession();
-    return null;
-  }
-}
-
-export async function signupOrLoginCustomer(signup: SignupState) {
-  const signupPayload = buildSignupPayload(signup);
-
-  try {
-    const createdSession = await postJson<CustomerSession, CustomerSignupPayload>('/auth/signup/customer', signupPayload);
-    const normalizedSession = normalizeSession(createdSession);
-    setApiSessionToken(normalizedSession.token);
-    writeStoredSession(normalizedSession);
-    return normalizedSession;
-  } catch (error) {
-    if (!isExistingAccountError(error)) {
-      throw error;
-    }
-
-    const loginPayload: LoginPayload = {
-      identifier: signup.email.trim() || normalizePhone(signup.phone),
-      password: signup.password,
-    };
-    const existingSession = await postJson<CustomerSession, LoginPayload>('/auth/login', loginPayload);
-    const normalizedSession = normalizeSession(existingSession);
-    setApiSessionToken(normalizedSession.token);
-    writeStoredSession(normalizedSession);
-    return normalizedSession;
-  }
-}
-
-function mergeSessionWithProfile(session: CustomerSession, profile: CustomerProfileResponse) {
-  const mergedSession = normalizeSession({
+  return normalizeSession({
     token: session.token,
     user: profile.user,
   });
-
-  setApiSessionToken(mergedSession.token);
-  writeStoredSession(mergedSession);
-  return mergedSession;
 }
 
 export async function createCustomerAddress(session: CustomerSession, draft: CustomerAddressDraft) {
