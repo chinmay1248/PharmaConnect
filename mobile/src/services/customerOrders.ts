@@ -3,6 +3,7 @@ import type {
   CustomerOrderSummary,
   CustomerOrderTrackingState,
   DeliveryMethod,
+  DeliveryTracking,
   InvoiceState,
   PaymentMethod,
 } from '../screens/customer/customerTypes';
@@ -68,7 +69,39 @@ type BackendOrderDetailResponse = {
       notes?: string | null;
       createdAt?: string;
     }>;
+    delivery?: BackendDeliveryTracking | null;
   };
+};
+
+type BackendDeliveryTracking = {
+  courierName: string;
+  courierPhone?: string | null;
+  vehicleNumber?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  etaMinutes?: number | null;
+  lastLocationAt?: string | null;
+  dispatchedAt?: string | null;
+  deliveredAt?: string | null;
+  isLive: boolean;
+};
+
+type BackendTrackingResponse = {
+  orderId: string;
+  status: string;
+  timelineStatus?: string;
+  deliveryMethod: 'HOME_DELIVERY' | 'PICKUP';
+  placedAt: string;
+  completedAt?: string | null;
+  retailerName?: string | null;
+  retailerPhone?: string | null;
+  trackingEvents: Array<{
+    id: string;
+    statusLabel: string;
+    notes?: string | null;
+    createdAt?: string;
+  }>;
+  delivery?: BackendDeliveryTracking | null;
 };
 
 type BackendInvoiceResponse = {
@@ -101,7 +134,7 @@ type BackendInvoiceResponse = {
   };
 };
 
-function toDisplayStatus(status: string | undefined) {
+function toDisplayStatus(status: string | undefined): CustomerOrderSummary['status'] {
   if (status === 'APPROVED_BY_RETAILER' || status === 'PAYMENT_PENDING' || status === 'PAID') {
     return 'Confirmed';
   }
@@ -212,6 +245,47 @@ export async function fetchCustomerOrderDetail(orderId: string): Promise<Custome
       notes: event.notes ?? null,
       createdAt: event.createdAt ?? null,
     })),
+    delivery: normalizeDelivery(order.delivery),
+  };
+}
+
+function normalizeDelivery(delivery: BackendDeliveryTracking | null | undefined): DeliveryTracking | null {
+  if (!delivery) {
+    return null;
+  }
+
+  return {
+    courierName: delivery.courierName,
+    courierPhone: delivery.courierPhone ?? null,
+    vehicleNumber: delivery.vehicleNumber ?? null,
+    latitude: delivery.latitude ?? null,
+    longitude: delivery.longitude ?? null,
+    etaMinutes: delivery.etaMinutes ?? null,
+    lastLocationAt: delivery.lastLocationAt ?? null,
+    dispatchedAt: delivery.dispatchedAt ?? null,
+    deliveredAt: delivery.deliveredAt ?? null,
+    isLive: Boolean(delivery.isLive),
+  };
+}
+
+// Polls only the tracking timeline and courier position, which is far lighter than reloading the
+// whole order while the tracking screen is open.
+export async function fetchCustomerOrderTracking(orderId: string) {
+  const payload = await getJson<BackendTrackingResponse>(`/orders/${orderId}/tracking`);
+
+  return {
+    orderId: payload.orderId,
+    status: toDisplayStatus(payload.timelineStatus),
+    deliveryMethod: toDeliveryMethod(payload.deliveryMethod),
+    retailerName: payload.retailerName ?? null,
+    retailerPhone: payload.retailerPhone ?? null,
+    trackingEvents: payload.trackingEvents.map((event) => ({
+      id: event.id,
+      statusLabel: event.statusLabel,
+      notes: event.notes ?? null,
+      createdAt: event.createdAt ?? null,
+    })),
+    delivery: normalizeDelivery(payload.delivery),
   };
 }
 
