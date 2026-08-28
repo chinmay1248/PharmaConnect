@@ -1,15 +1,4 @@
-import { getJson, patchJson, postJson, setApiSessionToken } from './api';
-
-type RoleSession<TProfileKey extends string, TProfile> = {
-  token: string;
-  user: {
-    id: string;
-    role: string;
-    fullName: string;
-    email: string;
-    phone: string;
-  } & Record<TProfileKey, TProfile | null>;
-};
+import { getJson, patchJson, postJson } from './api';
 
 export type WholesellerProfile = {
   id: string;
@@ -129,44 +118,6 @@ export type Offer = {
   startsAt: string;
   endsAt: string;
 };
-
-const wholesellerCredentials = {
-  identifier: 'wholeseller@pharmaconnect.app',
-  password: 'Pharma@123',
-};
-
-const companyCredentials = {
-  identifier: 'company@pharmaconnect.app',
-  password: 'Pharma@123',
-};
-
-export async function loginDemoWholeseller() {
-  const session = await postJson<
-    RoleSession<'wholesellerProfile', WholesellerProfile>,
-    typeof wholesellerCredentials
-  >('/auth/login', wholesellerCredentials);
-
-  if (session.user.role !== 'WHOLESELLER' || !session.user.wholesellerProfile) {
-    throw new Error('Demo wholeseller login did not return a wholeseller profile.');
-  }
-
-  setApiSessionToken(session.token);
-  return session;
-}
-
-export async function loginDemoCompany() {
-  const session = await postJson<RoleSession<'companyProfile', CompanyProfile>, typeof companyCredentials>(
-    '/auth/login',
-    companyCredentials,
-  );
-
-  if (session.user.role !== 'COMPANY' || !session.user.companyProfile) {
-    throw new Error('Demo company login did not return a company profile.');
-  }
-
-  setApiSessionToken(session.token);
-  return session;
-}
 
 export function fetchWholesellerSummary(wholesellerId: string) {
   return getJson<WholesellerSummary>(`/analytics/wholesellers/${wholesellerId}/summary`);
