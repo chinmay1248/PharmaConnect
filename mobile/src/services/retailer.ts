@@ -1,19 +1,13 @@
-import { getJson, patchJson, postJson, setApiSessionToken } from './api';
+import { getJson, patchJson, postJson } from './api';
 import type {
   RetailerInventoryItem,
   RetailerOrder,
   RetailerPurchaseOrder,
   RetailerProfile,
-  RetailerSession,
   RetailerSummary,
   WholesellerInventoryItem,
   WholesellerSummary,
 } from '../screens/retailer/retailerTypes';
-
-const demoRetailerCredentials = {
-  identifier: 'retailer@pharmaconnect.app',
-  password: 'Pharma@123',
-};
 
 type RetailerProfileResponse = {
   retailer: RetailerProfile & {
@@ -65,20 +59,6 @@ type CreatePurchaseOrderPayload = {
   }>;
 };
 
-export async function loginDemoRetailer() {
-  const session = await postJson<RetailerSession, typeof demoRetailerCredentials>(
-    '/auth/login',
-    demoRetailerCredentials,
-  );
-
-  if (session.user.role !== 'RETAILER' || !session.user.retailerProfile) {
-    throw new Error('Demo retailer login did not return a retailer profile.');
-  }
-
-  setApiSessionToken(session.token);
-  return session;
-}
-
 export async function fetchRetailerProfile(retailerId: string) {
   return getJson<RetailerProfileResponse>(`/retailers/${retailerId}`);
 }
@@ -109,15 +89,56 @@ export async function decideRetailerOrder(
   );
 }
 
+type DeliveryDispatchDetails = {
+  courierName?: string;
+  courierPhone?: string;
+  vehicleNumber?: string;
+  etaMinutes?: number;
+};
+
+export type RetailerDeliveryTracking = {
+  id: string;
+  courierName: string;
+  courierPhone?: string | null;
+  vehicleNumber?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  etaMinutes?: number | null;
+  lastLocationAt?: string | null;
+  dispatchedAt?: string | null;
+  deliveredAt?: string | null;
+  isLive: boolean;
+};
+
 export async function updateRetailerOrderStatus(
   retailerId: string,
   orderId: string,
   status: 'PACKED' | 'OUT_FOR_DELIVERY' | 'READY_FOR_PICKUP' | 'DELIVERED',
   notes?: string,
+  delivery?: DeliveryDispatchDetails,
 ) {
-  return patchJson<RetailerOrderResponse, { status: typeof status; notes?: string }>(
+  return patchJson<RetailerOrderResponse, { status: typeof status; notes?: string } & DeliveryDispatchDetails>(
     `/retailers/${retailerId}/customer-orders/${orderId}/status`,
-    { status, notes },
+    { status, notes, ...delivery },
+  );
+}
+
+// Pushes a courier position or ETA update for an order that is already out for delivery.
+export async function updateRetailerOrderDelivery(
+  retailerId: string,
+  orderId: string,
+  payload: {
+    latitude?: number;
+    longitude?: number;
+    etaMinutes?: number;
+    courierName?: string;
+    courierPhone?: string;
+    vehicleNumber?: string;
+  },
+) {
+  return patchJson<{ delivery: RetailerDeliveryTracking }, typeof payload>(
+    `/retailers/${retailerId}/customer-orders/${orderId}/delivery`,
+    payload,
   );
 }
 
