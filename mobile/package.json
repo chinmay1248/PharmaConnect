@@ -11,7 +11,12 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~54.0.33",
+    "expo-device": "~8.0.10",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-location": "~19.0.8",
+    "expo-notifications": "~0.32.17",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
