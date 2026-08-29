@@ -18,11 +18,13 @@ import {
   fetchRetailerSummary,
   fetchWholesellerInventory,
   fetchWholesellers,
-  loginDemoRetailer,
   updateRetailerInventory,
+  updateRetailerOrderDelivery,
   updateRetailerOrderStatus,
 } from '../services/retailer';
-import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
+import { requestCurrentPosition } from '../services/courierLocation';
+import type { AuthSession } from '../services/session';
+import { ThemeMode, glowShadow, statusBarStyle, themes } from '../theme/theme';
 import type {
   RetailerInventoryItem,
   RetailerOrder,
@@ -335,10 +337,17 @@ function ActionButton({
   );
 }
 
-export function RetailerModuleApp() {
-  const [mode, setMode] = useState<ThemeMode>('dark');
+type RetailerModuleAppProps = {
+  session: AuthSession;
+  onSignOut: () => void;
+};
+
+export function RetailerModuleApp({ session, onSignOut }: RetailerModuleAppProps) {
+  const [mode, setMode] = useState<ThemeMode>('light');
   const [activeTab, setActiveTab] = useState<RetailerTab>('dashboard');
-  const [retailer, setRetailer] = useState<RetailerProfile>(mockRetailer);
+  const [retailer, setRetailer] = useState<RetailerProfile>(
+    (session.user.retailerProfile as RetailerProfile | null) ?? mockRetailer,
+  );
   const [summary, setSummary] = useState<RetailerSummary>(() => buildMockSummary(mockOrders, mockInventory));
   const [orders, setOrders] = useState<RetailerOrder[]>(mockOrders);
   const [inventory, setInventory] = useState<RetailerInventoryItem[]>(mockInventory);
@@ -351,10 +360,13 @@ export function RetailerModuleApp() {
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
   const [searchText, setSearchText] = useState('');
   const [buySearchText, setBuySearchText] = useState('');
+  const [courierName, setCourierName] = useState('Pharmacy delivery partner');
+  const [courierPhone, setCourierPhone] = useState('');
+  const [courierEtaMinutes, setCourierEtaMinutes] = useState('30');
   const [prescriptionApprovalNote, setPrescriptionApprovalNote] = useState('Prescription verified and order approved.');
   const [rejectionReason, setRejectionReason] = useState('Prescription or stock could not be verified.');
   const [loading, setLoading] = useState(false);
-  const [helperText, setHelperText] = useState<string | null>('Signing in as the seeded demo retailer.');
+  const [helperText, setHelperText] = useState<string | null>('Loading your pharmacy workspace.');
   const theme = themes[mode];
   const retailerId = retailer.id;
 
@@ -366,8 +378,7 @@ export function RetailerModuleApp() {
     setHelperText(null);
 
     try {
-      const session = await loginDemoRetailer();
-      const liveRetailer = session.user.retailerProfile ?? mockRetailer;
+      const liveRetailer = (session.user.retailerProfile as RetailerProfile | null) ?? mockRetailer;
 
       setRetailer(liveRetailer);
 
@@ -568,11 +579,61 @@ export function RetailerModuleApp() {
     setLoading(true);
 
     try {
-      const payload = await updateRetailerOrderStatus(retailer.id, order.id, nextStatus, `Retailer marked order as ${nextStatus}.`);
+      // Dispatching a home delivery also opens the courier record the customer's tracking screen
+      // follows, so the courier details entered on this screen travel with the status change.
+      const payload = await updateRetailerOrderStatus(
+        retailer.id,
+        order.id,
+        nextStatus,
+        `Retailer marked order as ${nextStatus}.`,
+        nextStatus === 'OUT_FOR_DELIVERY'
+          ? {
+              courierName: courierName.trim() || undefined,
+              courierPhone: courierPhone.trim() || undefined,
+              etaMinutes: Number(courierEtaMinutes) || undefined,
+            }
+          : undefined,
+      );
       upsertOrder(payload.order);
       Alert.alert('Order updated', `Order moved to ${normalizeStatusLabel(nextStatus)}.`);
     } catch (error) {
       Alert.alert('Status update failed', error instanceof Error ? error.message : 'Order status could not be updated.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Shares the delivery device's current position with the customer's tracking screen. Location
+  // permission is requested only when the retailer actually taps to share.
+  async function shareCourierLocation(order: RetailerOrder) {
+    if (order.status !== 'OUT_FOR_DELIVERY') {
+      Alert.alert('Not dispatched yet', 'Courier location can only be shared once the order is out for delivery.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const position = await requestCurrentPosition();
+
+      await updateRetailerOrderDelivery(retailer.id, order.id, {
+        ...(position ? { latitude: position.latitude, longitude: position.longitude } : {}),
+        ...(Number(courierEtaMinutes) ? { etaMinutes: Number(courierEtaMinutes) } : {}),
+        ...(courierName.trim() ? { courierName: courierName.trim() } : {}),
+        ...(courierPhone.trim() ? { courierPhone: courierPhone.trim() } : {}),
+      });
+
+      Alert.alert(
+        'Delivery updated',
+        position
+          ? 'The customer can now see the courier position and updated ETA.'
+          : 'ETA and courier details were shared. Location was not available on this device.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Delivery update failed',
+        error instanceof Error ? error.message : 'The delivery update could not be sent.',
+      );
     } finally {
       setLoading(false);
     }
@@ -707,12 +768,19 @@ export function RetailerModuleApp() {
             >
               <Feather name="refresh-cw" size={18} color={theme.primary} />
             </InteractivePressable>
+            <InteractivePressable
+              onPress={onSignOut}
+              style={[styles.iconButton, { backgroundColor: theme.surface }]}
+            >
+              <Feather name="log-out" size={18} color={theme.primary} />
+            </InteractivePressable>
           </View>
         </View>
         <Text style={[styles.storeName, { color: theme.text }]}>{retailer.businessName}</Text>
         <Text style={[styles.storeMeta, { color: theme.subtext }]}>
           {retailer.area}, {retailer.city} - Rating {retailer.rating}
         </Text>
+        <Text style={[styles.storeMeta, { color: theme.subtext }]}>Signed in as {session.user.fullName}</Text>
         {helperText || loading ? (
           <Text style={[styles.helper, { color: theme.subtext }]}>
             {loading ? 'Syncing retailer workspace with backend.' : helperText}
@@ -871,7 +939,6 @@ export function RetailerModuleApp() {
                 {order.prescription.retailerNotes}
               </Text>
             ) : null}
-            <Text style={[styles.cardMeta, { color: theme.primary }]}>{order.prescription.fileUrl}</Text>
             <ActionButton
               mode={mode}
               label="Open prescription"
@@ -945,6 +1012,54 @@ export function RetailerModuleApp() {
               />
             </View>
           </>
+        ) : null}
+
+        {/* Courier details are captured before dispatch and can be refreshed while on the road. */}
+        {order.deliveryMethod !== 'PICKUP' && ['PACKED', 'OUT_FOR_DELIVERY'].includes(order.status) ? (
+          <View style={[styles.rxBox, { borderColor: theme.border }]}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Delivery</Text>
+            <TextInput
+              value={courierName}
+              onChangeText={setCourierName}
+              placeholder="Courier name"
+              placeholderTextColor={theme.subtext}
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+            />
+            <TextInput
+              value={courierPhone}
+              onChangeText={setCourierPhone}
+              placeholder="Courier phone"
+              placeholderTextColor={theme.subtext}
+              keyboardType="phone-pad"
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+            />
+            <TextInput
+              value={courierEtaMinutes}
+              onChangeText={setCourierEtaMinutes}
+              placeholder="ETA in minutes"
+              placeholderTextColor={theme.subtext}
+              keyboardType="number-pad"
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+            />
+            {order.status === 'OUT_FOR_DELIVERY' ? (
+              <>
+                {order.delivery?.lastLocationAt ? (
+                  <Text style={[styles.cardMeta, { color: theme.subtext }]}>
+                    Last shared {formatShortDate(order.delivery.lastLocationAt)}
+                  </Text>
+                ) : null}
+                <ActionButton
+                  mode={mode}
+                  label="Share courier location"
+                  icon="map-pin"
+                  variant="secondary"
+                  onPress={() => {
+                    void shareCourierLocation(order);
+                  }}
+                />
+              </>
+            ) : null}
+          </View>
         ) : null}
 
         {canMove ? (
@@ -1232,9 +1347,14 @@ function KpiCard({
   return (
     <InteractivePressable
       onPress={onPress ?? (() => undefined)}
-      style={[styles.kpiCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-      hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+      style={[
+        styles.kpiCard,
+        { backgroundColor: theme.surface, borderColor: theme.hairline },
+        glowShadow(theme.shadow, 0.45, 20, 10),
+      ]}
+      hoveredStyle={{ backgroundColor: theme.surfaceAlt, borderColor: tone }}
     >
+      <View style={[styles.kpiAccent, { backgroundColor: tone }]} />
       <View style={[styles.kpiIcon, { backgroundColor: `${tone}22` }]}>
         <Feather name={icon} size={18} color={tone} />
       </View>
@@ -1345,9 +1465,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 150,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
+    borderRadius: 18,
+    padding: 16,
     gap: 8,
+    overflow: 'hidden',
+  },
+  kpiAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    opacity: 0.9,
   },
   kpiIcon: {
     width: 36,
