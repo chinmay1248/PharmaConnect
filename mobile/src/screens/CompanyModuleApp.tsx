@@ -17,9 +17,9 @@ import {
   fetchCompanySummary,
   fetchCompanyWholesellerOrders,
   fetchWholesellers,
-  loginDemoCompany,
   updateCompanyWholesellerOrderStatus,
 } from '../services/b2b';
+import type { AuthSession } from '../services/session';
 import { statusBarStyle, themes, type ThemeMode } from '../theme/theme';
 import { formatCurrency } from '../utils/format';
 
@@ -90,27 +90,33 @@ function ActionButton({
   );
 }
 
-export function CompanyModuleApp() {
-  const [mode, setMode] = useState<ThemeMode>('dark');
+type CompanyModuleAppProps = {
+  session: AuthSession;
+  onSignOut: () => void;
+};
+
+export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) {
+  const [mode, setMode] = useState<ThemeMode>('light');
   const [tab, setTab] = useState<CompanyTab>('dashboard');
-  const [profile, setProfile] = useState<CompanyProfile>(fallbackProfile);
+  const [profile, setProfile] = useState<CompanyProfile>(session.user.companyProfile ?? fallbackProfile);
   const [summary, setSummary] = useState<CompanySummary>(fallbackSummary);
   const [orders, setOrders] = useState<B2BOrder[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [wholesellers, setWholesellers] = useState<WholesellerListItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [helper, setHelper] = useState('Signing in as the seeded demo company.');
+  const [helper, setHelper] = useState('Loading your manufacturing workspace.');
   const theme = themes[mode];
 
   async function loadWorkspace() {
     setLoading(true);
 
     try {
-      const session = await loginDemoCompany();
       const liveProfile = session.user.companyProfile;
+
       if (!liveProfile) {
-        throw new Error('Demo company profile is missing.');
+        throw new Error('This account is not linked to a manufacturing company.');
       }
+
       setProfile(liveProfile);
 
       const [summaryPayload, ordersPayload, offersPayload, wholesellersPayload] = await Promise.all([
@@ -255,11 +261,20 @@ export function CompanyModuleApp() {
       <View style={[styles.header, { backgroundColor: theme.surfaceAlt, borderBottomColor: theme.border }]}>
         <View style={styles.headerRow}>
           <BrandLogo mode={mode} size="compact" align="start" />
-          <InteractivePressable onPress={() => setMode((current) => (current === 'dark' ? 'light' : 'dark'))} style={[styles.iconButton, { backgroundColor: theme.surface }]}>
-            <Feather name={mode === 'dark' ? 'sun' : 'moon'} size={18} color={theme.primary} />
-          </InteractivePressable>
+          <View style={styles.headerActions}>
+            <InteractivePressable onPress={() => void loadWorkspace()} style={[styles.iconButton, { backgroundColor: theme.surface }]}>
+              <Feather name="refresh-cw" size={18} color={theme.primary} />
+            </InteractivePressable>
+            <InteractivePressable onPress={() => setMode((current) => (current === 'dark' ? 'light' : 'dark'))} style={[styles.iconButton, { backgroundColor: theme.surface }]}>
+              <Feather name={mode === 'dark' ? 'sun' : 'moon'} size={18} color={theme.primary} />
+            </InteractivePressable>
+            <InteractivePressable onPress={onSignOut} style={[styles.iconButton, { backgroundColor: theme.surface }]}>
+              <Feather name="log-out" size={18} color={theme.primary} />
+            </InteractivePressable>
+          </View>
         </View>
         <Text style={[styles.title, { color: theme.text }]}>{profile.legalName}</Text>
+        <Text style={[styles.meta, { color: theme.subtext }]}>Signed in as {session.user.fullName}</Text>
         <Text style={[styles.meta, { color: theme.subtext }]}>{profile.contactEmail ?? 'Company supply desk'}</Text>
         {helper || loading ? <Text style={[styles.meta, { color: theme.subtext }]}>{loading ? 'Syncing company workspace.' : helper}</Text> : null}
       </View>
@@ -303,6 +318,7 @@ const styles = StyleSheet.create({
   page: { flex: 1 },
   header: { padding: 14, borderBottomWidth: 1, gap: 5 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 20, fontWeight: '900' },
   scroll: { flex: 1 },
