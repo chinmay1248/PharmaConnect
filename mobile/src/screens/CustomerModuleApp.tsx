@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, SafeAreaView, useWindowDimensions, type ViewStyle } from 'react-native';
 import { BottomTabBar, TabId } from '../components/BottomTabBar';
+import { ScreenTransition } from '../components/ScreenTransition';
 import {
   banners,
   categories,
@@ -16,24 +17,26 @@ import {
   buildSignupStateFromSession,
   createCustomerAddress,
   deleteCustomerAddress,
-  clearPersistedCustomerSession,
   CustomerAddressDraft,
   setDefaultCustomerAddress,
-  signupOrLoginCustomer,
   updateCustomerAddress,
   validateCustomerAddressDraft,
-  validateSignupState,
-  restorePersistedCustomerSession,
 } from '../services/customerAuth';
-import { fetchCustomerInvoice, fetchCustomerOrderDetail, fetchCustomerOrders } from '../services/customerOrders';
+import type { AuthSession } from '../services/session';
+import {
+  fetchCustomerInvoice,
+  fetchCustomerOrderDetail,
+  fetchCustomerOrderTracking,
+  fetchCustomerOrders,
+} from '../services/customerOrders';
 import { fetchCatalogueMedicines, fetchMedicineDetail, fetchMedicineRetailers, searchMedicines } from '../services/medicineDiscovery';
 import {
   fetchCustomerNotifications,
   markCustomerNotificationRead,
   markCustomerNotificationsRead,
-  registerCustomerNotificationDevice,
 } from '../services/notifications';
 import { buildCustomerOrderContext, createCustomerOrder } from '../services/orderFlow';
+import { subscribeToForegroundNotifications, subscribeToNotificationTaps } from '../services/pushNotifications';
 import { uploadCustomerPrescription } from '../services/prescriptions';
 import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import { AccountScreen } from './customer/AccountScreen';
@@ -49,7 +52,6 @@ import { PaymentScreen } from './customer/PaymentScreen';
 import { PharmacyListScreen } from './customer/PharmacyListScreen';
 import { PrescriptionScreen } from './customer/PrescriptionScreen';
 import { SearchScreen } from './customer/SearchScreen';
-import { SignupScreen } from './customer/SignupScreen';
 import { SplashScreen } from './customer/SplashScreen';
 import { TrackingScreen } from './customer/TrackingScreen';
 import {
@@ -146,14 +148,20 @@ const emptySignupState: SignupState = {
   address: '',
 };
 
+type CustomerModuleAppProps = {
+  session: AuthSession;
+  onSignOut: () => void;
+};
+
 // Main customer module component that controls the full frontend flow and screen switching.
-export function CustomerModuleApp() {
+// Authentication happens before this component mounts, so it always starts with a live session.
+export function CustomerModuleApp({ session, onSignOut }: CustomerModuleAppProps) {
   // Layout values used to keep the UI neat across mobile and web widths.
   const { width: viewportWidth } = useWindowDimensions();
 
   // Core app state for theme, navigation, checkout progress, and user details.
   const [stage, setStage] = useState<AppStage>('splash');
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [screen, setScreen] = useState<Screen>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMedicineId, setSelectedMedicineId] = useState('');
@@ -185,7 +193,6 @@ export function CustomerModuleApp() {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [prescriptionSubmitting, setPrescriptionSubmitting] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
-  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [searchHelperText, setSearchHelperText] = useState<string | null>(null);
   const [detailHelperText, setDetailHelperText] = useState<string | null>(null);
   const [retailerHelperText, setRetailerHelperText] = useState<string | null>(null);
@@ -195,9 +202,8 @@ export function CustomerModuleApp() {
   const [notificationsHelperText, setNotificationsHelperText] = useState<string | null>(null);
   const [prescriptionHelperText, setPrescriptionHelperText] = useState<string | null>(null);
   const [accountHelperText, setAccountHelperText] = useState<string | null>(null);
-  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
-  const [restoredSession, setRestoredSession] = useState<CustomerSession | null | undefined>(undefined);
-  const [signup, setSignup] = useState<SignupState>(emptySignupState);
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(session);
+  const [signup, setSignup] = useState<SignupState>(() => buildSignupStateFromSession(session));
   const [addressSubmitting, setAddressSubmitting] = useState(false);
   const [splashAnimationComplete, setSplashAnimationComplete] = useState(false);
   const splashOpacity = useRef(new Animated.Value(0)).current;
@@ -217,35 +223,13 @@ export function CustomerModuleApp() {
   const mobileProductCardWidth = Math.min(Math.max(sectionWidth * 0.42, 176), 240);
   const isHomeScreen = screen === 'home';
 
-  // Restores the last backend-linked customer session before leaving the splash screen.
+  // Keeps the in-module copy of the session aligned when the app refreshes the signed-in profile.
   useEffect(() => {
-    let active = true;
+    setCustomerSession(session);
+    setSignup(buildSignupStateFromSession(session));
+  }, [session]);
 
-    restorePersistedCustomerSession()
-      .then((session) => {
-        if (!active) {
-          return;
-        }
-
-        setRestoredSession(session);
-
-        if (session) {
-          setCustomerSession(session);
-          setSignup(buildSignupStateFromSession(session));
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setRestoredSession(null);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Splash animation: logo fades/scales in before the app decides whether to restore a session or show signup.
+  // Splash animation: the logo fades and scales in while the first screen's data loads.
   useEffect(() => {
     if (stage !== 'splash') {
       return;
@@ -294,12 +278,12 @@ export function CustomerModuleApp() {
   }, [stage, splashOpacity, splashScale]);
 
   useEffect(() => {
-    if (stage !== 'splash' || !splashAnimationComplete || restoredSession === undefined) {
+    if (stage !== 'splash' || !splashAnimationComplete) {
       return;
     }
 
-    setStage(restoredSession ? 'app' : 'signup');
-  }, [restoredSession, splashAnimationComplete, stage]);
+    setStage('app');
+  }, [splashAnimationComplete, stage]);
 
   useEffect(() => {
     if (stage !== 'app') {
@@ -647,9 +631,6 @@ export function CustomerModuleApp() {
       return;
     }
 
-    void registerCustomerNotificationDevice(customerSession.user.id).catch(() => {
-      setNotificationsHelperText('Notifications are available, but this browser device could not be registered for future push delivery.');
-    });
     void loadNotifications({ silent: true });
   }, [customerSession, stage]);
 
@@ -669,21 +650,59 @@ export function CustomerModuleApp() {
     };
   }, [screen, stage]);
 
+  // A push that arrives while the app is open refreshes the inbox badge; tapping one opens the
+  // order it refers to, which is the same behaviour as tapping the notification in the inbox.
+  useEffect(() => {
+    if (stage !== 'app' || !customerSession) {
+      return;
+    }
+
+    const unsubscribeForeground = subscribeToForegroundNotifications(() => {
+      void loadNotifications({ silent: true });
+    });
+
+    const unsubscribeTaps = subscribeToNotificationTaps((payload) => {
+      void loadNotifications({ silent: true });
+
+      if (payload.referenceKind === 'customer_order' && payload.referenceId) {
+        openOrderTracking(payload.referenceId);
+      }
+    });
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribeTaps();
+    };
+  }, [customerSession, stage]);
+
   useEffect(() => {
     if (stage !== 'app' || screen !== 'tracking' || !activeOrderId || !customerSession) {
       return;
     }
 
+    // While the tracking screen is open, poll only the timeline and courier position. A courier on
+    // the move updates its location far more often than the rest of the order changes, so this runs
+    // on a much tighter interval than a full order refetch could afford.
     const trackingRefreshInterval = setInterval(() => {
-      void fetchCustomerOrderDetail(activeOrderId)
-        .then((detail) => {
-          setActiveOrder(detail);
+      void fetchCustomerOrderTracking(activeOrderId)
+        .then((tracking) => {
+          setActiveOrder((current) =>
+            current && current.id === tracking.orderId
+              ? {
+                  ...current,
+                  status: tracking.status,
+                  trackingEvents: tracking.trackingEvents,
+                  delivery: tracking.delivery,
+                  retailerPhone: tracking.retailerPhone,
+                }
+              : current,
+          );
           setTrackingHelperText(null);
         })
         .catch(() => {
           setTrackingHelperText('Tracking auto-refresh could not reach the backend. Manual refresh is still available.');
         });
-    }, 30000);
+    }, 10000);
 
     return () => {
       clearInterval(trackingRefreshInterval);
@@ -1076,51 +1095,9 @@ export function CustomerModuleApp() {
     }
   }
 
-  async function continueFromSignup() {
-    if (authSubmitting) {
-      return;
-    }
-
-    const validationMessage = validateSignupState(signup);
-
-    if (validationMessage) {
-      Alert.alert('Complete your details', validationMessage);
-      return;
-    }
-
-    setAuthSubmitting(true);
-
-    try {
-      const session = await signupOrLoginCustomer(signup);
-
-      setCustomerSession(session);
-      setRestoredSession(session);
-      setSignup(buildSignupStateFromSession(session));
-      setAccountHelperText(null);
-      setStage('app');
-      Alert.alert('Account synced', 'Customer signup is now connected to the backend auth service.');
-    } catch (error) {
-      clearPersistedCustomerSession();
-      setCustomerSession(null);
-      setRestoredSession(null);
-      setStage('app');
-      Alert.alert(
-        'Using local profile',
-        error instanceof Error
-          ? `The backend signup could not be completed right now, so the app switched to local prototype mode.\n\n${error.message}`
-          : 'The backend signup could not be completed right now, so the app switched to local prototype mode.',
-      );
-    } finally {
-      setAuthSubmitting(false);
-    }
-  }
-
   function logoutCustomer() {
-    clearPersistedCustomerSession();
     setCustomerSession(null);
-    setRestoredSession(null);
     setAccountHelperText(null);
-    setStage('signup');
     setScreen('home');
     setSearchQuery('');
     setPaymentMethod(null);
@@ -1131,6 +1108,7 @@ export function CustomerModuleApp() {
     setNotifications([]);
     setUnreadNotificationCount(0);
     setSignup(emptySignupState);
+    onSignOut();
   }
 
   async function markAllNotificationsRead() {
@@ -1204,7 +1182,6 @@ export function CustomerModuleApp() {
       }
 
       setCustomerSession(finalSession);
-      setRestoredSession(finalSession);
       setSignup(buildSignupStateFromSession(finalSession));
       setAccountHelperText(addressId ? 'Address updated successfully.' : 'Address saved successfully.');
       return true;
@@ -1235,7 +1212,6 @@ export function CustomerModuleApp() {
     try {
       const updatedSession = await setDefaultCustomerAddress(customerSession, addressId);
       setCustomerSession(updatedSession);
-      setRestoredSession(updatedSession);
       setSignup(buildSignupStateFromSession(updatedSession));
       setAccountHelperText('Default address updated.');
       return true;
@@ -1266,7 +1242,6 @@ export function CustomerModuleApp() {
     try {
       const updatedSession = await deleteCustomerAddress(customerSession, addressId);
       setCustomerSession(updatedSession);
-      setRestoredSession(updatedSession);
       setSignup(buildSignupStateFromSession(updatedSession));
       setAccountHelperText('Address removed from your profile.');
       return true;
@@ -1284,11 +1259,6 @@ export function CustomerModuleApp() {
     } finally {
       setAddressSubmitting(false);
     }
-  }
-
-  // Updates one signup field while keeping the rest of the form intact.
-  function updateSignupField(field: keyof SignupState, value: string) {
-    setSignup((current) => ({ ...current, [field]: value }));
   }
 
   // Toggles between the supported light and dark UI themes.
@@ -1330,30 +1300,9 @@ export function CustomerModuleApp() {
 
   const contentContainerStyle = [customerStyles.scrollContent, centeredContentStyle];
 
-  // Shows the initial animated splash screen before signup.
-  if (stage === 'splash') {
+  // Shows the animated splash screen while the first screen's data loads.
+  if (stage !== 'app') {
     return <SplashScreen splashOpacity={splashOpacity} splashScale={splashScale} />;
-  }
-
-  // Shows the signup form before the user enters the main app flow.
-  if (stage === 'signup') {
-    return (
-      <SignupScreen
-        mode={themeMode}
-        theme={theme}
-        signup={signup}
-        contentContainerStyle={contentContainerStyle}
-        onChangeField={updateSignupField}
-        onToggleTheme={toggleTheme}
-        onContinue={continueFromSignup}
-        helperText={
-          authSubmitting
-            ? 'Creating or restoring your backend customer account.'
-            : 'This screen now tries live customer signup first and falls back to local prototype mode if the backend is unavailable.'
-        }
-        isSubmitting={authSubmitting}
-      />
-    );
   }
 
   // Chooses which main screen body should be visible right now.
@@ -1619,8 +1568,9 @@ export function CustomerModuleApp() {
         onPressCart={() => setScreen('cart')}
       />
 
-      {/* Visible page body based on the current screen state. */}
-      {renderScreen()}
+      {/* Visible page body based on the current screen state, with a smooth
+          fade + rise each time the screen changes. */}
+      <ScreenTransition screenKey={screen}>{renderScreen()}</ScreenTransition>
 
       {/* Sticky bottom navigation. */}
       <BottomTabBar
