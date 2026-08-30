@@ -124,10 +124,26 @@ export type CustomerOrderSummary = {
   invoiceNumber?: string | null;
 };
 
+// Live courier state shown while an order is on its way to the customer.
+export type DeliveryTracking = {
+  courierName: string;
+  courierPhone?: string | null;
+  vehicleNumber?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  etaMinutes?: number | null;
+  lastLocationAt?: string | null;
+  dispatchedAt?: string | null;
+  deliveredAt?: string | null;
+  isLive: boolean;
+};
+
 export type CustomerOrderTrackingState = CustomerOrderSummary & {
   deliveryMethod: Exclude<DeliveryMethod, null>;
   trackingEvents: OrderTimelineStep[];
   rejectionReason?: string | null;
+  delivery?: DeliveryTracking | null;
+  retailerPhone?: string | null;
 };
 
 export type CustomerNotification = {
