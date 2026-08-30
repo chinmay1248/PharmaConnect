@@ -132,6 +132,54 @@ export function TrackingScreen({
             {activeOrder.deliveryMethod === 'home' ? 'Home delivery' : 'Pickup'}
           </Text>
         ) : null}
+        {activeOrder?.delivery ? (
+          <View
+            style={[
+              customerStyles.deliveryCard,
+              { backgroundColor: theme.surfaceAlt, borderColor: theme.border },
+            ]}
+          >
+            <Text style={[customerStyles.trackTitle, { color: theme.text }]}>
+              {activeOrder.delivery.deliveredAt ? 'Delivered by' : 'Out for delivery with'}{' '}
+              {activeOrder.delivery.courierName}
+            </Text>
+            {activeOrder.delivery.vehicleNumber ? (
+              <Text style={[customerStyles.trackMeta, { color: theme.subtext }]}>
+                Vehicle {activeOrder.delivery.vehicleNumber}
+              </Text>
+            ) : null}
+            {activeOrder.delivery.courierPhone ? (
+              <Text style={[customerStyles.trackMeta, { color: theme.subtext }]}>
+                Courier contact: {activeOrder.delivery.courierPhone}
+              </Text>
+            ) : null}
+            {!activeOrder.delivery.deliveredAt && typeof activeOrder.delivery.etaMinutes === 'number' ? (
+              <Text style={[customerStyles.trackTitle, { color: theme.primary }]}>
+                {activeOrder.delivery.etaMinutes === 0
+                  ? 'Arriving now'
+                  : `Arriving in about ${activeOrder.delivery.etaMinutes} min`}
+              </Text>
+            ) : null}
+            {activeOrder.delivery.isLive ? (
+              <Text style={[customerStyles.trackMeta, { color: theme.subtext }]}>
+                Live position: {activeOrder.delivery.latitude?.toFixed(5)},{' '}
+                {activeOrder.delivery.longitude?.toFixed(5)}
+                {formatTrackingTimestamp(activeOrder.delivery.lastLocationAt)
+                  ? ` - updated ${formatTrackingTimestamp(activeOrder.delivery.lastLocationAt)}`
+                  : ''}
+              </Text>
+            ) : !activeOrder.delivery.deliveredAt ? (
+              <Text style={[customerStyles.trackMeta, { color: theme.subtext }]}>
+                Waiting for the courier to share a live position.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        {activeOrder?.retailerPhone ? (
+          <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
+            Pharmacy contact: {activeOrder.retailerPhone}
+          </Text>
+        ) : null}
         {activeOrder?.rejectionReason ? (
           <Text style={[customerStyles.infoLine, { color: theme.subtext }]}>
             Rejection reason: {activeOrder.rejectionReason}
