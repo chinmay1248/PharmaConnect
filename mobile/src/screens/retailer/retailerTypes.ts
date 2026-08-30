@@ -103,6 +103,19 @@ export type RetailerOrder = {
     notes?: string | null;
     createdAt?: string;
   } | null;
+  delivery?: {
+    id: string;
+    courierName: string;
+    courierPhone?: string | null;
+    vehicleNumber?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    etaMinutes?: number | null;
+    lastLocationAt?: string | null;
+    dispatchedAt?: string | null;
+    deliveredAt?: string | null;
+    isLive: boolean;
+  } | null;
 };
 
 export type RetailerSummary = {
