@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { StyleSheet, Text, View } from 'react-native';
-import { ThemeMode, themes } from '../theme/theme';
+import { StyleSheet, View } from 'react-native';
+import { ThemeMode, glowShadow, themes } from '../theme/theme';
 import { InteractivePressable } from './InteractivePressable';
 
 export type TabId = 'home' | 'search' | 'orders' | 'cart' | 'account';
@@ -20,88 +20,92 @@ const tabs: { id: TabId; label: string; icon: keyof typeof Feather.glyphMap }[] 
   { id: 'account', label: 'You', icon: 'user' },
 ];
 
-// Renders the sticky bottom navigation for switching between main customer sections.
+// Renders the sticky bottom navigation as a floating white pill holding circular
+// icon slots. The active tab is a filled teal circle with a white icon, matching
+// the reference healthcare-app navigation.
 export function BottomTabBar({ mode, activeTab, onChange }: BottomTabBarProps) {
   const theme = themes[mode];
 
   return (
-    <View
-      style={[
-        styles.wrapper,
-        {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-        },
-      ]}
-    >
-      {tabs.map((tab) => {
-        const active = activeTab === tab.id;
+    <View style={styles.dock} pointerEvents="box-none">
+      <View
+        style={[
+          styles.wrapper,
+          { backgroundColor: theme.surface, borderColor: theme.hairline },
+          glowShadow(theme.shadow, 0.7, 30, 16),
+        ]}
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
 
-        return (
-          // Each button changes the visible screen and highlights the active tab.
-          <InteractivePressable
-            key={tab.id}
-            onPress={() => onChange(tab.id)}
-            style={[
-              styles.tab,
-              {
-                backgroundColor: active ? theme.primarySoft : 'transparent',
-              },
-            ]}
-            hoveredStyle={{
-              backgroundColor: active ? theme.primarySoft : theme.surfaceAlt,
-            }}
-            pressedStyle={{
-              backgroundColor: active ? theme.elevated : theme.elevated,
-            }}
-            scaleHover={1.06}
-            scalePress={0.96}
-          >
-            <Feather
-              name={tab.icon}
-              size={18}
-              color={active ? theme.primaryStrong : theme.subtext}
-            />
-            <Text
-              style={[
-                styles.label,
-                { color: active ? theme.primaryStrong : theme.subtext },
-              ]}
+          return (
+            <InteractivePressable
+              key={tab.id}
+              onPress={() => onChange(tab.id)}
+              accessibilityRole="button"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: active }}
+              style={styles.slot}
+              hoveredStyle={active ? null : { backgroundColor: theme.surfaceAlt }}
+              pressedStyle={{ opacity: 0.8 }}
+              scaleHover={1.08}
+              scalePress={0.92}
             >
-              {tab.label}
-            </Text>
-          </InteractivePressable>
-        );
-      })}
+              <View
+                style={[
+                  styles.dot,
+                  active
+                    ? [{ backgroundColor: theme.primary }, glowShadow(theme.glow, 0.9, 14, 6)]
+                    : null,
+                ]}
+              >
+                <Feather
+                  name={tab.icon}
+                  size={20}
+                  color={active ? '#ffffff' : theme.subtext}
+                />
+              </View>
+            </InteractivePressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  dock: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderTopWidth: 1,
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 16,
   },
-  tab: {
+  wrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    maxWidth: 460,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  slot: {
     flex: 1,
-    minHeight: 58,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingHorizontal: 4,
+    borderRadius: 999,
+    paddingVertical: 4,
   },
-  label: {
-    fontSize: 10,
-    fontWeight: '800',
-    textAlign: 'center',
+  dot: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
