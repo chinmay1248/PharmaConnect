@@ -22,9 +22,12 @@ export function SectionHeader({
 
   return (
     <View style={styles.wrapper}>
-      {/* Left side: section title and optional helper text */}
+      {/* Left side: accent tick, section title, and optional helper text */}
       <View style={styles.copy}>
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        <View style={styles.titleRow}>
+          <View style={[styles.tick, { backgroundColor: theme.primary }]} />
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        </View>
         {description ? (
           <Text style={[styles.description, { color: theme.subtext }]}>{description}</Text>
         ) : null}
@@ -59,9 +62,20 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  tick: {
+    width: 4,
+    height: 20,
+    borderRadius: 999,
+  },
   title: {
     fontSize: 22,
     fontWeight: '800',
+    letterSpacing: -0.4,
   },
   description: {
     fontSize: 13,
