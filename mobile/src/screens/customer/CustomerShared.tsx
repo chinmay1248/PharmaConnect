@@ -1,6 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Text, TextInput, View } from 'react-native';
-import { ThemeMode, themes } from '../../theme/theme';
+import { ThemeMode, glowShadow, themes } from '../../theme/theme';
 import { InteractivePressable } from '../../components/InteractivePressable';
 import { customerStyles } from './customerStyles';
 
@@ -16,7 +17,7 @@ type ActionButtonProps = {
   label: string;
   icon?: keyof typeof Feather.glyphMap;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'soft';
+  variant?: 'primary' | 'secondary' | 'soft' | 'accentPrimary' | 'accentSecondary';
   fullWidth?: boolean;
 };
 
@@ -48,7 +49,7 @@ export const categoryIcons: Record<string, keyof typeof Feather.glyphMap> = {
   Digestive: 'coffee',
 };
 
-// Renders one compact action icon in the app header.
+// Renders one compact action icon in the app header as a soft glass chip.
 export function HeaderIcon({ mode, icon, onPress, badgeCount = 0 }: HeaderIconProps) {
   const theme = themes[mode];
   const visibleBadgeCount = Math.min(Math.max(badgeCount, 0), 99);
@@ -56,16 +57,19 @@ export function HeaderIcon({ mode, icon, onPress, badgeCount = 0 }: HeaderIconPr
   return (
     <InteractivePressable
       onPress={onPress}
-      style={[customerStyles.iconButton, { backgroundColor: theme.surface }]}
-      hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+      style={[
+        customerStyles.iconButton,
+        { backgroundColor: theme.glass, borderWidth: 1, borderColor: theme.hairline },
+      ]}
+      hoveredStyle={{ backgroundColor: theme.surfaceAlt, borderColor: theme.primary }}
       pressedStyle={{ backgroundColor: theme.elevated }}
       scaleHover={1.08}
       scalePress={0.94}
     >
       <Feather name={icon} size={18} color={theme.primary} />
       {visibleBadgeCount > 0 ? (
-        <View style={[customerStyles.iconBadge, { backgroundColor: theme.primary }]}>
-          <Text style={[customerStyles.iconBadgeText, { color: theme.buttonText }]}>
+        <View style={[customerStyles.iconBadge, { backgroundColor: theme.danger }]}>
+          <Text style={[customerStyles.iconBadgeText, { color: '#ffffff' }]}>
             {visibleBadgeCount > 9 ? '9+' : visibleBadgeCount}
           </Text>
         </View>
@@ -74,7 +78,60 @@ export function HeaderIcon({ mode, icon, onPress, badgeCount = 0 }: HeaderIconPr
   );
 }
 
-// Renders the reusable CTA button used across the customer flow.
+// Resolves the fill treatment for one button variant.
+// - primary        the bold near-black pill used for the main action on a screen
+// - accentPrimary  a teal gradient, for a lively secondary action
+// - accentSecondary a flat teal fill
+// - soft / secondary quiet, low-contrast chips that sit inside content
+function resolveButtonFill(mode: ThemeMode, variant: NonNullable<ActionButtonProps['variant']>) {
+  const theme = themes[mode];
+
+  if (variant === 'primary') {
+    return {
+      solid: theme.cta,
+      color: theme.ctaText,
+      glow: theme.shadow,
+      border: 'transparent',
+    } as const;
+  }
+
+  if (variant === 'accentPrimary') {
+    return {
+      gradient: theme.gradientAccent,
+      color: '#ffffff',
+      glow: theme.glow,
+      border: 'transparent',
+    } as const;
+  }
+
+  if (variant === 'accentSecondary') {
+    return {
+      solid: theme.primary,
+      color: '#ffffff',
+      glow: theme.glow,
+      border: 'transparent',
+    } as const;
+  }
+
+  if (variant === 'soft') {
+    return {
+      solid: theme.surfaceAlt,
+      color: theme.text,
+      glow: 'transparent',
+      border: theme.border,
+    } as const;
+  }
+
+  return {
+    solid: theme.glass,
+    color: theme.text,
+    glow: 'transparent',
+    border: theme.border,
+  } as const;
+}
+
+// Renders the reusable CTA button used across the customer flow. The primary
+// variant is the bold pill; teal variants add a soft glow; quiet variants stay flat.
 export function ActionButton({
   mode,
   label,
@@ -83,50 +140,49 @@ export function ActionButton({
   variant = 'primary',
   fullWidth = false,
 }: ActionButtonProps) {
-  const theme = themes[mode];
-  const palette =
-    variant === 'primary'
-      ? {
-          backgroundColor: theme.primary,
-          hoveredColor: theme.primaryStrong,
-          pressedColor: theme.primaryStrong,
-          borderColor: theme.primary,
-          color: theme.buttonText,
-        }
-      : variant === 'soft'
-        ? {
-            backgroundColor: theme.surfaceAlt,
-            hoveredColor: theme.elevated,
-            pressedColor: theme.elevated,
-            borderColor: theme.border,
-            color: theme.text,
-          }
-        : {
-            backgroundColor: theme.surface,
-            hoveredColor: theme.surfaceAlt,
-            pressedColor: theme.elevated,
-            borderColor: theme.border,
-            color: theme.text,
-          };
+  const fill = resolveButtonFill(mode, variant);
+  const hasGradient = 'gradient' in fill;
+  const lifts = fill.glow !== 'transparent';
+
+  const content = (
+    <>
+      {icon ? <Feather name={icon} size={16} color={fill.color} /> : null}
+      <Text style={[customerStyles.actionButtonLabel, { color: fill.color }]}>{label}</Text>
+    </>
+  );
 
   return (
     <InteractivePressable
       onPress={onPress}
       style={[
-        customerStyles.actionButton,
-        {
-          backgroundColor: palette.backgroundColor,
-          borderColor: palette.borderColor,
-        },
+        customerStyles.actionButtonShell,
         fullWidth && customerStyles.fullWidth,
+        lifts ? glowShadow(fill.glow, 0.8, 18, 8) : null,
       ]}
-      hoveredStyle={{ backgroundColor: palette.hoveredColor }}
-      pressedStyle={{ backgroundColor: palette.pressedColor }}
-      scaleHover={1.035}
+      hoveredStyle={{ opacity: 0.92 }}
+      pressedStyle={{ opacity: 0.85 }}
+      scaleHover={1.03}
       scalePress={0.975}
     >
-      {icon ? <Feather name={icon} size={16} color={palette.color} /> : null}
-      <Text style={[customerStyles.actionButtonLabel, { color: palette.color }]}>{label}</Text>
+      {hasGradient ? (
+        <LinearGradient
+          colors={fill.gradient as unknown as readonly [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[customerStyles.actionButton, { borderColor: fill.border }]}
+        >
+          {content}
+        </LinearGradient>
+      ) : (
+        <View
+          style={[
+            customerStyles.actionButton,
+            { backgroundColor: fill.solid, borderColor: fill.border },
+          ]}
+        >
+          {content}
+        </View>
+      )}
     </InteractivePressable>
   );
 }
@@ -140,12 +196,13 @@ export function SearchBar({ mode, value, onChangeText, onSubmit }: SearchBarProp
       style={[
         customerStyles.searchWrap,
         {
-          backgroundColor: theme.surface,
-          borderColor: theme.border,
+          backgroundColor: theme.glass,
+          borderColor: theme.hairline,
         },
+        glowShadow(theme.shadow, 0.5, 16, 8),
       ]}
     >
-      <Feather name="search" size={18} color={theme.subtext} />
+      <Feather name="search" size={18} color={theme.primary} />
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -156,16 +213,16 @@ export function SearchBar({ mode, value, onChangeText, onSubmit }: SearchBarProp
       />
       <InteractivePressable
         onPress={() => Alert.alert('Camera', 'Image search can be connected in the next integration step.')}
-        style={customerStyles.searchIconWrap}
-        hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+        style={[customerStyles.searchIconWrap, { backgroundColor: theme.surfaceAlt }]}
+        hoveredStyle={{ backgroundColor: theme.elevated }}
         pressedStyle={{ backgroundColor: theme.elevated }}
       >
         <Feather name="camera" size={16} color={theme.primary} />
       </InteractivePressable>
       <InteractivePressable
         onPress={() => Alert.alert('Voice search', 'Voice search can be connected in the next integration step.')}
-        style={customerStyles.searchIconWrap}
-        hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
+        style={[customerStyles.searchIconWrap, { backgroundColor: theme.surfaceAlt }]}
+        hoveredStyle={{ backgroundColor: theme.elevated }}
         pressedStyle={{ backgroundColor: theme.elevated }}
       >
         <Feather name="mic" size={16} color={theme.primary} />
