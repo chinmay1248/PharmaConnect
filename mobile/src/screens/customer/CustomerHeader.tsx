@@ -1,8 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Text, View } from 'react-native';
 import { BrandLogo } from '../../components/BrandLogo';
 import { InteractivePressable } from '../../components/InteractivePressable';
-import { ThemeMode, ThemePalette } from '../../theme/theme';
+import { ThemeMode, ThemePalette, glowShadow } from '../../theme/theme';
 import { HeaderIcon, SearchBar } from './CustomerShared';
 import { customerStyles } from './customerStyles';
 
@@ -37,13 +38,16 @@ export function CustomerHeader({
   unreadNotificationCount = 0,
 }: CustomerHeaderProps) {
   return (
-    <View
+    <LinearGradient
+      colors={theme.gradientSurface as unknown as readonly [string, string, ...string[]]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
       style={[
         customerStyles.header,
         {
-          backgroundColor: theme.surfaceAlt,
-          borderBottomColor: theme.border,
+          borderBottomColor: theme.hairline,
         },
+        glowShadow(theme.shadow, 0.4, 20, 10),
       ]}
     >
       {isHomeScreen ? (
@@ -65,7 +69,11 @@ export function CustomerHeader({
           <View style={customerStyles.homeUtilityRow}>
             <InteractivePressable
               onPress={onPressAccount}
-              style={[customerStyles.locationBar, customerStyles.locationBarInline]}
+              style={[
+                customerStyles.locationBar,
+                customerStyles.locationBarInline,
+                { backgroundColor: theme.glass, borderWidth: 1, borderColor: theme.hairline },
+              ]}
               hoveredStyle={{ backgroundColor: theme.surface }}
               pressedStyle={{ backgroundColor: theme.elevated }}
             >
@@ -115,7 +123,10 @@ export function CustomerHeader({
 
           <InteractivePressable
             onPress={onPressAccount}
-            style={customerStyles.locationBar}
+            style={[
+              customerStyles.locationBar,
+              { backgroundColor: theme.glass, borderWidth: 1, borderColor: theme.hairline },
+            ]}
             hoveredStyle={{ backgroundColor: theme.surface }}
             pressedStyle={{ backgroundColor: theme.elevated }}
           >
@@ -129,6 +140,6 @@ export function CustomerHeader({
           </InteractivePressable>
         </>
       )}
-    </View>
+    </LinearGradient>
   );
 }
