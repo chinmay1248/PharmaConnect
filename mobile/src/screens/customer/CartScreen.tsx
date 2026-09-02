@@ -72,8 +72,8 @@ export function CartScreen({
 
             <ActionButton
               mode={mode}
-              label={cartMedicine.prescriptionRequired && !prescriptionUploaded ? 'Continue to prescription' : 'Continue to payment'}
-              icon="arrow-right"
+              label={cartMedicine.prescriptionRequired && !prescriptionUploaded ? 'Proceed to Prescription' : 'Proceed to Checkout'}
+              variant="primary"
               onPress={onContinueCheckout}
               fullWidth
             />
