@@ -1,5 +1,16 @@
 import { StyleSheet } from 'react-native';
 
+// Soft, neutral drop shadow applied to white cards so they lift off the mint
+// background the way the reference healthcare UI does. Kept theme-neutral so it
+// can live in the static stylesheet; it reads as a gentle halo in dark mode too.
+const softShadow = {
+  shadowColor: '#0f3240',
+  shadowOpacity: 0.1,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 10 },
+  elevation: 6,
+} as const;
+
 // Shared customer module styles reused by the main container, header, and screen components.
 export const customerStyles = StyleSheet.create({
   page: {
@@ -28,11 +39,59 @@ export const customerStyles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 10,
   },
+  authScroll: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 32,
+  },
+  authHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
   authCard: {
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     padding: 18,
     gap: 12,
+  },
+  authTabBar: {
+    flexDirection: 'row',
+    borderRadius: 18,
+    padding: 4,
+    gap: 4,
+  },
+  authTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  authTabText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  authDemoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  authDemoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  authDemoChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  authDemoChipText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   authTitle: {
     fontSize: 24,
@@ -52,6 +111,7 @@ export const customerStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     fontSize: 15,
+    marginBottom: 12,
   },
   inputMultiline: {
     minHeight: 96,
@@ -213,10 +273,11 @@ export const customerStyles = StyleSheet.create({
   },
   bannerCard: {
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     overflow: 'hidden',
     padding: 14,
     gap: 8,
+    ...softShadow,
   },
   bannerAccent: {
     height: 92,
@@ -239,12 +300,13 @@ export const customerStyles = StyleSheet.create({
   },
   categoryCard: {
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     minHeight: 106,
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
+    ...softShadow,
   },
   categoryIconWrap: {
     width: 46,
@@ -264,6 +326,7 @@ export const customerStyles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 18,
     padding: 12,
+    ...softShadow,
   },
   productThumb: {
     height: 120,
@@ -301,6 +364,7 @@ export const customerStyles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 18,
     padding: 12,
+    ...softShadow,
   },
   dealThumb: {
     height: 90,
@@ -349,6 +413,7 @@ export const customerStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+    ...softShadow,
   },
   searchCardCompact: {
     flexDirection: 'column',
@@ -389,8 +454,9 @@ export const customerStyles = StyleSheet.create({
   },
   detailCard: {
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 14,
+    ...softShadow,
   },
   detailThumb: {
     height: 220,
@@ -450,6 +516,7 @@ export const customerStyles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
     gap: 10,
+    ...softShadow,
   },
   pharmacyHeader: {
     flexDirection: 'row',
@@ -478,21 +545,31 @@ export const customerStyles = StyleSheet.create({
   },
   infoCard: {
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 14,
     gap: 8,
+    ...softShadow,
+  },
+  deliveryCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 4,
+    ...softShadow,
   },
   addressCard: {
     borderWidth: 1,
     borderRadius: 18,
     padding: 14,
     gap: 10,
+    ...softShadow,
   },
   notificationCard: {
     borderWidth: 1,
     borderRadius: 18,
     padding: 14,
     gap: 8,
+    ...softShadow,
   },
   notificationUnread: {
     borderLeftWidth: 4,
@@ -548,7 +625,7 @@ export const customerStyles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 16,
     padding: 12,
-    backgroundColor: 'rgba(77, 168, 255, 0.08)',
+    backgroundColor: 'rgba(23, 192, 170, 0.10)',
   },
   billRow: {
     flexDirection: 'row',
@@ -581,6 +658,7 @@ export const customerStyles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 12,
     paddingVertical: 16,
+    ...softShadow,
   },
   optionTitle: {
     fontSize: 14,
@@ -631,13 +709,17 @@ export const customerStyles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'stretch',
   },
-  actionButton: {
-    minHeight: 46,
+  actionButtonShell: {
     alignSelf: 'flex-start',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  actionButton: {
+    minHeight: 48,
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
