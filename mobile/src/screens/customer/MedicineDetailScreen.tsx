@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import { ScrollView, Text, View, StyleProp, ViewStyle } from 'react-native';
 import { Medicine } from '../../data/mockData';
 import { InteractivePressable } from '../../components/InteractivePressable';
@@ -59,6 +60,12 @@ export function MedicineDetailScreen({
           {selectedMedicine.genericName} - {selectedMedicine.dosage} - {selectedMedicine.packSize}
         </Text>
         <Text style={[customerStyles.detailPrice, { color: theme.text }]}>{formatCurrency(selectedMedicine.salePrice)}</Text>
+        
+        <View style={{ marginTop: 6, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Feather name="check-circle" size={14} color={theme.accentPrimary} />
+          <Text style={{ color: theme.accentPrimary, fontWeight: '800', fontSize: 13, fontStyle: 'italic' }}>PharmaConnect Assured</Text>
+        </View>
+
         <Text style={[customerStyles.detailSubTitle, { color: theme.primary }]}>
           {selectedMedicine.prescriptionRequired ? 'Prescription required before dispatch' : 'No prescription needed'}
         </Text>
@@ -96,11 +103,30 @@ export function MedicineDetailScreen({
           </Text>
         )}
 
-        <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack]}>
+        <View style={{ marginTop: 24, gap: 12 }}>
           <ActionButton
             mode={mode}
-            label="Compare pharmacies"
-            icon="map-pin"
+            label="Add to Cart"
+            variant="accentSecondary"
+            onPress={() => onOpenPharmacies(selectedMedicine.id)}
+            fullWidth={true}
+          />
+          <ActionButton
+            mode={mode}
+            label="Buy Now"
+            icon="zap"
+            variant="accentPrimary"
+            onPress={() => onOpenPharmacies(selectedMedicine.id)}
+            fullWidth={true}
+          />
+        </View>
+
+        <View style={[customerStyles.inlineRow, isCompactLayout && customerStyles.inlineRowStack, { marginTop: 16 }]}>
+          <ActionButton
+            mode={mode}
+            label="Compare sellers"
+            icon="list"
+            variant="soft"
             onPress={() => onOpenPharmacies(selectedMedicine.id)}
             fullWidth={isCompactLayout}
           />
