@@ -63,7 +63,7 @@ export function PaymentScreen({
           );
         })}
       </View>
-      <ActionButton mode={mode} label="Continue to delivery" icon="arrow-right" onPress={onContinue} fullWidth />
+      <ActionButton mode={mode} label="Continue" variant="accentSecondary" onPress={onContinue} fullWidth />
     </ScrollView>
   );
 }
