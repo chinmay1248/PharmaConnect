@@ -61,7 +61,7 @@ export function DeliveryScreen({
           );
         })}
       </View>
-      <ActionButton mode={mode} label="Place order" icon="check" onPress={onPlaceOrder} fullWidth />
+      <ActionButton mode={mode} label="Place your order" icon="check" variant="accentPrimary" onPress={onPlaceOrder} fullWidth />
     </ScrollView>
   );
 }
