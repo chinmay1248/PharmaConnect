@@ -1,13 +1,48 @@
 import cors from 'cors';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
+import helmet from 'helmet';
+import morgan from 'morgan';
 import { ZodError } from 'zod';
 import { env } from './config/env.js';
 import { HttpError } from './lib/http-error.js';
 import { apiRouter } from './routes/index.js';
 
+// A generous ceiling for normal API traffic; this exists to blunt scraping and accidental
+// retry storms, not to police legitimate mobile usage.
+const generalRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Login is the one route worth limiting tightly: it is the target of credential-stuffing and
+// brute-force attempts, and unlike browsing traffic a real user will not hit this 20 times in
+// five minutes.
+const authRateLimit = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
+});
+
 // Creates the central Express application used by every backend entrypoint.
 export function createApp() {
   const app = express();
+
+  // Security headers (CSP is left to the clients themselves — this is a JSON API, not a
+  // browser-rendered site — but HSTS, X-Frame-Options, etc. are cheap and worth having).
+  app.use(helmet({ contentSecurityPolicy: false }));
+
+  // Request logging: quiet during automated tests, verbose enough in dev/prod to trace issues.
+  if (env.NODE_ENV !== 'test') {
+    app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  }
+
+  app.use('/api', generalRateLimit);
+  app.use('/api/auth/login', authRateLimit);
 
   // Shared middleware for JSON APIs and cross-origin mobile/web requests.
   // CLIENT_ORIGIN accepts a comma-separated list so one deployment can serve the Expo web build
