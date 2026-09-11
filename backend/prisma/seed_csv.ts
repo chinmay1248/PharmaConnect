@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient, MedicineType, UserRole } from '@prisma/client';
 import { hashPassword } from '../src/lib/password.js';
+import { classifyMedicineType } from './data/drug-schedules.mjs';
 
 const prisma = new PrismaClient();
 
@@ -195,7 +196,11 @@ async function seedFromCsv() {
     const compositionList = [comp1, comp2].filter(Boolean).join(' + ').trim();
     const genericName = compositionList || name;
     const mrp = parseFloat(priceStr) || 100.0;
-    const isPrescription = typeStr?.toLowerCase().includes('prescription') || false;
+    // The CSV has no prescription flag (its `type` is always "allopathy"), so
+    // classify by active ingredient against India's drug schedules (H / H1 / X).
+    const { medicineType: classifiedType } = classifyMedicineType(comp1, comp2, { defaultType: 'OTC' });
+    const medicineType =
+      classifiedType === 'PRESCRIPTION' ? MedicineType.PRESCRIPTION : MedicineType.OTC;
 
     // Check existing medicine
     const existingMed = await prisma.medicine.findFirst({
@@ -212,7 +217,7 @@ async function seedFromCsv() {
           dosage: comp1 || 'Standard',
           packSize: packSize || '1 Strip',
           description: `Formulation: ${compositionList || 'Active compound'}. Manufactured by ${cleanCompany}.`,
-          medicineType: isPrescription ? MedicineType.PRESCRIPTION : MedicineType.OTC,
+          medicineType,
           mrp: mrp,
         },
       });

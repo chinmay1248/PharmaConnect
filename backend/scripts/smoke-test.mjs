@@ -109,7 +109,11 @@ async function main() {
 
   console.log('\n== 3. Customer order lifecycle ==');
   const inventory = await call(`/retailers/${retailerId}/inventory`, { token: retailerToken });
-  const stockedItem = inventory.payload?.inventory?.find((item) => item.availableQuantity > 2);
+  const inStock = (inventory.payload?.inventory ?? []).filter((item) => item.availableQuantity > 2);
+  // The plain order path below sends no prescription, so it must use an OTC medicine. Most of the
+  // seeded catalogue is now schedule H/H1/X (prescription-only) after ingredient classification.
+  const stockedItem = inStock.find((item) => item.medicineType === 'OTC') ?? inStock[0];
+  const stockedRxItem = inStock.find((item) => item.medicineType === 'PRESCRIPTION') ?? stockedItem;
   check('retailer has stocked inventory to sell', Boolean(stockedItem), `items ${inventory.payload?.inventory?.length}`);
 
   if (!stockedItem) {
@@ -326,7 +330,7 @@ async function main() {
       retailerId,
       deliveryMethod: 'HOME_DELIVERY',
       paymentMethod: 'CASH_ON_DELIVERY',
-      items: [{ medicineId: stockedItem.medicineId, quantity: 1 }],
+      items: [{ medicineId: stockedRxItem.medicineId, quantity: 1 }],
       prescription: { fileUrl, originalFileName: 'smoke-rx.txt' },
     },
   });
