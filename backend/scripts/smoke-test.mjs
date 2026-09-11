@@ -280,6 +280,83 @@ async function main() {
     console.log('  SKIP  retailer restock order (no wholeseller stock available)');
   }
 
+  const stamp = Date.now();
+  const newMedicine = await call(`/companies/${companyId}/medicines`, {
+    method: 'POST',
+    token: companyToken,
+    body: {
+      brandName: `Smoke Test Tablet ${stamp}`,
+      genericName: 'Smoke Compound',
+      dosage: '500mg',
+      packSize: '10 Tablets',
+      mrp: 42.5,
+      medicineType: 'OTC',
+    },
+  });
+  check('company adds a medicine to its own catalogue', newMedicine.status === 201, `status ${newMedicine.status} ${JSON.stringify(newMedicine.payload).slice(0, 200)}`);
+  const newMedicineId = newMedicine.payload?.medicine?.id;
+
+  const medicineAsWholeseller = await call(`/companies/${companyId}/medicines`, {
+    method: 'POST',
+    token: wholesellerToken,
+    body: { brandName: 'Should not work', genericName: 'X', dosage: '1', packSize: '1', mrp: 1 },
+  });
+  check('a wholeseller cannot add to a company catalogue it does not own', medicineAsWholeseller.status === 403, `status ${medicineAsWholeseller.status}`);
+
+  if (newMedicineId) {
+    const updatedMedicine = await call(`/companies/${companyId}/medicines/${newMedicineId}`, {
+      method: 'PATCH',
+      token: companyToken,
+      body: { mrp: 45 },
+    });
+    check('company updates a medicine in its own catalogue', updatedMedicine.status === 200 && updatedMedicine.payload?.medicine?.mrp === 45, JSON.stringify(updatedMedicine.payload).slice(0, 160));
+
+    const newInventory = await call(`/wholesellers/${wholesellerId}/inventory`, {
+      method: 'POST',
+      token: wholesellerToken,
+      body: {
+        medicineId: newMedicineId,
+        salePrice: 50,
+        stockQuantity: 40,
+        reorderLevel: 10,
+        batch: { batchNumber: `SMK-${stamp}`, quantity: 40, purchasePrice: 38, expiryDate: '2030-01-01' },
+      },
+    });
+    check('wholeseller adds an inventory row with an opening batch', newInventory.status === 201 && newInventory.payload?.inventory?.batches?.length === 1, `status ${newInventory.status} ${JSON.stringify(newInventory.payload).slice(0, 200)}`);
+    const newInventoryId = newInventory.payload?.inventory?.inventoryId;
+
+    const inventoryAsRetailer = await call(`/wholesellers/${wholesellerId}/inventory`, {
+      method: 'POST',
+      token: retailerToken,
+      body: { medicineId: newMedicineId, salePrice: 1, stockQuantity: 1 },
+    });
+    check('a retailer cannot write to a wholeseller inventory it does not own', inventoryAsRetailer.status === 403, `status ${inventoryAsRetailer.status}`);
+
+    if (newInventoryId) {
+      const patchedInventory = await call(`/wholesellers/${wholesellerId}/inventory/${newInventoryId}`, {
+        method: 'PATCH',
+        token: wholesellerToken,
+        body: { stockQuantity: 60 },
+      });
+      check('wholeseller updates its own inventory row', patchedInventory.status === 200 && patchedInventory.payload?.inventory?.stockQuantity === 60, JSON.stringify(patchedInventory.payload).slice(0, 160));
+
+      const secondBatch = await call(`/wholesellers/${wholesellerId}/inventory/${newInventoryId}/batches`, {
+        method: 'POST',
+        token: wholesellerToken,
+        body: { batchNumber: `SMK-${stamp}-B2`, quantity: 20, expiryDate: '2031-06-01' },
+      });
+      check('wholeseller adds a second batch to an existing inventory row', secondBatch.status === 201, `status ${secondBatch.status} ${JSON.stringify(secondBatch.payload).slice(0, 160)}`);
+
+      const ownerInventoryView = await call(`/wholesellers/${wholesellerId}/inventory`, { token: wholesellerToken });
+      const ownerRow = ownerInventoryView.payload?.inventory?.find((item) => item.inventoryId === newInventoryId);
+      check('wholeseller sees both batches on its own inventory view', ownerRow?.batches?.length === 2, JSON.stringify(ownerRow).slice(0, 200));
+    } else {
+      console.log('  SKIP  wholeseller inventory update/batch checks (no inventory id returned)');
+    }
+  } else {
+    console.log('  SKIP  wholeseller inventory checks (no medicine id returned)');
+  }
+
   console.log('\n== 7. Prescription privacy ==');
   const upload = await call('/prescriptions/uploads', {
     method: 'POST',
