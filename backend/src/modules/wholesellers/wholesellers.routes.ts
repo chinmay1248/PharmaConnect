@@ -71,6 +71,39 @@ const companyPurchaseOrderCreateSchema = z.object({
     .min(1),
 });
 
+const wholesellerInventoryUpsertSchema = z.object({
+  medicineId: z.string().min(1),
+  salePrice: z.coerce.number().positive(),
+  stockQuantity: z.coerce.number().int().nonnegative(),
+  reorderLevel: z.coerce.number().int().nonnegative().optional(),
+  batch: z
+    .object({
+      batchNumber: z.string().min(1).max(80),
+      quantity: z.coerce.number().int().positive(),
+      purchasePrice: z.coerce.number().positive().optional(),
+      expiryDate: z.coerce.date(),
+    })
+    .optional(),
+});
+
+const wholesellerInventoryUpdateSchema = z
+  .object({
+    salePrice: z.coerce.number().positive().optional(),
+    stockQuantity: z.coerce.number().int().nonnegative().optional(),
+    reorderLevel: z.coerce.number().int().nonnegative().nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one inventory field is required',
+  });
+
+const wholesellerBatchCreateSchema = z.object({
+  batchNumber: z.string().min(1).max(80),
+  quantity: z.coerce.number().int().positive(),
+  purchasePrice: z.coerce.number().positive().optional(),
+  expiryDate: z.coerce.date(),
+});
+
 function pickQueryValue(value: unknown) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -145,6 +178,31 @@ function mapRetailerPurchaseOrder(order: any) {
 
 function buildWholesellerPurchaseInvoiceNumber(orderId: string) {
   return `WPO-${orderId.slice(-10).toUpperCase()}`;
+}
+
+function mapWholesellerInventoryItem(item: any) {
+  return {
+    inventoryId: item.id,
+    medicineId: item.medicineId,
+    brandName: item.medicine.brandName,
+    genericName: item.medicine.genericName,
+    dosage: item.medicine.dosage,
+    packSize: item.medicine.packSize,
+    medicineType: item.medicine.medicineType,
+    salePrice: Number(item.salePrice),
+    stockQuantity: item.stockQuantity,
+    reservedQuantity: item.reservedQuantity,
+    availableQuantity: item.stockQuantity - item.reservedQuantity,
+    reorderLevel: item.reorderLevel,
+    isActive: item.isActive,
+    batches: item.batches?.map((batch: any) => ({
+      id: batch.id,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      quantity: batch.quantity,
+      purchasePrice: batch.purchasePrice ? Number(batch.purchasePrice) : null,
+    })) ?? [],
+  };
 }
 
 function mapWholesellerPurchaseOrder(order: any) {
@@ -387,21 +445,31 @@ wholesellersRouter.post(
   }),
 );
 
-// Returns one wholesaler's available inventory for retailer buy screens.
+// Returns one wholesaler's inventory. Open to any signed-in business account so retailers can
+// browse stock; the wholesaler's own module reads it here too, including inactive rows it owns.
 wholesellersRouter.get(
   '/:wholesellerId/inventory',
   requireAuth,
   asyncHandler(async (request, response) => {
     const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    const ownsWholeseller = (() => {
+      try {
+        assertWholesellerScope(request, wholesellerId);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
 
     try {
       const inventory = await prisma.wholesellerInventory.findMany({
         where: {
           wholesellerId,
-          isActive: true,
+          isActive: ownsWholeseller ? undefined : true,
         },
         include: {
           medicine: true,
+          batches: { orderBy: { expiryDate: 'asc' } },
         },
         orderBy: {
           updatedAt: 'desc',
@@ -410,19 +478,166 @@ wholesellersRouter.get(
 
       response.json({
         wholesellerId,
-        inventory: inventory.map((item: any) => ({
-          inventoryId: item.id,
-          medicineId: item.medicineId,
-          brandName: item.medicine.brandName,
-          genericName: item.medicine.genericName,
-          dosage: item.medicine.dosage,
-          packSize: item.medicine.packSize,
-          salePrice: Number(item.salePrice),
-          stockQuantity: item.stockQuantity,
-          reservedQuantity: item.reservedQuantity,
-          availableQuantity: item.stockQuantity - item.reservedQuantity,
-          reorderLevel: item.reorderLevel,
-        })),
+        inventory: inventory.map(mapWholesellerInventoryItem),
+      });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Adds or updates one wholesaler inventory row, optionally creating an opening batch.
+wholesellersRouter.post(
+  '/:wholesellerId/inventory',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    assertWholesellerScope(request, wholesellerId);
+    const payload = wholesellerInventoryUpsertSchema.parse(request.body ?? {});
+
+    try {
+      const result = await prisma.$transaction(async (transaction: any) => {
+        const [wholeseller, medicine] = await Promise.all([
+          transaction.wholeseller.findUnique({ where: { id: wholesellerId } }),
+          transaction.medicine.findUnique({ where: { id: payload.medicineId } }),
+        ]);
+
+        if (!wholeseller) {
+          throw new HttpError(404, 'Wholeseller not found');
+        }
+
+        if (!medicine) {
+          throw new HttpError(404, 'Medicine not found');
+        }
+
+        const inventory = await transaction.wholesellerInventory.upsert({
+          where: {
+            wholesellerId_medicineId: {
+              wholesellerId,
+              medicineId: payload.medicineId,
+            },
+          },
+          update: {
+            salePrice: payload.salePrice.toFixed(2),
+            stockQuantity: payload.stockQuantity,
+            reorderLevel: payload.reorderLevel,
+            isActive: true,
+          },
+          create: {
+            wholesellerId,
+            medicineId: payload.medicineId,
+            salePrice: payload.salePrice.toFixed(2),
+            stockQuantity: payload.stockQuantity,
+            reorderLevel: payload.reorderLevel,
+            isActive: true,
+          },
+        });
+
+        if (payload.batch) {
+          await transaction.wholesellerInventoryBatch.create({
+            data: {
+              wholesellerInventoryId: inventory.id,
+              batchNumber: payload.batch.batchNumber,
+              quantity: payload.batch.quantity,
+              purchasePrice: payload.batch.purchasePrice?.toFixed(2),
+              expiryDate: payload.batch.expiryDate,
+            },
+          });
+        }
+
+        return transaction.wholesellerInventory.findUnique({
+          where: { id: inventory.id },
+          include: {
+            medicine: true,
+            batches: { orderBy: { expiryDate: 'asc' } },
+          },
+        });
+      });
+
+      response.status(201).json({ inventory: mapWholesellerInventoryItem(result) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Updates price, stock, reorder level, or active flag for one wholesaler inventory item.
+wholesellersRouter.patch(
+  '/:wholesellerId/inventory/:inventoryId',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    assertWholesellerScope(request, wholesellerId);
+    const inventoryId = String(pickParamValue(request.params.inventoryId));
+    const payload = wholesellerInventoryUpdateSchema.parse(request.body ?? {});
+
+    try {
+      const existing = await prisma.wholesellerInventory.findFirst({
+        where: { id: inventoryId, wholesellerId },
+      });
+
+      if (!existing) {
+        throw new HttpError(404, 'Inventory item not found for this wholeseller');
+      }
+
+      const updated = await prisma.wholesellerInventory.update({
+        where: { id: inventoryId },
+        data: {
+          ...(payload.salePrice !== undefined ? { salePrice: payload.salePrice.toFixed(2) } : {}),
+          ...(payload.stockQuantity !== undefined ? { stockQuantity: payload.stockQuantity } : {}),
+          ...(payload.reorderLevel !== undefined ? { reorderLevel: payload.reorderLevel } : {}),
+          ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+        },
+        include: {
+          medicine: true,
+          batches: { orderBy: { expiryDate: 'asc' } },
+        },
+      });
+
+      response.json({ inventory: mapWholesellerInventoryItem(updated) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Adds a new batch for an existing wholesaler inventory item.
+wholesellersRouter.post(
+  '/:wholesellerId/inventory/:inventoryId/batches',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const wholesellerId = String(pickParamValue(request.params.wholesellerId));
+    assertWholesellerScope(request, wholesellerId);
+    const inventoryId = String(pickParamValue(request.params.inventoryId));
+    const payload = wholesellerBatchCreateSchema.parse(request.body ?? {});
+
+    try {
+      const inventory = await prisma.wholesellerInventory.findFirst({
+        where: { id: inventoryId, wholesellerId },
+      });
+
+      if (!inventory) {
+        throw new HttpError(404, 'Inventory item not found for this wholeseller');
+      }
+
+      const batch = await prisma.wholesellerInventoryBatch.create({
+        data: {
+          wholesellerInventoryId: inventoryId,
+          batchNumber: payload.batchNumber,
+          quantity: payload.quantity,
+          purchasePrice: payload.purchasePrice?.toFixed(2),
+          expiryDate: payload.expiryDate,
+        },
+      });
+
+      response.status(201).json({
+        batch: {
+          id: batch.id,
+          batchNumber: batch.batchNumber,
+          expiryDate: batch.expiryDate,
+          quantity: batch.quantity,
+          purchasePrice: batch.purchasePrice ? Number(batch.purchasePrice) : null,
+        },
       });
     } catch (error) {
       mapPrismaError(error);

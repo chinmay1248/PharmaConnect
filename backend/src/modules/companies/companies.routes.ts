@@ -1,4 +1,4 @@
-import { Prisma, type OfferStatus } from '@prisma/client';
+import { MedicineType, Prisma, type OfferStatus } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../lib/async-handler.js';
@@ -55,6 +55,44 @@ const wholesellerOrderStatusSchema = z.object({
   status: z.enum(['DISPATCHED', 'DELIVERED']),
   notes: z.string().max(240).optional(),
 });
+
+const companyMedicineCreateSchema = z.object({
+  brandName: z.string().min(2).max(160),
+  genericName: z.string().min(2).max(200),
+  dosage: z.string().min(1).max(120),
+  packSize: z.string().min(1).max(120),
+  mrp: z.coerce.number().positive(),
+  medicineType: z.enum(['OTC', 'PRESCRIPTION']).default('OTC'),
+  isGeneric: z.boolean().optional(),
+  description: z.string().max(500).optional(),
+});
+
+const companyMedicineUpdateSchema = z
+  .object({
+    mrp: z.coerce.number().positive().optional(),
+    medicineType: z.enum(['OTC', 'PRESCRIPTION']).optional(),
+    dosage: z.string().min(1).max(120).optional(),
+    packSize: z.string().min(1).max(120).optional(),
+    isGeneric: z.boolean().optional(),
+    description: z.string().max(500).optional(),
+  })
+  .refine((payload) => Object.values(payload).some((value) => value !== undefined), {
+    message: 'At least one medicine field is required',
+  });
+
+function mapCompanyMedicine(medicine: any) {
+  return {
+    id: medicine.id,
+    brandName: medicine.brandName,
+    genericName: medicine.genericName,
+    dosage: medicine.dosage,
+    packSize: medicine.packSize,
+    description: medicine.description,
+    medicineType: medicine.medicineType,
+    mrp: Number(medicine.mrp),
+    isGeneric: medicine.isGeneric,
+  };
+}
 
 function pickQueryValue(value: unknown) {
   return Array.isArray(value) ? value[0] : value;
@@ -202,15 +240,7 @@ companiesRouter.get(
       response.json({
         companyId,
         medicines: medicines.map((medicine: any) => ({
-          id: medicine.id,
-          brandName: medicine.brandName,
-          genericName: medicine.genericName,
-          dosage: medicine.dosage,
-          packSize: medicine.packSize,
-          description: medicine.description,
-          medicineType: medicine.medicineType,
-          mrp: Number(medicine.mrp),
-          isGeneric: medicine.isGeneric,
+          ...mapCompanyMedicine(medicine),
           salts: medicine.compositions.map((composition: any) => ({
             name: composition.saltComposition.name,
             strength: composition.strength,
@@ -219,6 +249,81 @@ companiesRouter.get(
           uses: medicine.diseases.map((relation: any) => relation.disease.name),
         })),
       });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Adds a medicine to the signed-in company's own catalogue.
+companiesRouter.post(
+  '/:companyId/medicines',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const companyId = String(pickParamValue(request.params.companyId));
+    assertCompanyScope(request, companyId);
+    const payload = companyMedicineCreateSchema.parse(request.body ?? {});
+
+    try {
+      const company = await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } });
+
+      if (!company) {
+        throw new HttpError(404, 'Company not found');
+      }
+
+      const medicine = await prisma.medicine.create({
+        data: {
+          companyId,
+          brandName: payload.brandName,
+          genericName: payload.genericName,
+          dosage: payload.dosage,
+          packSize: payload.packSize,
+          description: payload.description,
+          medicineType: payload.medicineType === 'PRESCRIPTION' ? MedicineType.PRESCRIPTION : MedicineType.OTC,
+          mrp: payload.mrp.toFixed(2),
+          isGeneric: payload.isGeneric ?? false,
+        },
+      });
+
+      response.status(201).json({ medicine: mapCompanyMedicine(medicine) });
+    } catch (error) {
+      mapPrismaError(error);
+    }
+  }),
+);
+
+// Updates price, type, or packaging for one medicine in the company's own catalogue.
+companiesRouter.patch(
+  '/:companyId/medicines/:medicineId',
+  requireAuth,
+  asyncHandler(async (request, response) => {
+    const companyId = String(pickParamValue(request.params.companyId));
+    assertCompanyScope(request, companyId);
+    const medicineId = String(pickParamValue(request.params.medicineId));
+    const payload = companyMedicineUpdateSchema.parse(request.body ?? {});
+
+    try {
+      const existing = await prisma.medicine.findFirst({ where: { id: medicineId, companyId } });
+
+      if (!existing) {
+        throw new HttpError(404, 'Medicine not found in this company catalogue');
+      }
+
+      const updated = await prisma.medicine.update({
+        where: { id: medicineId },
+        data: {
+          ...(payload.mrp !== undefined ? { mrp: payload.mrp.toFixed(2) } : {}),
+          ...(payload.medicineType !== undefined
+            ? { medicineType: payload.medicineType === 'PRESCRIPTION' ? MedicineType.PRESCRIPTION : MedicineType.OTC }
+            : {}),
+          ...(payload.dosage !== undefined ? { dosage: payload.dosage } : {}),
+          ...(payload.packSize !== undefined ? { packSize: payload.packSize } : {}),
+          ...(payload.isGeneric !== undefined ? { isGeneric: payload.isGeneric } : {}),
+          ...(payload.description !== undefined ? { description: payload.description } : {}),
+        },
+      });
+
+      response.json({ medicine: mapCompanyMedicine(updated) });
     } catch (error) {
       mapPrismaError(error);
     }

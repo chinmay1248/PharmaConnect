@@ -165,6 +165,7 @@ function mapRetailerInventoryItem(item: any) {
     genericName: item.medicine.genericName,
     dosage: item.medicine.dosage,
     packSize: item.medicine.packSize,
+    medicineType: item.medicine.medicineType,
     salePrice: Number(item.salePrice),
     stockQuantity: item.stockQuantity,
     reservedQuantity: item.reservedQuantity,
@@ -506,6 +507,7 @@ retailersRouter.get(
         },
         include: {
           medicine: true,
+          batches: { orderBy: { expiryDate: 'asc' } },
         },
         orderBy: {
           updatedAt: 'desc',
@@ -513,19 +515,7 @@ retailersRouter.get(
       });
 
       response.json({
-        inventory: inventory.map((item: any) => ({
-          inventoryId: item.id,
-          medicineId: item.medicine.id,
-          brandName: item.medicine.brandName,
-          genericName: item.medicine.genericName,
-          dosage: item.medicine.dosage,
-          packSize: item.medicine.packSize,
-          salePrice: Number(item.salePrice),
-          stockQuantity: item.stockQuantity,
-          reservedQuantity: item.reservedQuantity,
-          availableQuantity: item.stockQuantity - item.reservedQuantity,
-          reorderLevel: item.reorderLevel,
-        })),
+        inventory: inventory.map(mapRetailerInventoryItem),
       });
     } catch (error) {
       mapPrismaError(error);

@@ -56,6 +56,14 @@ export type B2BOrder = {
     invoiceNumber: string;
     status: string;
   } | null;
+  schemeDiscountAmount?: number;
+  offerDiscountAmount?: number;
+  trackingEvents?: Array<{
+    id?: string;
+    statusLabel: string;
+    notes?: string | null;
+    createdAt?: string;
+  }>;
 };
 
 export type B2BMedicine = {
@@ -119,6 +127,52 @@ export type Offer = {
   endsAt: string;
 };
 
+export type B2BInventoryItem = {
+  inventoryId: string;
+  medicineId: string;
+  brandName: string;
+  genericName: string;
+  dosage: string;
+  packSize: string;
+  medicineType?: 'OTC' | 'PRESCRIPTION';
+  salePrice: number;
+  stockQuantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  reorderLevel?: number | null;
+  isActive?: boolean;
+  batches?: Array<{
+    id: string;
+    batchNumber: string;
+    expiryDate: string;
+    quantity: number;
+    purchasePrice?: number | null;
+  }>;
+};
+
+export type Scheme = {
+  id: string;
+  wholesellerId: string;
+  retailerId?: string | null;
+  retailerName?: string | null;
+  title: string;
+  description?: string | null;
+  status: string;
+  discountType?: string | null;
+  discountValue?: number | null;
+  startsAt: string;
+  endsAt: string;
+};
+
+export type RetailerListItem = {
+  id: string;
+  businessName: string;
+  city?: string | null;
+  area?: string | null;
+};
+
+export type B2BPaymentMethod = 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
+
 export function fetchWholesellerSummary(wholesellerId: string) {
   return getJson<WholesellerSummary>(`/analytics/wholesellers/${wholesellerId}/summary`);
 }
@@ -171,19 +225,89 @@ export function fetchWholesellerCompanyOrders(wholesellerId: string) {
   return getJson<{ wholesellerId: string; orders: B2BOrder[] }>(`/wholesellers/${wholesellerId}/company-orders`);
 }
 
-export function createWholesellerCompanyOrder(wholesellerId: string, companyId: string, medicineId: string) {
+export function createWholesellerCompanyOrder(
+  wholesellerId: string,
+  companyId: string,
+  items: Array<{ medicineId: string; quantity: number }>,
+  paymentMethod: B2BPaymentMethod = 'BANK_TRANSFER',
+) {
   return postJson<
     { order: B2BOrder },
     {
       companyId: string;
-      paymentMethod: 'BANK_TRANSFER';
+      paymentMethod: B2BPaymentMethod;
       items: Array<{ medicineId: string; quantity: number }>;
     }
-  >(`/wholesellers/${wholesellerId}/company-orders`, {
-    companyId,
-    paymentMethod: 'BANK_TRANSFER',
-    items: [{ medicineId, quantity: 50 }],
-  });
+  >(`/wholesellers/${wholesellerId}/company-orders`, { companyId, paymentMethod, items });
+}
+
+export function fetchWholesellerInventory(wholesellerId: string) {
+  return getJson<{ wholesellerId: string; inventory: B2BInventoryItem[] }>(
+    `/wholesellers/${wholesellerId}/inventory`,
+  );
+}
+
+export function addWholesellerInventory(
+  wholesellerId: string,
+  payload: {
+    medicineId: string;
+    salePrice: number;
+    stockQuantity: number;
+    reorderLevel?: number;
+    batch?: { batchNumber: string; quantity: number; purchasePrice?: number; expiryDate: string };
+  },
+) {
+  return postJson<{ inventory: B2BInventoryItem }, typeof payload>(
+    `/wholesellers/${wholesellerId}/inventory`,
+    payload,
+  );
+}
+
+export function updateWholesellerInventory(
+  wholesellerId: string,
+  inventoryId: string,
+  payload: { salePrice?: number; stockQuantity?: number; reorderLevel?: number | null; isActive?: boolean },
+) {
+  return patchJson<{ inventory: B2BInventoryItem }, typeof payload>(
+    `/wholesellers/${wholesellerId}/inventory/${inventoryId}`,
+    payload,
+  );
+}
+
+export function addWholesellerInventoryBatch(
+  wholesellerId: string,
+  inventoryId: string,
+  payload: { batchNumber: string; quantity: number; purchasePrice?: number; expiryDate: string },
+) {
+  return postJson<
+    { batch: { id: string; batchNumber: string; quantity: number; purchasePrice?: number | null; expiryDate: string } },
+    typeof payload
+  >(`/wholesellers/${wholesellerId}/inventory/${inventoryId}/batches`, payload);
+}
+
+export function fetchWholesellerSchemes(wholesellerId: string) {
+  return getJson<{ wholesellerId: string; schemes: Scheme[] }>(
+    `/wholesellers/${wholesellerId}/schemes`,
+  );
+}
+
+export function createWholesellerScheme(
+  wholesellerId: string,
+  payload: {
+    retailerId?: string;
+    title: string;
+    description?: string;
+    status?: 'DRAFT' | 'ACTIVE';
+    discountType?: string;
+    discountValue?: number;
+    startsAt: string;
+    endsAt: string;
+  },
+) {
+  return postJson<{ scheme: Scheme }, typeof payload>(
+    `/wholesellers/${wholesellerId}/schemes`,
+    payload,
+  );
 }
 
 export function fetchCompanyWholesellerOrders(companyId: string) {
@@ -222,34 +346,63 @@ export function fetchWholesellers() {
   return getJson<{ wholesellers: WholesellerListItem[] }>('/wholesellers');
 }
 
+export function fetchRetailers() {
+  return getJson<{ retailers: RetailerListItem[] }>('/retailers');
+}
+
 export function fetchCompanyOffers(companyId: string) {
   return getJson<{ companyId: string; offers: Offer[] }>(`/companies/${companyId}/offers`);
 }
 
-export function createCompanyOffer(companyId: string, wholesellerId: string) {
-  const startsAt = new Date();
-  const endsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+export function createCompanyOffer(
+  companyId: string,
+  payload: {
+    wholesellerId: string;
+    title: string;
+    description?: string;
+    status?: 'DRAFT' | 'ACTIVE';
+    discountType?: string;
+    discountValue?: number;
+    startsAt: string;
+    endsAt: string;
+  },
+) {
+  return postJson<{ offer: Offer }, typeof payload>(`/companies/${companyId}/offers`, payload);
+}
 
-  return postJson<
-    { offer: Offer },
-    {
-      wholesellerId: string;
-      title: string;
-      description: string;
-      status: 'ACTIVE';
-      discountType: string;
-      discountValue: number;
-      startsAt: string;
-      endsAt: string;
-    }
-  >(`/companies/${companyId}/offers`, {
-    wholesellerId,
-    title: 'Bulk seasonal supply offer',
-    description: 'Demo offer for priority replenishment through PharmaConnect.',
-    status: 'ACTIVE',
-    discountType: 'PERCENT',
-    discountValue: 8,
-    startsAt: startsAt.toISOString(),
-    endsAt: endsAt.toISOString(),
-  });
+export function addCompanyMedicine(
+  companyId: string,
+  payload: {
+    brandName: string;
+    genericName: string;
+    dosage: string;
+    packSize: string;
+    mrp: number;
+    medicineType?: 'OTC' | 'PRESCRIPTION';
+    isGeneric?: boolean;
+    description?: string;
+  },
+) {
+  return postJson<{ medicine: B2BMedicine }, typeof payload>(
+    `/companies/${companyId}/medicines`,
+    payload,
+  );
+}
+
+export function updateCompanyMedicine(
+  companyId: string,
+  medicineId: string,
+  payload: {
+    mrp?: number;
+    medicineType?: 'OTC' | 'PRESCRIPTION';
+    dosage?: string;
+    packSize?: string;
+    isGeneric?: boolean;
+    description?: string;
+  },
+) {
+  return patchJson<{ medicine: B2BMedicine }, typeof payload>(
+    `/companies/${companyId}/medicines/${medicineId}`,
+    payload,
+  );
 }
