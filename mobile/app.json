@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "PharmaConnect",
+    "slug": "pharmaconnect",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,6 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "app.pharmaconnect.mobile",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "tez",
@@ -23,6 +24,7 @@
       }
     },
     "android": {
+      "package": "app.pharmaconnect.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
