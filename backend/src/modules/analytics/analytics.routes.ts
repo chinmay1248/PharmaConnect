@@ -272,15 +272,25 @@ analyticsRouter.get(
         throw new HttpError(404, 'Company not found');
       }
 
-      const [medicineCount, activeOffers, pendingWholesellerOrders, deliveredWholesellerOrders, revenue] =
+      const paidStatuses: PurchaseOrderStatus[] = ['PAID', 'DISPATCHED', 'DELIVERED'];
+
+      const [medicineCount, activeOffers, pendingWholesellerOrders, deliveredWholesellerOrders, revenue, trendOrders, topItemLines] =
         await Promise.all([
           prisma.medicine.count({ where: { companyId } }),
           prisma.offer.count({ where: { companyId, status: 'ACTIVE' } }),
           prisma.wholesellerPurchaseOrder.count({ where: { companyId, status: 'PENDING_APPROVAL' } }),
           prisma.wholesellerPurchaseOrder.count({ where: { companyId, status: 'DELIVERED' } }),
           prisma.wholesellerPurchaseOrder.aggregate({
-            where: { companyId, status: { in: ['PAID', 'DISPATCHED', 'DELIVERED'] } },
+            where: { companyId, status: { in: paidStatuses } },
             _sum: { totalAmount: true },
+          }),
+          prisma.wholesellerPurchaseOrder.findMany({
+            where: { companyId, status: { in: paidStatuses }, placedAt: { gte: trendStartDate() } },
+            select: { placedAt: true, totalAmount: true },
+          }),
+          prisma.wholesellerPurchaseOrderItem.findMany({
+            where: { wholesellerPurchaseOrder: { companyId, status: { in: paidStatuses } } },
+            select: { medicineId: true, quantity: true, lineTotal: true, medicine: { select: { brandName: true } } },
           }),
         ]);
 
@@ -293,6 +303,8 @@ analyticsRouter.get(
           deliveredWholesellerOrders,
           revenue: decimalToNumber(revenue._sum.totalAmount),
         },
+        revenueTrend: buildRevenueTrend(trendOrders),
+        topItems: buildTopItems(topItemLines),
       });
     } catch (error) {
       mapPrismaError(error);
