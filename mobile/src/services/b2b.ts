@@ -76,6 +76,19 @@ export type B2BMedicine = {
   medicineType: string;
 };
 
+export type RevenueTrendPoint = {
+  date: string;
+  revenue: number;
+  orders: number;
+};
+
+export type TopItem = {
+  medicineId: string;
+  brandName: string;
+  quantity: number;
+  revenue: number;
+};
+
 export type WholesellerSummary = {
   wholeseller: {
     id: string;
@@ -90,6 +103,8 @@ export type WholesellerSummary = {
     activeSchemes: number;
     lowStockCount: number;
   };
+  revenueTrend: RevenueTrendPoint[];
+  topItems: TopItem[];
 };
 
 export type CompanySummary = {
@@ -104,6 +119,8 @@ export type CompanySummary = {
     deliveredWholesellerOrders: number;
     revenue: number;
   };
+  revenueTrend: RevenueTrendPoint[];
+  topItems: TopItem[];
 };
 
 export type CompanyListItem = CompanyProfile & {
