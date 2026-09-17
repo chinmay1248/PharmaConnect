@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { CustomerOrderStatus, PurchaseOrderStatus } from '@prisma/client';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { HttpError } from '../../lib/http-error.js';
 import { prisma } from '../../lib/prisma.js';
@@ -18,6 +19,70 @@ function pickParamValue(value: unknown) {
 
 function decimalToNumber(value: unknown) {
   return value === null || value === undefined ? 0 : Number(value);
+}
+
+const TREND_DAYS = 14;
+const TOP_ITEMS_LIMIT = 5;
+
+function dayKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+// Builds a zero-filled revenue/order-count series for the last TREND_DAYS days so the
+// chart always renders a full axis even on days with no orders.
+function buildRevenueTrend(orders: Array<{ placedAt: Date; totalAmount: unknown }>) {
+  const days: { date: string; revenue: number; orders: number }[] = [];
+  const byDay = new Map<string, { revenue: number; orders: number }>();
+
+  for (const order of orders) {
+    const key = dayKey(order.placedAt);
+    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
+    bucket.revenue += decimalToNumber(order.totalAmount);
+    bucket.orders += 1;
+    byDay.set(key, bucket);
+  }
+
+  for (let offset = TREND_DAYS - 1; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - offset);
+    const key = dayKey(date);
+    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
+    days.push({ date: key, revenue: bucket.revenue, orders: bucket.orders });
+  }
+
+  return days;
+}
+
+function trendStartDate() {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - (TREND_DAYS - 1));
+  return date;
+}
+
+// Aggregates order line items by medicine, in JS rather than a Prisma groupBy, because the
+// grouping key (medicine brand name) lives on a joined relation.
+function buildTopItems(
+  items: Array<{ medicineId: string; quantity: number; lineTotal: unknown; medicine: { brandName: string } }>,
+) {
+  const byMedicine = new Map<string, { medicineId: string; brandName: string; quantity: number; revenue: number }>();
+
+  for (const item of items) {
+    const bucket = byMedicine.get(item.medicineId) ?? {
+      medicineId: item.medicineId,
+      brandName: item.medicine.brandName,
+      quantity: 0,
+      revenue: 0,
+    };
+    bucket.quantity += item.quantity;
+    bucket.revenue += decimalToNumber(item.lineTotal);
+    byMedicine.set(item.medicineId, bucket);
+  }
+
+  return Array.from(byMedicine.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, TOP_ITEMS_LIMIT);
 }
 
 // Retailer dashboard summary: customer order workload, revenue, and stock risk.
