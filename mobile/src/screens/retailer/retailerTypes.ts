@@ -138,6 +138,8 @@ export type RetailerSummary = {
     availableQuantity: number;
     reorderLevel?: number | null;
   }>;
+  revenueTrend: Array<{ date: string; revenue: number; orders: number }>;
+  topItems: Array<{ medicineId: string; brandName: string; quantity: number; revenue: number }>;
 };
 
 export type WholesellerSummary = {
