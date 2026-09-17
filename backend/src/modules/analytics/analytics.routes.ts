@@ -186,25 +186,43 @@ analyticsRouter.get(
         throw new HttpError(404, 'Wholeseller not found');
       }
 
-      const [totalRetailerOrders, pendingRetailerOrders, deliveredRetailerOrders, revenue, activeSchemes, lowStockItems] =
-        await Promise.all([
-          prisma.retailerPurchaseOrder.count({ where: { wholesellerId } }),
-          prisma.retailerPurchaseOrder.count({ where: { wholesellerId, status: 'PENDING_APPROVAL' } }),
-          prisma.retailerPurchaseOrder.count({ where: { wholesellerId, status: 'DELIVERED' } }),
-          prisma.retailerPurchaseOrder.aggregate({
-            where: { wholesellerId, status: { in: ['PAID', 'DISPATCHED', 'DELIVERED'] } },
-            _sum: { totalAmount: true },
-          }),
-          prisma.scheme.count({ where: { wholesellerId, status: 'ACTIVE' } }),
-          prisma.wholesellerInventory.findMany({
-            where: {
-              wholesellerId,
-              isActive: true,
-              reorderLevel: { not: null },
-            },
-            include: { medicine: true },
-          }),
-        ]);
+      const paidStatuses: PurchaseOrderStatus[] = ['PAID', 'DISPATCHED', 'DELIVERED'];
+
+      const [
+        totalRetailerOrders,
+        pendingRetailerOrders,
+        deliveredRetailerOrders,
+        revenue,
+        activeSchemes,
+        lowStockItems,
+        trendOrders,
+        topItemLines,
+      ] = await Promise.all([
+        prisma.retailerPurchaseOrder.count({ where: { wholesellerId } }),
+        prisma.retailerPurchaseOrder.count({ where: { wholesellerId, status: 'PENDING_APPROVAL' } }),
+        prisma.retailerPurchaseOrder.count({ where: { wholesellerId, status: 'DELIVERED' } }),
+        prisma.retailerPurchaseOrder.aggregate({
+          where: { wholesellerId, status: { in: paidStatuses } },
+          _sum: { totalAmount: true },
+        }),
+        prisma.scheme.count({ where: { wholesellerId, status: 'ACTIVE' } }),
+        prisma.wholesellerInventory.findMany({
+          where: {
+            wholesellerId,
+            isActive: true,
+            reorderLevel: { not: null },
+          },
+          include: { medicine: true },
+        }),
+        prisma.retailerPurchaseOrder.findMany({
+          where: { wholesellerId, status: { in: paidStatuses }, placedAt: { gte: trendStartDate() } },
+          select: { placedAt: true, totalAmount: true },
+        }),
+        prisma.retailerPurchaseOrderItem.findMany({
+          where: { retailerPurchaseOrder: { wholesellerId, status: { in: paidStatuses } } },
+          select: { medicineId: true, quantity: true, lineTotal: true, medicine: { select: { brandName: true } } },
+        }),
+      ]);
 
       const stockAlerts = lowStockItems
         .filter((item: any) => item.stockQuantity - item.reservedQuantity <= (item.reorderLevel ?? 0))
@@ -227,6 +245,8 @@ analyticsRouter.get(
           lowStockCount: stockAlerts.length,
         },
         stockAlerts,
+        revenueTrend: buildRevenueTrend(trendOrders),
+        topItems: buildTopItems(topItemLines),
       });
     } catch (error) {
       mapPrismaError(error);
