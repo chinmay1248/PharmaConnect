@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { RevenueTrendChart, TopItemsChart } from '../components/AnalyticsCharts';
 import { BrandLogo } from '../components/BrandLogo';
 import { InteractivePressable } from '../components/InteractivePressable';
 import { SectionHeader } from '../components/SectionHeader';
@@ -47,6 +48,8 @@ const fallbackSummary: CompanySummary = {
     deliveredWholesellerOrders: 0,
     revenue: 0,
   },
+  revenueTrend: [],
+  topItems: [],
 };
 
 const ORDER_FILTERS: Array<{ key: CompanyOrderFilter; label: string }> = [
@@ -565,6 +568,16 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
           <Kpi mode={mode} label="Delivered" value={m.deliveredWholesellerOrders} icon="check-circle" />
           <Kpi mode={mode} label="Revenue" value={formatCurrency(m.revenue)} icon="trending-up" />
         </View>
+
+        <RevenueTrendChart mode={mode} theme={theme} data={summary.revenueTrend} currencyFormatter={formatCurrency} />
+        <TopItemsChart
+          mode={mode}
+          theme={theme}
+          data={summary.topItems}
+          currencyFormatter={formatCurrency}
+          title="Top selling medicines"
+          emptyLabel="No paid wholesaler orders yet."
+        />
 
         <SectionHeader mode={mode} title="Wholeseller orders by status" />
         {Object.keys(byStatus).length === 0 ? (
