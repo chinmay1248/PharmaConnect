@@ -103,7 +103,9 @@ analyticsRouter.get(
         throw new HttpError(404, 'Retailer not found');
       }
 
-      const [totalOrders, pendingOrders, activeOrders, deliveredOrders, revenue, lowStockItems] =
+      const paidStatuses: CustomerOrderStatus[] = ['PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED'];
+
+      const [totalOrders, pendingOrders, activeOrders, deliveredOrders, revenue, lowStockItems, trendOrders, topItemLines] =
         await Promise.all([
           prisma.customerOrder.count({ where: { retailerId } }),
           prisma.customerOrder.count({ where: { retailerId, status: 'PENDING_RETAILER_APPROVAL' } }),
@@ -115,7 +117,7 @@ analyticsRouter.get(
           }),
           prisma.customerOrder.count({ where: { retailerId, status: 'DELIVERED' } }),
           prisma.customerOrder.aggregate({
-            where: { retailerId, status: { in: ['PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED'] } },
+            where: { retailerId, status: { in: paidStatuses } },
             _sum: { totalAmount: true },
           }),
           prisma.retailerInventory.findMany({
@@ -125,6 +127,14 @@ analyticsRouter.get(
               reorderLevel: { not: null },
             },
             include: { medicine: true },
+          }),
+          prisma.customerOrder.findMany({
+            where: { retailerId, status: { in: paidStatuses }, placedAt: { gte: trendStartDate() } },
+            select: { placedAt: true, totalAmount: true },
+          }),
+          prisma.customerOrderItem.findMany({
+            where: { customerOrder: { retailerId, status: { in: paidStatuses } } },
+            select: { medicineId: true, quantity: true, lineTotal: true, medicine: { select: { brandName: true } } },
           }),
         ]);
 
@@ -149,6 +159,8 @@ analyticsRouter.get(
           lowStockCount: stockAlerts.length,
         },
         stockAlerts,
+        revenueTrend: buildRevenueTrend(trendOrders),
+        topItems: buildTopItems(topItemLines),
       });
     } catch (error) {
       mapPrismaError(error);
