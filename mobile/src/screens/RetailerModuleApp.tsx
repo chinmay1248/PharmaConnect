@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { RevenueTrendChart, TopItemsChart } from '../components/AnalyticsCharts';
 import { BrandLogo } from '../components/BrandLogo';
 import { InteractivePressable } from '../components/InteractivePressable';
 import { SectionHeader } from '../components/SectionHeader';
@@ -1293,32 +1294,25 @@ export function RetailerModuleApp({ session, onSignOut }: RetailerModuleAppProps
 
   function renderAnalytics() {
     const revenue = summary.metrics.revenue;
-    const topMedicines = inventory
-      .map((item) => ({
-        ...item,
-        estimatedUnitsSold: Math.max(0, item.stockQuantity - item.availableQuantity + item.reservedQuantity!),
-      }))
-      .sort((a, b) => b.estimatedUnitsSold - a.estimatedUnitsSold)
-      .slice(0, 5);
 
     return (
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Analytics" description="Prototype sales and operational summary for the retailer." />
+        <SectionHeader mode={mode} title="Analytics" description="Sales and operational summary for the retailer." />
         <View style={styles.kpiGrid}>
           <KpiCard mode={mode} label="Revenue" value={formatCurrency(revenue)} icon="bar-chart-2" tone="#16a34a" />
           <KpiCard mode={mode} label="Total Orders" value={summary.metrics.totalOrders} icon="package" tone="#1d8cf8" />
           <KpiCard mode={mode} label="Active" value={summary.metrics.activeOrders} icon="activity" tone="#8b5cf6" />
           <KpiCard mode={mode} label="Low Stock" value={summary.metrics.lowStockCount} icon="alert-circle" tone="#ef4444" />
         </View>
-        <SectionHeader mode={mode} title="Top selling medicines" description="Estimated from current seeded stock movement." />
-        {topMedicines.map((item, index) => (
-          <View key={item.inventoryId} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>#{index + 1} {item.brandName}</Text>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              Estimated sold {item.estimatedUnitsSold} - Current available {item.availableQuantity}
-            </Text>
-          </View>
-        ))}
+        <RevenueTrendChart mode={mode} theme={theme} data={summary.revenueTrend} currencyFormatter={formatCurrency} />
+        <TopItemsChart
+          mode={mode}
+          theme={theme}
+          data={summary.topItems}
+          currencyFormatter={formatCurrency}
+          title="Top selling medicines"
+          emptyLabel="No paid customer orders yet."
+        />
       </ScrollView>
     );
   }
