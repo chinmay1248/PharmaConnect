@@ -275,6 +275,52 @@ function hasPrescription(order: RetailerOrder) {
   return Boolean(order.prescription);
 }
 
+const PAID_ORDER_STATUSES = ['PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED'];
+
+function buildMockRevenueTrend(orders: RetailerOrder[]) {
+  const paidOrders = orders.filter((order) => PAID_ORDER_STATUSES.includes(order.status));
+  const byDay = new Map<string, { revenue: number; orders: number }>();
+  for (const order of paidOrders) {
+    const key = order.placedAt.slice(0, 10);
+    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
+    bucket.revenue += order.totalAmount;
+    bucket.orders += 1;
+    byDay.set(key, bucket);
+  }
+
+  const days: Array<{ date: string; revenue: number; orders: number }> = [];
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    date.setUTCDate(date.getUTCDate() - offset);
+    const key = date.toISOString().slice(0, 10);
+    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
+    days.push({ date: key, revenue: bucket.revenue, orders: bucket.orders });
+  }
+  return days;
+}
+
+function buildMockTopItems(orders: RetailerOrder[]) {
+  const paidOrders = orders.filter((order) => PAID_ORDER_STATUSES.includes(order.status));
+  const byMedicine = new Map<string, { medicineId: string; brandName: string; quantity: number; revenue: number }>();
+  for (const order of paidOrders) {
+    for (const item of order.items) {
+      const bucket = byMedicine.get(item.medicineId) ?? {
+        medicineId: item.medicineId,
+        brandName: item.brandName,
+        quantity: 0,
+        revenue: 0,
+      };
+      bucket.quantity += item.quantity;
+      bucket.revenue += item.lineTotal;
+      byMedicine.set(item.medicineId, bucket);
+    }
+  }
+  return Array.from(byMedicine.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+}
+
 function buildMockSummary(orders: RetailerOrder[], inventory: RetailerInventoryItem[]): RetailerSummary {
   const lowStock = inventory.filter((item) => item.availableQuantity <= (item.reorderLevel ?? 0));
 
@@ -289,7 +335,7 @@ function buildMockSummary(orders: RetailerOrder[], inventory: RetailerInventoryI
       activeOrders: orders.filter((order) => !['REJECTED_BY_RETAILER', 'DELIVERED', 'CANCELLED'].includes(order.status)).length,
       deliveredOrders: orders.filter((order) => order.status === 'DELIVERED').length,
       revenue: orders
-        .filter((order) => ['PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED'].includes(order.status))
+        .filter((order) => PAID_ORDER_STATUSES.includes(order.status))
         .reduce((sum, order) => sum + order.totalAmount, 0),
       lowStockCount: lowStock.length,
     },
@@ -300,6 +346,8 @@ function buildMockSummary(orders: RetailerOrder[], inventory: RetailerInventoryI
       availableQuantity: item.availableQuantity,
       reorderLevel: item.reorderLevel,
     })),
+    revenueTrend: buildMockRevenueTrend(orders),
+    topItems: buildMockTopItems(orders),
   };
 }
 
