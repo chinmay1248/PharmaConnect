@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, SafeAreaView, useWindowDimensions, type ViewStyle } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, SafeAreaView, useWindowDimensions, type ViewStyle } from 'react-native';
 import { BottomTabBar, TabId } from '../components/BottomTabBar';
 import { ScreenTransition } from '../components/ScreenTransition';
 import {
@@ -71,82 +71,15 @@ import {
   SignupState,
 } from './customer/customerTypes';
 import { customerStyles } from './customer/customerStyles';
+import {
+  emptySignupState,
+  filterMockMedicines,
+  mapMockOrderToSummary,
+  mapSummaryToTracking,
+  sortMockPharmacies,
+} from './customer/customerHelpers';
+import { useSplashAnimation } from './customer/useSplashAnimation';
 
-function filterMockMedicines(query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-
-  return medicines.filter((medicine) => {
-    if (!normalizedQuery) {
-      return true;
-    }
-
-    return (
-      medicine.brandName.toLowerCase().includes(normalizedQuery) ||
-      medicine.genericName.toLowerCase().includes(normalizedQuery) ||
-      medicine.company.toLowerCase().includes(normalizedQuery) ||
-      medicine.diseases.some((disease) => disease.toLowerCase().includes(normalizedQuery))
-    );
-  });
-}
-
-function sortMockPharmacies(medicineId: string, sortBy: PharmacySort) {
-  const list = retailers
-    .map((retailer) => {
-      const stock = retailer.stocks.find((item) => item.medicineId === medicineId);
-      return stock ? { retailer, stock } : null;
-    })
-    .filter((item): item is SortedPharmacy => item !== null);
-
-  return list.sort((a, b) => {
-    if (sortBy === 'cheapest') {
-      return a.stock.price - b.stock.price;
-    }
-
-    if (sortBy === 'rating') {
-      return b.retailer.rating - a.retailer.rating;
-    }
-
-    return (a.retailer.distanceKm ?? Number.MAX_SAFE_INTEGER) - (b.retailer.distanceKm ?? Number.MAX_SAFE_INTEGER);
-  });
-}
-
-function mapMockOrderToSummary(order: (typeof initialOrders)[number]): CustomerOrderSummary {
-  return {
-    id: order.id,
-    retailerId: order.retailerId,
-    dateLabel: order.dateLabel,
-    status: order.status,
-    total: order.total,
-    items: order.items,
-    paymentStatus: 'PENDING',
-    prescriptionStatus: 'NOT_REQUIRED',
-    invoiceId: null,
-    invoiceNumber: null,
-  };
-}
-
-function mapSummaryToTracking(order: CustomerOrderSummary): CustomerOrderTrackingState {
-  return {
-    ...order,
-    deliveryMethod: 'home',
-    trackingEvents: [
-      {
-        id: `${order.id}-placed`,
-        statusLabel: 'Order placed',
-        notes: 'Visible in the local prototype timeline.',
-      },
-    ],
-    rejectionReason: null,
-  };
-}
-
-const emptySignupState: SignupState = {
-  fullName: '',
-  email: '',
-  password: '',
-  phone: '',
-  address: '',
-};
 
 type CustomerModuleAppProps = {
   session: AuthSession;
@@ -205,9 +138,6 @@ export function CustomerModuleApp({ session, onSignOut }: CustomerModuleAppProps
   const [customerSession, setCustomerSession] = useState<CustomerSession | null>(session);
   const [signup, setSignup] = useState<SignupState>(() => buildSignupStateFromSession(session));
   const [addressSubmitting, setAddressSubmitting] = useState(false);
-  const [splashAnimationComplete, setSplashAnimationComplete] = useState(false);
-  const splashOpacity = useRef(new Animated.Value(0)).current;
-  const splashScale = useRef(new Animated.Value(0.92)).current;
   const theme = themes[themeMode];
   const horizontalPadding = viewportWidth >= 1024 ? 24 : 14;
   const sectionWidth = Math.min(Math.max(viewportWidth - horizontalPadding * 2, 320), 980);
@@ -229,61 +159,7 @@ export function CustomerModuleApp({ session, onSignOut }: CustomerModuleAppProps
     setSignup(buildSignupStateFromSession(session));
   }, [session]);
 
-  // Splash animation: the logo fades and scales in while the first screen's data loads.
-  useEffect(() => {
-    if (stage !== 'splash') {
-      return;
-    }
-
-    const animation = Animated.sequence([
-      Animated.delay(180),
-      Animated.parallel([
-        Animated.timing(splashOpacity, {
-          toValue: 1,
-          duration: 720,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(splashScale, {
-          toValue: 1,
-          duration: 720,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(620),
-      Animated.parallel([
-        Animated.timing(splashOpacity, {
-          toValue: 0,
-          duration: 420,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(splashScale, {
-          toValue: 1.05,
-          duration: 420,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    ]);
-
-    animation.start(({ finished }) => {
-      if (finished) {
-        setSplashAnimationComplete(true);
-      }
-    });
-
-    return () => animation.stop();
-  }, [stage, splashOpacity, splashScale]);
-
-  useEffect(() => {
-    if (stage !== 'splash' || !splashAnimationComplete) {
-      return;
-    }
-
-    setStage('app');
-  }, [splashAnimationComplete, stage]);
+  const { splashOpacity, splashScale } = useSplashAnimation(stage, setStage);
 
   useEffect(() => {
     if (stage !== 'app') {
