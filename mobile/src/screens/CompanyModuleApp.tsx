@@ -1,11 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { RevenueTrendChart, TopItemsChart } from '../components/AnalyticsCharts';
+import { Alert, SafeAreaView, Text, View } from 'react-native';
 import { BrandLogo } from '../components/BrandLogo';
 import { InteractivePressable } from '../components/InteractivePressable';
-import { SectionHeader } from '../components/SectionHeader';
 import {
   addCompanyMedicine,
   createCompanyOffer,
@@ -20,7 +18,12 @@ import {
 } from '../services/b2b';
 import type { AuthSession } from '../services/session';
 import { statusBarStyle, themes, type ThemeMode } from '../theme/theme';
-import { formatCurrency } from '../utils/format';
+import { CompanyAnalyticsTab } from './company/CompanyAnalyticsTab';
+import { CompanyCatalogueTab, type MedicineDraft } from './company/CompanyCatalogueTab';
+import { CompanyDashboardTab } from './company/CompanyDashboardTab';
+import { CompanyOffersTab } from './company/CompanyOffersTab';
+import { CompanyOrdersTab } from './company/CompanyOrdersTab';
+import { matchesFilter, styles, Tab } from './company/companyShared';
 import type {
   B2BMedicine,
   B2BOrder,
@@ -52,37 +55,6 @@ const fallbackSummary: CompanySummary = {
   topItems: [],
 };
 
-const ORDER_FILTERS: Array<{ key: CompanyOrderFilter; label: string }> = [
-  { key: 'ALL', label: 'All' },
-  { key: 'PENDING_APPROVAL', label: 'Pending' },
-  { key: 'APPROVED', label: 'Approved' },
-  { key: 'DISPATCHED', label: 'Dispatched' },
-  { key: 'DELIVERED', label: 'Delivered' },
-  { key: 'REJECTED', label: 'Rejected' },
-];
-
-function normalizeStatus(status: string) {
-  return status
-    .replace('PENDING_APPROVAL', 'Pending approval')
-    .replace('PAYMENT_PENDING', 'Payment pending')
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/^\w/, (c) => c.toUpperCase());
-}
-
-function nextOrderStatus(order: B2BOrder): 'DISPATCHED' | 'DELIVERED' | null {
-  if (order.status === 'APPROVED' || order.status === 'PAID') return 'DISPATCHED';
-  if (order.status === 'DISPATCHED') return 'DELIVERED';
-  return null;
-}
-
-function matchesFilter(order: B2BOrder, filter: CompanyOrderFilter) {
-  if (filter === 'ALL') return true;
-  if (filter === 'APPROVED') return ['APPROVED', 'PAID', 'PAYMENT_PENDING'].includes(order.status);
-  if (filter === 'REJECTED') return order.status === 'REJECTED';
-  return order.status === filter;
-}
-
 function daysFromNow(days: number) {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -109,7 +81,7 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
   const [rejectReason, setRejectReason] = useState('');
 
   // Catalogue screen state.
-  const [medDrafts, setMedDrafts] = useState<Record<string, { mrp: string; medicineType: 'OTC' | 'PRESCRIPTION' }>>({});
+  const [medDrafts, setMedDrafts] = useState<Record<string, MedicineDraft>>({});
   const [newBrand, setNewBrand] = useState('');
   const [newGeneric, setNewGeneric] = useState('');
   const [newDosage, setNewDosage] = useState('');
@@ -209,7 +181,7 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
   }
 
   async function advanceOrder(order: B2BOrder) {
-    const status = nextOrderStatus(order);
+    const status = order.status === 'APPROVED' || order.status === 'PAID' ? 'DISPATCHED' : order.status === 'DISPATCHED' ? 'DELIVERED' : null;
     if (!status) return;
     try {
       const payload = await updateCompanyWholesellerOrderStatus(profile.id, order.id, status);
@@ -219,7 +191,7 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
     }
   }
 
-  function medDraftFor(medicine: B2BMedicine) {
+  function medDraftFor(medicine: B2BMedicine): MedicineDraft {
     return (
       medDrafts[medicine.id] ?? {
         mrp: String(medicine.mrp),
@@ -317,314 +289,89 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
     }
   }
 
-  // ----- renderers -------------------------------------------------------
-
-  function renderOrderCard(order: B2BOrder, options: { expandable?: boolean } = {}) {
-    const canDecide = order.status === 'PENDING_APPROVAL';
-    const advanceTo = nextOrderStatus(order);
-    const expanded = options.expandable && expandedOrderId === order.id;
-
-    return (
-      <View key={order.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <InteractivePressable
-          onPress={options.expandable ? () => setExpandedOrderId(expanded ? null : order.id) : undefined}
-          style={styles.cardHead}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>#{order.id.slice(-10).toUpperCase()}</Text>
-            <Text style={[styles.meta, { color: theme.subtext }]}>
-              {order.wholeseller?.businessName ?? 'Wholeseller'} · {normalizeStatus(order.status)}
-            </Text>
-          </View>
-          <Text style={[styles.total, { color: theme.text }]}>{formatCurrency(order.totalAmount)}</Text>
-        </InteractivePressable>
-
-        {(!options.expandable || expanded) && (
-          <View style={styles.cardBody}>
-            {order.items.map((item) => (
-              <View key={`${order.id}-${item.medicineId}`} style={styles.lineRow}>
-                <Text style={[styles.meta, { color: theme.subtext, flex: 1 }]} numberOfLines={1}>
-                  {item.brandName} × {item.quantity}
-                </Text>
-                <Text style={[styles.meta, { color: theme.subtext }]}>{formatCurrency(item.lineTotal)}</Text>
-              </View>
-            ))}
-
-            {order.rejectionReason ? (
-              <Text style={[styles.meta, { color: theme.danger }]}>Rejected: {order.rejectionReason}</Text>
-            ) : null}
-
-            {expanded && order.trackingEvents && order.trackingEvents.length > 0 ? (
-              <View style={styles.timeline}>
-                {order.trackingEvents.map((event, index) => (
-                  <View key={event.id ?? index} style={styles.timelineRow}>
-                    <View style={[styles.timelineDot, { backgroundColor: theme.primary }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.meta, { color: theme.text, fontWeight: '700' }]}>{event.statusLabel}</Text>
-                      {event.notes ? <Text style={[styles.meta, { color: theme.subtext }]}>{event.notes}</Text> : null}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-
-            {canDecide ? (
-              <View style={{ gap: 8 }}>
-                <View style={styles.actionRow}>
-                  <ActionButton mode={mode} label="Approve" icon="check" onPress={() => void approveOrder(order)} />
-                </View>
-                <TextInput
-                  value={expandedOrderId === order.id ? rejectReason : ''}
-                  onFocus={() => setExpandedOrderId(order.id)}
-                  onChangeText={setRejectReason}
-                  placeholder="Reason to reject (5+ characters)"
-                  placeholderTextColor={theme.subtext}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-                />
-                <View style={styles.actionRow}>
-                  <ActionButton mode={mode} label="Reject" icon="x" danger onPress={() => void rejectOrder(order)} />
-                </View>
-              </View>
-            ) : null}
-
-            {advanceTo ? (
-              <ActionButton mode={mode} label={`Mark ${normalizeStatus(advanceTo)}`} icon="truck" onPress={() => void advanceOrder(order)} />
-            ) : null}
-          </View>
-        )}
-      </View>
-    );
-  }
-
-  function renderDashboard() {
-    const m = summary.metrics;
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Company dashboard" description="Catalogue reach, wholesaler orders, and offer activity." />
-        <View style={styles.kpiGrid}>
-          <Kpi mode={mode} label="Medicines" value={m.medicineCount} icon="archive" />
-          <Kpi mode={mode} label="Pending orders" value={m.pendingWholesellerOrders} icon="clock" />
-          <Kpi mode={mode} label="Delivered" value={m.deliveredWholesellerOrders} icon="check-circle" />
-          <Kpi mode={mode} label="Active offers" value={m.activeOffers} icon="tag" />
-          <Kpi mode={mode} label="Revenue" value={formatCurrency(m.revenue)} icon="trending-up" />
-        </View>
-        <SectionHeader mode={mode} title="Newest wholeseller orders" description="Bulk orders waiting on company fulfilment." action="View all" onAction={() => setTab('orders')} />
-        {orders.slice(0, 4).map((order) => renderOrderCard(order))}
-      </ScrollView>
-    );
-  }
-
-  function renderOrders() {
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Wholeseller orders" description="Approve, reject with a reason, dispatch, and close upstream orders." />
-        <View style={styles.chipRow}>
-          {ORDER_FILTERS.map((filter) => (
-            <Chip key={filter.key} mode={mode} label={filter.label} active={orderFilter === filter.key} onPress={() => setOrderFilter(filter.key)} />
-          ))}
-        </View>
-        {filteredOrders.length === 0 ? (
-          <Text style={[styles.meta, { color: theme.subtext }]}>No orders match this filter.</Text>
-        ) : (
-          filteredOrders.map((order) => renderOrderCard(order, { expandable: true }))
-        )}
-      </ScrollView>
-    );
-  }
-
-  function renderCatalogue() {
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader
-          mode={mode}
-          title="Catalogue"
-          description="Medicines your company manufactures and supplies to wholesalers."
-          action={showAddMed ? 'Close' : 'Add medicine'}
-          onAction={() => setShowAddMed((current) => !current)}
-        />
-
-        {showAddMed ? (
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>New medicine</Text>
-            <Field mode={mode} label="Brand name" value={newBrand} onChangeText={setNewBrand} />
-            <Field mode={mode} label="Composition / generic" value={newGeneric} onChangeText={setNewGeneric} />
-            <View style={styles.fieldRow}>
-              <Field mode={mode} label="Dosage" value={newDosage} onChangeText={setNewDosage} />
-              <Field mode={mode} label="Pack size" value={newPack} onChangeText={setNewPack} />
-              <Field mode={mode} label="MRP" value={newMrp} onChangeText={setNewMrp} keyboardType="numeric" />
-            </View>
-            <View style={styles.chipRow}>
-              <Chip mode={mode} label="OTC" active={newType === 'OTC'} onPress={() => setNewType('OTC')} />
-              <Chip mode={mode} label="Prescription" active={newType === 'PRESCRIPTION'} onPress={() => setNewType('PRESCRIPTION')} />
-            </View>
-            <View style={styles.actionRow}>
-              <ActionButton mode={mode} label="Add to catalogue" icon="plus" onPress={() => void submitNewMedicine()} />
-            </View>
-          </View>
-        ) : null}
-
-        {catalogue.length === 0 ? (
-          <Text style={[styles.meta, { color: theme.subtext }]}>No medicines in the catalogue yet.</Text>
-        ) : (
-          catalogue.map((medicine) => {
-            const draft = medDraftFor(medicine);
-            const dirty = medIsDirty(medicine);
-            return (
-              <View key={medicine.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{medicine.brandName}</Text>
-                <Text style={[styles.meta, { color: theme.subtext }]}>
-                  {medicine.genericName} · {medicine.dosage} · {medicine.packSize}
-                </Text>
-                <View style={styles.fieldRow}>
-                  <Field mode={mode} label="MRP" value={draft.mrp} onChangeText={(v) => setMedDrafts((c) => ({ ...c, [medicine.id]: { ...medDraftFor(medicine), mrp: v } }))} keyboardType="numeric" />
-                </View>
-                <View style={styles.chipRow}>
-                  <Chip mode={mode} label="OTC" active={draft.medicineType === 'OTC'} onPress={() => setMedDrafts((c) => ({ ...c, [medicine.id]: { ...medDraftFor(medicine), medicineType: 'OTC' } }))} />
-                  <Chip mode={mode} label="Prescription" active={draft.medicineType === 'PRESCRIPTION'} onPress={() => setMedDrafts((c) => ({ ...c, [medicine.id]: { ...medDraftFor(medicine), medicineType: 'PRESCRIPTION' } }))} />
-                </View>
-                {dirty ? (
-                  <View style={styles.actionRow}>
-                    <ActionButton mode={mode} label="Save" icon="save" onPress={() => void saveMedicine(medicine)} />
-                  </View>
-                ) : null}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-    );
-  }
-
-  function renderOffers() {
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Offers" description="Targeted discount offers sent to a wholesaler." />
-
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>New offer</Text>
-          <Text style={[styles.meta, { color: theme.subtext }]}>Wholesaler</Text>
-          <View style={styles.chipRow}>
-            {wholesellers.slice(0, 10).map((wholeseller) => (
-              <Chip
-                key={wholeseller.id}
-                mode={mode}
-                label={wholeseller.businessName}
-                active={offerWholesellerId === wholeseller.id}
-                onPress={() => setOfferWholesellerId(wholeseller.id)}
-              />
-            ))}
-          </View>
-          <Field mode={mode} label="Title" value={offerTitle} onChangeText={setOfferTitle} />
-          <Field mode={mode} label="Description" value={offerDesc} onChangeText={setOfferDesc} />
-          <View style={styles.chipRow}>
-            <Chip mode={mode} label="Percent" active={offerType === 'PERCENT'} onPress={() => setOfferType('PERCENT')} />
-            <Chip mode={mode} label="Flat" active={offerType === 'FLAT'} onPress={() => setOfferType('FLAT')} />
-          </View>
-          <View style={styles.fieldRow}>
-            <Field mode={mode} label={offerType === 'PERCENT' ? 'Discount %' : 'Discount ₹'} value={offerValue} onChangeText={setOfferValue} keyboardType="numeric" />
-            <Field mode={mode} label="Runs for (days)" value={offerDays} onChangeText={setOfferDays} keyboardType="numeric" />
-          </View>
-          <View style={styles.actionRow}>
-            <ActionButton mode={mode} label="Publish offer" icon="tag" onPress={() => void submitOffer()} />
-          </View>
-        </View>
-
-        {offers.length === 0 ? (
-          <Text style={[styles.meta, { color: theme.subtext }]}>No offers yet.</Text>
-        ) : (
-          offers.map((offer) => (
-            <View key={offer.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.cardTitle, { color: theme.text }]}>{offer.title}</Text>
-              <Text style={[styles.meta, { color: theme.subtext }]}>
-                {offer.wholesellerName} · {offer.status} · {offer.discountType ?? '—'} {offer.discountValue ?? ''}
-              </Text>
-              {offer.description ? <Text style={[styles.meta, { color: theme.subtext }]}>{offer.description}</Text> : null}
-              <Text style={[styles.meta, { color: theme.subtext }]}>
-                {new Date(offer.startsAt).toLocaleDateString()} – {new Date(offer.endsAt).toLocaleDateString()}
-              </Text>
-            </View>
-          ))
-        )}
-      </ScrollView>
-    );
-  }
-
-  function renderAnalytics() {
-    const m = summary.metrics;
-    const byStatus = orders.reduce<Record<string, number>>((acc, order) => {
-      acc[order.status] = (acc[order.status] ?? 0) + 1;
-      return acc;
-    }, {});
-    const maxCount = Math.max(1, ...Object.values(byStatus));
-    const otc = catalogue.filter((medicine) => medicine.medicineType === 'OTC').length;
-    const rx = catalogue.length - otc;
-
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Analytics" description="Order workload, revenue, and catalogue mix." />
-        <View style={styles.kpiGrid}>
-          <Kpi mode={mode} label="Medicines" value={m.medicineCount} icon="archive" />
-          <Kpi mode={mode} label="Pending" value={m.pendingWholesellerOrders} icon="clock" />
-          <Kpi mode={mode} label="Delivered" value={m.deliveredWholesellerOrders} icon="check-circle" />
-          <Kpi mode={mode} label="Revenue" value={formatCurrency(m.revenue)} icon="trending-up" />
-        </View>
-
-        <RevenueTrendChart mode={mode} theme={theme} data={summary.revenueTrend} currencyFormatter={formatCurrency} />
-        <TopItemsChart
-          mode={mode}
-          theme={theme}
-          data={summary.topItems}
-          currencyFormatter={formatCurrency}
-          title="Top selling medicines"
-          emptyLabel="No paid wholesaler orders yet."
-        />
-
-        <SectionHeader mode={mode} title="Wholeseller orders by status" />
-        {Object.keys(byStatus).length === 0 ? (
-          <Text style={[styles.meta, { color: theme.subtext }]}>No orders yet.</Text>
-        ) : (
-          Object.entries(byStatus).map(([status, count]) => (
-            <View key={status} style={styles.barRow}>
-              <Text style={[styles.barLabel, { color: theme.subtext }]}>{normalizeStatus(status)}</Text>
-              <View style={[styles.barTrack, { backgroundColor: theme.surfaceAlt }]}>
-                <View style={[styles.barFill, { backgroundColor: theme.primary, width: `${(count / maxCount) * 100}%` }]} />
-              </View>
-              <Text style={[styles.barValue, { color: theme.text }]}>{count}</Text>
-            </View>
-          ))
-        )}
-
-        <SectionHeader mode={mode} title="Catalogue mix" />
-        <View style={styles.barRow}>
-          <Text style={[styles.barLabel, { color: theme.subtext }]}>OTC</Text>
-          <View style={[styles.barTrack, { backgroundColor: theme.surfaceAlt }]}>
-            <View style={[styles.barFill, { backgroundColor: theme.primary, width: `${(otc / Math.max(1, catalogue.length)) * 100}%` }]} />
-          </View>
-          <Text style={[styles.barValue, { color: theme.text }]}>{otc}</Text>
-        </View>
-        <View style={styles.barRow}>
-          <Text style={[styles.barLabel, { color: theme.subtext }]}>Prescription</Text>
-          <View style={[styles.barTrack, { backgroundColor: theme.surfaceAlt }]}>
-            <View style={[styles.barFill, { backgroundColor: theme.warning, width: `${(rx / Math.max(1, catalogue.length)) * 100}%` }]} />
-          </View>
-          <Text style={[styles.barValue, { color: theme.text }]}>{rx}</Text>
-        </View>
-      </ScrollView>
-    );
-  }
-
   function renderBody() {
     switch (tab) {
       case 'dashboard':
-        return renderDashboard();
+        return (
+          <CompanyDashboardTab
+            mode={mode}
+            summary={summary}
+            orders={orders}
+            onViewAllOrders={() => setTab('orders')}
+            expandedOrderId={expandedOrderId}
+            setExpandedOrderId={setExpandedOrderId}
+            rejectReason={rejectReason}
+            setRejectReason={setRejectReason}
+            onApprove={(order) => void approveOrder(order)}
+            onReject={(order) => void rejectOrder(order)}
+            onAdvance={(order) => void advanceOrder(order)}
+          />
+        );
       case 'orders':
-        return renderOrders();
+        return (
+          <CompanyOrdersTab
+            mode={mode}
+            orderFilter={orderFilter}
+            setOrderFilter={setOrderFilter}
+            filteredOrders={filteredOrders}
+            expandedOrderId={expandedOrderId}
+            setExpandedOrderId={setExpandedOrderId}
+            rejectReason={rejectReason}
+            setRejectReason={setRejectReason}
+            onApprove={(order) => void approveOrder(order)}
+            onReject={(order) => void rejectOrder(order)}
+            onAdvance={(order) => void advanceOrder(order)}
+          />
+        );
       case 'catalogue':
-        return renderCatalogue();
+        return (
+          <CompanyCatalogueTab
+            mode={mode}
+            catalogue={catalogue}
+            showAddMed={showAddMed}
+            setShowAddMed={setShowAddMed}
+            newBrand={newBrand}
+            setNewBrand={setNewBrand}
+            newGeneric={newGeneric}
+            setNewGeneric={setNewGeneric}
+            newDosage={newDosage}
+            setNewDosage={setNewDosage}
+            newPack={newPack}
+            setNewPack={setNewPack}
+            newMrp={newMrp}
+            setNewMrp={setNewMrp}
+            newType={newType}
+            setNewType={setNewType}
+            submitNewMedicine={() => void submitNewMedicine()}
+            medDraftFor={medDraftFor}
+            medIsDirty={medIsDirty}
+            setMedDrafts={setMedDrafts}
+            saveMedicine={(medicine) => void saveMedicine(medicine)}
+          />
+        );
       case 'offers':
-        return renderOffers();
+        return (
+          <CompanyOffersTab
+            mode={mode}
+            wholesellers={wholesellers}
+            offers={offers}
+            offerWholesellerId={offerWholesellerId}
+            setOfferWholesellerId={setOfferWholesellerId}
+            offerTitle={offerTitle}
+            setOfferTitle={setOfferTitle}
+            offerDesc={offerDesc}
+            setOfferDesc={setOfferDesc}
+            offerType={offerType}
+            setOfferType={setOfferType}
+            offerValue={offerValue}
+            setOfferValue={setOfferValue}
+            offerDays={offerDays}
+            setOfferDays={setOfferDays}
+            submitOffer={() => void submitOffer()}
+          />
+        );
       case 'analytics':
-        return renderAnalytics();
+        return <CompanyAnalyticsTab mode={mode} summary={summary} orders={orders} catalogue={catalogue} />;
     }
   }
 
@@ -669,133 +416,3 @@ export function CompanyModuleApp({ session, onSignOut }: CompanyModuleAppProps) 
     </SafeAreaView>
   );
 }
-
-function ActionButton({
-  mode,
-  label,
-  icon,
-  onPress,
-  danger = false,
-}: {
-  mode: ThemeMode;
-  label: string;
-  icon: keyof typeof Feather.glyphMap;
-  onPress: () => void;
-  danger?: boolean;
-}) {
-  const theme = themes[mode];
-  const backgroundColor = danger ? theme.danger : theme.primary;
-  return (
-    <InteractivePressable
-      onPress={onPress}
-      style={[styles.actionButton, { backgroundColor, borderColor: backgroundColor }]}
-      pressedStyle={{ opacity: 0.85 }}
-    >
-      <Feather name={icon} size={15} color={theme.buttonText} />
-      <Text style={[styles.actionLabel, { color: theme.buttonText }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
-
-function Field({
-  mode,
-  label,
-  value,
-  onChangeText,
-  keyboardType,
-}: {
-  mode: ThemeMode;
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  keyboardType?: 'numeric' | 'default';
-}) {
-  const theme = themes[mode];
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: theme.subtext }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType ?? 'default'}
-        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-        placeholderTextColor={theme.subtext}
-      />
-    </View>
-  );
-}
-
-function Kpi({ mode, label, value, icon }: { mode: ThemeMode; label: string; value: string | number; icon: keyof typeof Feather.glyphMap }) {
-  const theme = themes[mode];
-  return (
-    <View style={[styles.kpi, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <Feather name={icon} size={18} color={theme.primary} />
-      <Text style={[styles.kpiValue, { color: theme.text }]}>{value}</Text>
-      <Text style={[styles.meta, { color: theme.subtext }]}>{label}</Text>
-    </View>
-  );
-}
-
-function Chip({ mode, label, active, onPress }: { mode: ThemeMode; label: string; active: boolean; onPress: () => void }) {
-  const theme = themes[mode];
-  return (
-    <InteractivePressable
-      onPress={onPress}
-      style={[styles.chip, { backgroundColor: active ? theme.primarySoft : theme.surface, borderColor: active ? theme.primary : theme.border }]}
-    >
-      <Text style={[styles.chipText, { color: active ? theme.primary : theme.text }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
-
-function Tab({ mode, active, label, icon, onPress }: { mode: ThemeMode; active: boolean; label: string; icon: keyof typeof Feather.glyphMap; onPress: () => void }) {
-  const theme = themes[mode];
-  return (
-    <InteractivePressable onPress={onPress} style={[styles.tab, { backgroundColor: active ? theme.primarySoft : 'transparent' }]}>
-      <Feather name={icon} size={17} color={active ? theme.primary : theme.subtext} />
-      <Text style={[styles.tabLabel, { color: active ? theme.primary : theme.subtext }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  page: { flex: 1 },
-  header: { padding: 14, borderBottomWidth: 1, gap: 5 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '900' },
-  scroll: { flex: 1 },
-  content: { width: '100%', maxWidth: 980, alignSelf: 'center', padding: 14, paddingBottom: 120, gap: 12 },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  kpi: { minWidth: 150, flex: 1, borderWidth: 1, borderRadius: 12, padding: 14, gap: 7 },
-  kpiValue: { fontSize: 21, fontWeight: '900' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardBody: { gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: '900', lineHeight: 20 },
-  meta: { fontSize: 12, lineHeight: 18 },
-  total: { fontSize: 15, fontWeight: '900' },
-  lineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { minHeight: 42, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 13 },
-  field: { flex: 1, minWidth: 96, gap: 4 },
-  fieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  fieldLabel: { fontSize: 11, fontWeight: '700' },
-  timeline: { gap: 8, marginTop: 4 },
-  timelineRow: { flexDirection: 'row', gap: 10 },
-  timelineDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  barLabel: { fontSize: 11, width: 110 },
-  barTrack: { flex: 1, height: 10, borderRadius: 999, overflow: 'hidden' },
-  barFill: { height: 10, borderRadius: 999 },
-  barValue: { fontSize: 12, fontWeight: '900', width: 32, textAlign: 'right' },
-  actionButton: { minHeight: 42, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  actionLabel: { fontSize: 12, fontWeight: '900' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
-  chipText: { fontSize: 12, fontWeight: '800' },
-  tabBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 2, padding: 8, borderTopWidth: 1 },
-  tab: { flex: 1, minHeight: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 3 },
-  tabLabel: { fontSize: 9, fontWeight: '900', textAlign: 'center' },
-});
