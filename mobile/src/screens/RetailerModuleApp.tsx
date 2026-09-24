@@ -1,13 +1,10 @@
 import Feather from '@expo/vector-icons/Feather';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { RevenueTrendChart, TopItemsChart } from '../components/AnalyticsCharts';
+import { Alert, Linking, SafeAreaView, Text, View } from 'react-native';
 import { BrandLogo } from '../components/BrandLogo';
 import { InteractivePressable } from '../components/InteractivePressable';
-import { SectionHeader } from '../components/SectionHeader';
 import { resolveApiUrl } from '../services/api';
-import { formatCurrency } from '../utils/format';
 import {
   addRetailerInventoryBatch,
   confirmRetailerPurchaseReceipt,
@@ -25,7 +22,7 @@ import {
 } from '../services/retailer';
 import { requestCurrentPosition } from '../services/courierLocation';
 import type { AuthSession } from '../services/session';
-import { ThemeMode, glowShadow, statusBarStyle, themes } from '../theme/theme';
+import { ThemeMode, statusBarStyle, themes } from '../theme/theme';
 import type {
   RetailerInventoryItem,
   RetailerOrder,
@@ -36,355 +33,25 @@ import type {
   WholesellerInventoryItem,
   WholesellerSummary,
 } from './retailer/retailerTypes';
-
-type OrderFilter = 'ALL' | 'PENDING_ACTION' | 'APPROVED_BY_RETAILER' | 'PACKED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'REJECTED_BY_RETAILER';
-type InventoryFilter = 'all' | 'low' | 'out';
-
-const mockRetailer: RetailerProfile = {
-  id: 'ret-1',
-  businessName: 'Apex Care Pharmacy',
-  licenseNumber: 'MH-RX-998877',
-  area: 'Shivaji Nagar',
-  city: 'Pune',
-  state: 'Maharashtra',
-  postalCode: '411005',
-  rating: 4.7,
-  deliveryAvailable: true,
-  contact: {
-    fullName: 'Apex Care Retailer',
-    email: 'retailer@pharmaconnect.app',
-    phone: '9000000002',
-  },
-};
-
-const mockInventory: RetailerInventoryItem[] = [
-  {
-    inventoryId: 'inv-paracip',
-    medicineId: 'med-1',
-    brandName: 'Paracip 650',
-    genericName: 'Paracetamol',
-    dosage: '650 mg',
-    packSize: '15 tablets',
-    salePrice: 38,
-    stockQuantity: 120,
-    reservedQuantity: 0,
-    availableQuantity: 120,
-    reorderLevel: 20,
-  },
-  {
-    inventoryId: 'inv-glucozen',
-    medicineId: 'med-3',
-    brandName: 'Glucozen-M',
-    genericName: 'Metformin + Glimepiride',
-    dosage: '500 mg / 2 mg',
-    packSize: '10 tablets',
-    salePrice: 104,
-    stockQuantity: 8,
-    reservedQuantity: 0,
-    availableQuantity: 8,
-    reorderLevel: 10,
-  },
-];
-
-const mockOrders: RetailerOrder[] = [
-  {
-    id: 'ORD-DEMO-1001',
-    status: 'PENDING_RETAILER_APPROVAL',
-    timelineStatus: 'Order Placed',
-    placedAt: new Date().toISOString(),
-    deliveryMethod: 'HOME_DELIVERY',
-    subtotalAmount: 104,
-    deliveryFee: 35,
-    totalAmount: 139,
-    customer: {
-      id: 'customer-demo',
-      fullName: 'Chinmay Customer',
-      phone: '9000000001',
-      email: 'customer@pharmaconnect.app',
-    },
-    deliveryAddress: {
-      line1: 'Flat 12, Demo Society',
-      area: 'Shivaji Nagar',
-      city: 'Pune',
-      state: 'Maharashtra',
-      postalCode: '411005',
-    },
-    items: [
-      {
-        medicineId: 'med-3',
-        brandName: 'Glucozen-M',
-        genericName: 'Metformin + Glimepiride',
-        quantity: 1,
-        unitPrice: 104,
-        lineTotal: 104,
-      },
-    ],
-    prescription: {
-      id: 'rx-demo',
-      status: 'UPLOADED',
-      fileUrl: 'https://uploads.pharmaconnect.app/demo/prescription.jpg',
-      originalFileName: 'prescription-demo.jpg',
-    },
-    latestPayment: {
-      method: 'UPI',
-      status: 'SUCCESS',
-      amount: 139,
-      paidAt: new Date().toISOString(),
-    },
-  },
-];
-
-const mockWholesellers: WholesellerSummary[] = [
-  {
-    id: 'wh-demo',
-    businessName: 'HealthGrid Distribution',
-    serviceArea: 'Pune Region',
-    activeMedicineCount: 2,
-    contact: {
-      fullName: 'HealthGrid Wholeseller',
-      email: 'wholeseller@pharmaconnect.app',
-      phone: '9000000003',
-    },
-  },
-];
-
-const mockWholesellerInventory: WholesellerInventoryItem[] = [
-  {
-    inventoryId: 'wh-inv-paracip',
-    medicineId: 'med-1',
-    brandName: 'Paracip 650',
-    genericName: 'Paracetamol',
-    dosage: '650 mg',
-    packSize: '15 tablets',
-    salePrice: 31,
-    stockQuantity: 500,
-    reservedQuantity: 0,
-    availableQuantity: 500,
-    reorderLevel: 75,
-  },
-  {
-    inventoryId: 'wh-inv-glucozen',
-    medicineId: 'med-3',
-    brandName: 'Glucozen-M',
-    genericName: 'Metformin + Glimepiride',
-    dosage: '500 mg / 2 mg',
-    packSize: '10 tablets',
-    salePrice: 88,
-    stockQuantity: 220,
-    reservedQuantity: 0,
-    availableQuantity: 220,
-    reorderLevel: 40,
-  },
-];
-
-const mockPurchaseOrders: RetailerPurchaseOrder[] = [];
-
-const orderFilters: Array<{ id: OrderFilter; label: string }> = [
-  { id: 'ALL', label: 'All' },
-  { id: 'PENDING_ACTION', label: 'Pending' },
-  { id: 'APPROVED_BY_RETAILER', label: 'Approved' },
-  { id: 'PACKED', label: 'Packed' },
-  { id: 'OUT_FOR_DELIVERY', label: 'Dispatched' },
-  { id: 'DELIVERED', label: 'Delivered' },
-  { id: 'REJECTED_BY_RETAILER', label: 'Denied' },
-];
-
-const prescriptionDenialReasons = [
-  'Prescription image is unclear or cropped.',
-  'Medicine or dosage does not match the order.',
-  'Prescription date or patient details could not be verified.',
-];
-
-function statusColor(status: string) {
-  if (status === 'PENDING_RETAILER_APPROVAL') {
-    return '#f59e0b';
-  }
-
-  if (status === 'REJECTED_BY_RETAILER') {
-    return '#ef4444';
-  }
-
-  if (status === 'DELIVERED') {
-    return '#16a34a';
-  }
-
-  if (status === 'PACKED') {
-    return '#8b5cf6';
-  }
-
-  if (status === 'OUT_FOR_DELIVERY' || status === 'READY_FOR_PICKUP') {
-    return '#4f46e5';
-  }
-
-  return '#1d8cf8';
-}
-
-function formatShortDate(value?: string | null) {
-  if (!value) {
-    return 'Recently';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return 'Recently';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatAddress(order: RetailerOrder) {
-  const address = order.deliveryAddress;
-
-  if (!address) {
-    return 'Pickup from pharmacy';
-  }
-
-  return [address.line1, address.line2, address.area, address.city, address.state, address.postalCode]
-    .filter(Boolean)
-    .join(', ');
-}
-
-function countByStatus(orders: RetailerOrder[], filter: OrderFilter) {
-  if (filter === 'ALL') {
-    return orders.length;
-  }
-
-  if (filter === 'PENDING_ACTION') {
-    return orders.filter((order) => order.status === 'PENDING_RETAILER_APPROVAL').length;
-  }
-
-  return orders.filter((order) => order.status === filter).length;
-}
-
-function normalizeStatusLabel(status: string) {
-  return status
-    .replace('PENDING_RETAILER_APPROVAL', 'Pending')
-    .replace('APPROVED_BY_RETAILER', 'Approved')
-    .replace('REJECTED_BY_RETAILER', 'Denied')
-    .replace('OUT_FOR_DELIVERY', 'Dispatched')
-    .replace('READY_FOR_PICKUP', 'Pickup Ready')
-    .replace(/_/g, ' ');
-}
-
-function hasPrescription(order: RetailerOrder) {
-  return Boolean(order.prescription);
-}
-
-const PAID_ORDER_STATUSES = ['PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP', 'DELIVERED'];
-
-function buildMockRevenueTrend(orders: RetailerOrder[]) {
-  const paidOrders = orders.filter((order) => PAID_ORDER_STATUSES.includes(order.status));
-  const byDay = new Map<string, { revenue: number; orders: number }>();
-  for (const order of paidOrders) {
-    const key = order.placedAt.slice(0, 10);
-    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
-    bucket.revenue += order.totalAmount;
-    bucket.orders += 1;
-    byDay.set(key, bucket);
-  }
-
-  const days: Array<{ date: string; revenue: number; orders: number }> = [];
-  for (let offset = 13; offset >= 0; offset -= 1) {
-    const date = new Date();
-    date.setUTCHours(0, 0, 0, 0);
-    date.setUTCDate(date.getUTCDate() - offset);
-    const key = date.toISOString().slice(0, 10);
-    const bucket = byDay.get(key) ?? { revenue: 0, orders: 0 };
-    days.push({ date: key, revenue: bucket.revenue, orders: bucket.orders });
-  }
-  return days;
-}
-
-function buildMockTopItems(orders: RetailerOrder[]) {
-  const paidOrders = orders.filter((order) => PAID_ORDER_STATUSES.includes(order.status));
-  const byMedicine = new Map<string, { medicineId: string; brandName: string; quantity: number; revenue: number }>();
-  for (const order of paidOrders) {
-    for (const item of order.items) {
-      const bucket = byMedicine.get(item.medicineId) ?? {
-        medicineId: item.medicineId,
-        brandName: item.brandName,
-        quantity: 0,
-        revenue: 0,
-      };
-      bucket.quantity += item.quantity;
-      bucket.revenue += item.lineTotal;
-      byMedicine.set(item.medicineId, bucket);
-    }
-  }
-  return Array.from(byMedicine.values())
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-}
-
-function buildMockSummary(orders: RetailerOrder[], inventory: RetailerInventoryItem[]): RetailerSummary {
-  const lowStock = inventory.filter((item) => item.availableQuantity <= (item.reorderLevel ?? 0));
-
-  return {
-    retailer: {
-      id: mockRetailer.id,
-      businessName: mockRetailer.businessName,
-    },
-    metrics: {
-      totalOrders: orders.length,
-      pendingOrders: orders.filter((order) => order.status === 'PENDING_RETAILER_APPROVAL').length,
-      activeOrders: orders.filter((order) => !['REJECTED_BY_RETAILER', 'DELIVERED', 'CANCELLED'].includes(order.status)).length,
-      deliveredOrders: orders.filter((order) => order.status === 'DELIVERED').length,
-      revenue: orders
-        .filter((order) => PAID_ORDER_STATUSES.includes(order.status))
-        .reduce((sum, order) => sum + order.totalAmount, 0),
-      lowStockCount: lowStock.length,
-    },
-    stockAlerts: lowStock.map((item) => ({
-      inventoryId: item.inventoryId,
-      medicineId: item.medicineId,
-      brandName: item.brandName,
-      availableQuantity: item.availableQuantity,
-      reorderLevel: item.reorderLevel,
-    })),
-    revenueTrend: buildMockRevenueTrend(orders),
-    topItems: buildMockTopItems(orders),
-  };
-}
-
-function ActionButton({
-  label,
-  icon,
-  mode,
-  onPress,
-  variant = 'primary',
-}: {
-  label: string;
-  icon: keyof typeof Feather.glyphMap;
-  mode: ThemeMode;
-  onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'danger';
-}) {
-  const theme = themes[mode];
-  const palette =
-    variant === 'danger'
-      ? { bg: '#ef4444', color: '#ffffff', border: '#ef4444' }
-      : variant === 'secondary'
-        ? { bg: theme.surface, color: theme.text, border: theme.border }
-        : { bg: theme.primary, color: theme.buttonText, border: theme.primary };
-
-  return (
-    <InteractivePressable
-      onPress={onPress}
-      style={[styles.actionButton, { backgroundColor: palette.bg, borderColor: palette.border }]}
-      hoveredStyle={{ backgroundColor: variant === 'secondary' ? theme.surfaceAlt : palette.bg }}
-      pressedStyle={{ backgroundColor: theme.elevated }}
-    >
-      <Feather name={icon} size={16} color={palette.color} />
-      <Text style={[styles.actionLabel, { color: palette.color }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
+import { RetailerAnalyticsTab } from './retailer/RetailerAnalyticsTab';
+import { RetailerBuyTab } from './retailer/RetailerBuyTab';
+import { RetailerDashboardTab } from './retailer/RetailerDashboardTab';
+import { RetailerInventoryTab } from './retailer/RetailerInventoryTab';
+import { RetailerOrdersTab } from './retailer/RetailerOrdersTab';
+import {
+  buildMockSummary,
+  mockInventory,
+  mockOrders,
+  mockPurchaseOrders,
+  mockRetailer,
+  mockWholesellerInventory,
+  mockWholesellers,
+  normalizeStatusLabel,
+  orderFilters,
+  styles,
+  type InventoryFilter,
+  type OrderFilter,
+} from './retailer/retailerShared';
 
 type RetailerModuleAppProps = {
   session: AuthSession;
@@ -839,502 +506,92 @@ export function RetailerModuleApp({ session, onSignOut }: RetailerModuleAppProps
     );
   }
 
-  function renderDashboard() {
-    const recentOrders = orders.slice(0, 5);
-
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Retailer dashboard" description="Live order workload, sales, and stock risk." />
-        <View style={styles.kpiGrid}>
-          <KpiCard mode={mode} label="Pending Orders" value={summary.metrics.pendingOrders} icon="clock" tone="#f59e0b" onPress={() => { setOrderFilter('PENDING_ACTION'); setActiveTab('orders'); }} />
-          <KpiCard mode={mode} label="Revenue" value={formatCurrency(summary.metrics.revenue)} icon="trending-up" tone="#16a34a" />
-          <KpiCard mode={mode} label="Delivered" value={summary.metrics.deliveredOrders} icon="check-circle" tone="#1d8cf8" />
-          <KpiCard mode={mode} label="Low Stock" value={summary.metrics.lowStockCount} icon="alert-triangle" tone="#ef4444" onPress={() => { setInventoryFilter('low'); setActiveTab('inventory'); }} />
-        </View>
-
-        <SectionHeader mode={mode} title="Recent orders" description="Newest customer orders for this pharmacy." />
-        {recentOrders.map(renderOrderCard)}
-
-        <SectionHeader mode={mode} title="Alerts" description="Inventory items at or below reorder level." />
-        {summary.stockAlerts.length ? summary.stockAlerts.map((item) => (
-          <View key={item.inventoryId} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>{item.brandName}</Text>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              Available {item.availableQuantity}, reorder at {item.reorderLevel ?? 0}
-            </Text>
-          </View>
-        )) : (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>No stock alerts right now.</Text>
-        )}
-      </ScrollView>
-    );
-  }
-
-  function renderOrderCard(order: RetailerOrder) {
-    const active = selectedOrder?.id === order.id;
-
-    return (
-      <InteractivePressable
-        key={order.id}
-        onPress={() => {
-          setSelectedOrderId(order.id);
-          setActiveTab('orders');
-        }}
-        style={[
-          styles.card,
-          {
-            backgroundColor: active ? theme.surfaceAlt : theme.surface,
-            borderColor: active ? theme.primary : theme.border,
-          },
-        ]}
-        hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderText}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>{order.id}</Text>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              {order.customer.fullName} - {order.items.length} item{order.items.length === 1 ? '' : 's'} - {formatShortDate(order.placedAt)}
-            </Text>
-          </View>
-          <View style={[styles.statusPill, { borderColor: statusColor(order.status), backgroundColor: `${statusColor(order.status)}22` }]}>
-            <Text style={[styles.statusText, { color: statusColor(order.status) }]}>{normalizeStatusLabel(order.status)}</Text>
-          </View>
-        </View>
-        <View style={styles.inlineMeta}>
-          <Text style={[styles.cardMeta, { color: theme.subtext }]}>{formatCurrency(order.totalAmount)}</Text>
-          {hasPrescription(order) ? <Text style={[styles.rxBadge, { color: theme.primary }]}>Rx</Text> : null}
-          <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-            {order.deliveryMethod === 'HOME_DELIVERY' ? 'Home delivery' : 'Pickup'}
-          </Text>
-        </View>
-      </InteractivePressable>
-    );
-  }
-
-  function renderOrders() {
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Customer orders" description="Approve prescriptions, pack orders, and update delivery." />
-        <TextInput
-          value={searchText}
-          onChangeText={setSearchText}
-          placeholder="Search order number or customer"
-          placeholderTextColor={theme.subtext}
-          style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {orderFilters.map((filter) => (
-            <Chip
-              key={filter.id}
-              mode={mode}
-              label={`${filter.label} ${countByStatus(orders, filter.id)}`}
-              active={orderFilter === filter.id}
-              onPress={() => setOrderFilter(filter.id)}
-            />
-          ))}
-        </ScrollView>
-        {filteredOrders.map(renderOrderCard)}
-        {selectedOrder ? renderOrderDetail(selectedOrder) : null}
-      </ScrollView>
-    );
-  }
-
-  function renderOrderDetail(order: RetailerOrder) {
-    const canDecide = order.status === 'PENDING_RETAILER_APPROVAL';
-    const canMove = ['APPROVED_BY_RETAILER', 'PAYMENT_PENDING', 'PAID', 'PACKED', 'OUT_FOR_DELIVERY', 'READY_FOR_PICKUP'].includes(order.status);
-
-    return (
-      <View style={[styles.detailPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <SectionHeader mode={mode} title="Order detail" description="Customer, prescription, payment, and fulfilment actions." />
-        <Text style={[styles.cardTitle, { color: theme.text }]}>{order.customer.fullName}</Text>
-        <Text style={[styles.cardMeta, { color: theme.subtext }]}>Phone: {order.customer.phone}</Text>
-        <Text style={[styles.cardMeta, { color: theme.subtext }]}>Address: {formatAddress(order)}</Text>
-        <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-          Payment: {order.latestPayment?.method ?? 'Not selected'} - {order.latestPayment?.status ?? 'Pending'}
-        </Text>
-
-        <View style={styles.table}>
-          {order.items.map((item) => (
-            <View key={`${order.id}-${item.medicineId}`} style={styles.tableRow}>
-              <View style={styles.tableName}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{item.brandName}</Text>
-                <Text style={[styles.cardMeta, { color: theme.subtext }]}>{item.genericName}</Text>
-              </View>
-              <Text style={[styles.cardMeta, { color: theme.subtext }]}>x{item.quantity}</Text>
-              <Text style={[styles.cardMeta, { color: theme.text }]}>{formatCurrency(item.lineTotal)}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.billBox}>
-          <BillRow mode={mode} label="Subtotal" value={formatCurrency(order.subtotalAmount)} />
-          <BillRow mode={mode} label="Delivery" value={formatCurrency(order.deliveryFee)} />
-          <BillRow mode={mode} label="Total" value={formatCurrency(order.totalAmount)} strong />
-        </View>
-
-        {order.prescription ? (
-          <View style={[styles.rxBox, { borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Prescription</Text>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              {order.prescription.originalFileName ?? 'Uploaded prescription'} - {order.prescription.status}
-            </Text>
-            {order.prescription.reviewedAt ? (
-              <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                Reviewed {formatShortDate(order.prescription.reviewedAt)}
-              </Text>
-            ) : null}
-            {order.prescription.retailerNotes ? (
-              <Text style={[styles.reviewNote, { color: theme.text, backgroundColor: theme.surfaceAlt }]}>
-                {order.prescription.retailerNotes}
-              </Text>
-            ) : null}
-            <ActionButton
-              mode={mode}
-              label="Open prescription"
-              icon="external-link"
-              variant="secondary"
-              onPress={() => {
-                void openPrescription(order);
-              }}
-            />
-          </View>
-        ) : null}
-
-        {canDecide ? (
-          <>
-            {order.prescription ? (
-              <TextInput
-                value={prescriptionApprovalNote}
-                onChangeText={setPrescriptionApprovalNote}
-                placeholder="Approval note"
-                placeholderTextColor={theme.subtext}
-                multiline
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt },
-                ]}
-              />
-            ) : null}
-            {order.prescription ? (
-              <View style={styles.chipRow}>
-                {prescriptionDenialReasons.map((reason) => (
-                  <Chip
-                    key={reason}
-                    mode={mode}
-                    label={reason}
-                    active={rejectionReason === reason}
-                    onPress={() => setRejectionReason(reason)}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <TextInput
-              value={rejectionReason}
-              onChangeText={setRejectionReason}
-              placeholder="Denial reason"
-              placeholderTextColor={theme.subtext}
-              multiline
-              style={[
-                styles.input,
-                styles.textArea,
-                { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt },
-              ]}
-            />
-            <View style={styles.actionRow}>
-              <ActionButton
-                mode={mode}
-                label={order.prescription ? 'Approve Rx' : 'Approve'}
-                icon="check"
-                onPress={() => {
-                  void approveOrder(order);
-                }}
-              />
-              <ActionButton
-                mode={mode}
-                label={order.prescription ? 'Reject Rx' : 'Deny'}
-                icon="x"
-                variant="danger"
-                onPress={() => {
-                  void rejectOrder(order);
-                }}
-              />
-            </View>
-          </>
-        ) : null}
-
-        {/* Courier details are captured before dispatch and can be refreshed while on the road. */}
-        {order.deliveryMethod !== 'PICKUP' && ['PACKED', 'OUT_FOR_DELIVERY'].includes(order.status) ? (
-          <View style={[styles.rxBox, { borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Delivery</Text>
-            <TextInput
-              value={courierName}
-              onChangeText={setCourierName}
-              placeholder="Courier name"
-              placeholderTextColor={theme.subtext}
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-            />
-            <TextInput
-              value={courierPhone}
-              onChangeText={setCourierPhone}
-              placeholder="Courier phone"
-              placeholderTextColor={theme.subtext}
-              keyboardType="phone-pad"
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-            />
-            <TextInput
-              value={courierEtaMinutes}
-              onChangeText={setCourierEtaMinutes}
-              placeholder="ETA in minutes"
-              placeholderTextColor={theme.subtext}
-              keyboardType="number-pad"
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-            />
-            {order.status === 'OUT_FOR_DELIVERY' ? (
-              <>
-                {order.delivery?.lastLocationAt ? (
-                  <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                    Last shared {formatShortDate(order.delivery.lastLocationAt)}
-                  </Text>
-                ) : null}
-                <ActionButton
-                  mode={mode}
-                  label="Share courier location"
-                  icon="map-pin"
-                  variant="secondary"
-                  onPress={() => {
-                    void shareCourierLocation(order);
-                  }}
-                />
-              </>
-            ) : null}
-          </View>
-        ) : null}
-
-        {canMove ? (
-          <ActionButton mode={mode} label="Move to next status" icon="arrow-right" onPress={() => { void moveOrder(order); }} />
-        ) : null}
-      </View>
-    );
-  }
-
-  function renderInventory() {
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Inventory" description="Stock, selling price, and reorder risk by medicine." />
-        <TextInput
-          value={searchText}
-          onChangeText={setSearchText}
-          placeholder="Search medicines in inventory"
-          placeholderTextColor={theme.subtext}
-          style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-        />
-        <View style={styles.chipRow}>
-          <Chip mode={mode} label="All" active={inventoryFilter === 'all'} onPress={() => setInventoryFilter('all')} />
-          <Chip mode={mode} label="Low Stock" active={inventoryFilter === 'low'} onPress={() => setInventoryFilter('low')} />
-          <Chip mode={mode} label="Out" active={inventoryFilter === 'out'} onPress={() => setInventoryFilter('out')} />
-        </View>
-        {filteredInventory.map((item) => {
-          const isLow = item.availableQuantity <= (item.reorderLevel ?? 0);
-          const fill = Math.min(100, Math.max(0, (item.availableQuantity / Math.max(item.reorderLevel ?? 20, 1)) * 100));
-
-          return (
-            <View key={item.inventoryId} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderText}>
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>{item.brandName}</Text>
-                  <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                    {item.genericName} - {item.dosage ?? 'Dose'} - {item.packSize ?? 'Pack'}
-                  </Text>
-                </View>
-                <Text style={[styles.stockNumber, { color: isLow ? '#ef4444' : theme.text }]}>{item.availableQuantity}</Text>
-              </View>
-              <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                Selling {formatCurrency(item.salePrice)} - Reorder at {item.reorderLevel ?? 0}
-              </Text>
-              <View style={[styles.stockTrack, { backgroundColor: theme.elevated }]}>
-                <View style={[styles.stockFill, { width: `${fill}%`, backgroundColor: isLow ? '#f59e0b' : '#16a34a' }]} />
-              </View>
-              <View style={styles.actionRow}>
-                <ActionButton
-                  mode={mode}
-                  label="+10 stock"
-                  icon="plus"
-                  variant="secondary"
-                  onPress={() => {
-                    void increaseInventoryStock(item);
-                  }}
-                />
-                <ActionButton
-                  mode={mode}
-                  label="Add batch"
-                  icon="layers"
-                  variant="secondary"
-                  onPress={() => {
-                    void addDemoBatch(item);
-                  }}
-                />
-              </View>
-            </View>
-          );
-        })}
-      </ScrollView>
-    );
-  }
-
-  function renderBuy() {
-    const lowStock = inventory.filter((item) => item.availableQuantity <= (item.reorderLevel ?? 0));
-    const selectedWholeseller = wholesellers.find((item) => item.id === selectedWholesellerId) ?? wholesellers[0];
-
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Buy stock" description="Find wholesalers and restock low inventory items." />
-        <TextInput
-          value={buySearchText}
-          onChangeText={setBuySearchText}
-          placeholder="Search medicines to restock"
-          placeholderTextColor={theme.subtext}
-          style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-        />
-
-        <SectionHeader mode={mode} title="Low stock" description="Tap a medicine to search wholesaler stock." />
-        {lowStock.length ? lowStock.map((item) => (
-          <InteractivePressable
-            key={item.inventoryId}
-            onPress={() => setBuySearchText(item.brandName)}
-            style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          >
-            <Text style={[styles.cardTitle, { color: theme.text }]}>{item.brandName}</Text>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              Available {item.availableQuantity}, reorder at {item.reorderLevel ?? 0}
-            </Text>
-          </InteractivePressable>
-        )) : (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>No low-stock items to restock.</Text>
-        )}
-
-        <SectionHeader mode={mode} title="Wholesalers" description={selectedWholeseller?.businessName ?? 'Select a wholesaler'} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {wholesellers.map((wholeseller) => (
-            <Chip
-              key={wholeseller.id}
-              mode={mode}
-              label={wholeseller.businessName}
-              active={selectedWholesellerId === wholeseller.id}
-              onPress={() => setSelectedWholesellerId(wholeseller.id)}
-            />
-          ))}
-        </ScrollView>
-
-        {buyResults.map((item) => {
-          const subtotal = item.salePrice * 20;
-          const gst = subtotal * 0.05;
-
-          return (
-            <View key={item.inventoryId} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderText}>
-                  <Text style={[styles.cardTitle, { color: theme.text }]}>{item.brandName}</Text>
-                  <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                    {item.genericName} - {item.availableQuantity} units available
-                  </Text>
-                </View>
-                <Text style={[styles.stockNumber, { color: theme.text }]}>{formatCurrency(item.salePrice)}</Text>
-              </View>
-              <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                Demo order 20 units: subtotal {formatCurrency(subtotal)}, GST {formatCurrency(gst)}, total {formatCurrency(subtotal + gst)}
-              </Text>
-              <ActionButton
-                mode={mode}
-                label="Place purchase order"
-                icon="shopping-bag"
-                onPress={() => {
-                  void placePurchaseOrder(item);
-                }}
-              />
-            </View>
-          );
-        })}
-
-        <SectionHeader mode={mode} title="Purchase orders" description="Restock requests sent to wholesalers." />
-        {purchaseOrders.length ? purchaseOrders.map((order) => (
-          <View key={order.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderText}>
-                <Text style={[styles.cardTitle, { color: theme.text }]}>{order.id}</Text>
-                <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-                  {order.wholeseller.businessName} - {formatShortDate(order.placedAt)} - {order.items.length} item{order.items.length === 1 ? '' : 's'}
-                </Text>
-              </View>
-              <View style={[styles.statusPill, { borderColor: statusColor(order.status), backgroundColor: `${statusColor(order.status)}22` }]}>
-                <Text style={[styles.statusText, { color: statusColor(order.status) }]}>{normalizeStatusLabel(order.status)}</Text>
-              </View>
-            </View>
-            <Text style={[styles.cardMeta, { color: theme.subtext }]}>
-              Total {formatCurrency(order.totalAmount)} - Payment {order.latestPayment?.status ?? 'PENDING'}
-            </Text>
-            {['DISPATCHED', 'PAID', 'APPROVED'].includes(order.status) ? (
-              <ActionButton
-                mode={mode}
-                label="Confirm receipt"
-                icon="check-circle"
-                variant="secondary"
-                onPress={() => {
-                  void confirmPurchaseReceipt(order);
-                }}
-              />
-            ) : null}
-          </View>
-        )) : (
-          <Text style={[styles.emptyText, { color: theme.subtext }]}>Purchase orders placed from this screen will appear here.</Text>
-        )}
-      </ScrollView>
-    );
-  }
-
-  function renderAnalytics() {
-    const revenue = summary.metrics.revenue;
-
-    return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <SectionHeader mode={mode} title="Analytics" description="Sales and operational summary for the retailer." />
-        <View style={styles.kpiGrid}>
-          <KpiCard mode={mode} label="Revenue" value={formatCurrency(revenue)} icon="bar-chart-2" tone="#16a34a" />
-          <KpiCard mode={mode} label="Total Orders" value={summary.metrics.totalOrders} icon="package" tone="#1d8cf8" />
-          <KpiCard mode={mode} label="Active" value={summary.metrics.activeOrders} icon="activity" tone="#8b5cf6" />
-          <KpiCard mode={mode} label="Low Stock" value={summary.metrics.lowStockCount} icon="alert-circle" tone="#ef4444" />
-        </View>
-        <RevenueTrendChart mode={mode} theme={theme} data={summary.revenueTrend} currencyFormatter={formatCurrency} />
-        <TopItemsChart
-          mode={mode}
-          theme={theme}
-          data={summary.topItems}
-          currencyFormatter={formatCurrency}
-          title="Top selling medicines"
-          emptyLabel="No paid customer orders yet."
-        />
-      </ScrollView>
-    );
-  }
-
   function renderBody() {
     if (activeTab === 'orders') {
-      return renderOrders();
+      return (
+        <RetailerOrdersTab
+          mode={mode}
+          orders={orders}
+          filteredOrders={filteredOrders}
+          selectedOrder={selectedOrder}
+          onSelectOrder={selectOrder}
+          searchText={searchText}
+          setSearchText={setSearchText}
+          orderFilter={orderFilter}
+          setOrderFilter={setOrderFilter}
+          prescriptionApprovalNote={prescriptionApprovalNote}
+          setPrescriptionApprovalNote={setPrescriptionApprovalNote}
+          rejectionReason={rejectionReason}
+          setRejectionReason={setRejectionReason}
+          courierName={courierName}
+          setCourierName={setCourierName}
+          courierPhone={courierPhone}
+          setCourierPhone={setCourierPhone}
+          courierEtaMinutes={courierEtaMinutes}
+          setCourierEtaMinutes={setCourierEtaMinutes}
+          approveOrder={approveOrder}
+          rejectOrder={rejectOrder}
+          moveOrder={moveOrder}
+          shareCourierLocation={shareCourierLocation}
+          openPrescription={openPrescription}
+        />
+      );
     }
 
     if (activeTab === 'inventory') {
-      return renderInventory();
+      return (
+        <RetailerInventoryTab
+          mode={mode}
+          filteredInventory={filteredInventory}
+          searchText={searchText}
+          setSearchText={setSearchText}
+          inventoryFilter={inventoryFilter}
+          setInventoryFilter={setInventoryFilter}
+          increaseInventoryStock={increaseInventoryStock}
+          addDemoBatch={addDemoBatch}
+        />
+      );
     }
 
     if (activeTab === 'buy') {
-      return renderBuy();
+      return (
+        <RetailerBuyTab
+          mode={mode}
+          inventory={inventory}
+          wholesellers={wholesellers}
+          selectedWholesellerId={selectedWholesellerId}
+          setSelectedWholesellerId={setSelectedWholesellerId}
+          buySearchText={buySearchText}
+          setBuySearchText={setBuySearchText}
+          buyResults={buyResults}
+          purchaseOrders={purchaseOrders}
+          placePurchaseOrder={placePurchaseOrder}
+          confirmPurchaseReceipt={confirmPurchaseReceipt}
+        />
+      );
     }
 
     if (activeTab === 'analytics') {
-      return renderAnalytics();
+      return <RetailerAnalyticsTab mode={mode} summary={summary} />;
     }
 
-    return renderDashboard();
+    return (
+      <RetailerDashboardTab
+        mode={mode}
+        orders={orders}
+        summary={summary}
+        selectedOrder={selectedOrder}
+        onSelectOrder={selectOrder}
+        setOrderFilter={setOrderFilter}
+        setInventoryFilter={setInventoryFilter}
+        setActiveTab={setActiveTab}
+      />
+    );
+  }
+
+  function selectOrder(id: string) {
+    setSelectedOrderId(id);
+    setActiveTab('orders');
   }
 
   return (
@@ -1368,356 +625,3 @@ export function RetailerModuleApp({ session, onSignOut }: RetailerModuleAppProps
     </SafeAreaView>
   );
 }
-
-function KpiCard({
-  mode,
-  label,
-  value,
-  icon,
-  tone,
-  onPress,
-}: {
-  mode: ThemeMode;
-  label: string;
-  value: string | number;
-  icon: keyof typeof Feather.glyphMap;
-  tone: string;
-  onPress?: () => void;
-}) {
-  const theme = themes[mode];
-
-  return (
-    <InteractivePressable
-      onPress={onPress ?? (() => undefined)}
-      style={[
-        styles.kpiCard,
-        { backgroundColor: theme.surface, borderColor: theme.hairline },
-        glowShadow(theme.shadow, 0.45, 20, 10),
-      ]}
-      hoveredStyle={{ backgroundColor: theme.surfaceAlt, borderColor: tone }}
-    >
-      <View style={[styles.kpiAccent, { backgroundColor: tone }]} />
-      <View style={[styles.kpiIcon, { backgroundColor: `${tone}22` }]}>
-        <Feather name={icon} size={18} color={tone} />
-      </View>
-      <Text style={[styles.kpiValue, { color: theme.text }]}>{value}</Text>
-      <Text style={[styles.kpiLabel, { color: theme.subtext }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
-
-function Chip({
-  mode,
-  label,
-  active,
-  onPress,
-}: {
-  mode: ThemeMode;
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  const theme = themes[mode];
-
-  return (
-    <InteractivePressable
-      onPress={onPress}
-      style={[
-        styles.chip,
-        {
-          backgroundColor: active ? theme.primarySoft : theme.surface,
-          borderColor: active ? theme.primary : theme.border,
-        },
-      ]}
-      hoveredStyle={{ backgroundColor: theme.surfaceAlt }}
-    >
-      <Text style={[styles.chipText, { color: active ? theme.primaryStrong : theme.text }]}>{label}</Text>
-    </InteractivePressable>
-  );
-}
-
-function BillRow({ mode, label, value, strong = false }: { mode: ThemeMode; label: string; value: string; strong?: boolean }) {
-  const theme = themes[mode];
-
-  return (
-    <View style={styles.billRow}>
-      <Text style={[strong ? styles.billStrong : styles.billText, { color: strong ? theme.text : theme.subtext }]}>{label}</Text>
-      <Text style={[strong ? styles.billStrong : styles.billText, { color: theme.text }]}>{value}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    gap: 5,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  storeName: {
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  storeMeta: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  helper: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    width: '100%',
-    maxWidth: 980,
-    alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 116,
-    gap: 12,
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  kpiCard: {
-    flexGrow: 1,
-    minWidth: 150,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-    gap: 8,
-    overflow: 'hidden',
-  },
-  kpiAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    opacity: 0.9,
-  },
-  kpiIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  kpiValue: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  kpiLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  cardHeaderText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    lineHeight: 20,
-  },
-  cardMeta: {
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  inlineMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 10,
-  },
-  statusPill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  rxBadge: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  emptyText: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    minHeight: 46,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
-  textArea: {
-    minHeight: 82,
-    paddingTop: 10,
-    paddingBottom: 10,
-    textAlignVertical: 'top',
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingVertical: 2,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  detailPanel: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 10,
-  },
-  table: {
-    gap: 8,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  tableName: {
-    flex: 1,
-    minWidth: 0,
-  },
-  billBox: {
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: 'rgba(77, 168, 255, 0.08)',
-    gap: 6,
-  },
-  billRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  billText: {
-    fontSize: 13,
-  },
-  billStrong: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  rxBox: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 5,
-  },
-  reviewNote: {
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  actionButton: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  stockNumber: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  stockTrack: {
-    height: 8,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  stockFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  tabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
-    borderTopWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    minHeight: 58,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  tabLabel: {
-    fontSize: 9,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-});
